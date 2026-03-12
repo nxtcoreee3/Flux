@@ -30,18 +30,29 @@ When a user presses Play, they are redirected to the page where the game is host
 # Project Structure
 
 /flux
+   
    index.html
+   
    games.html
+   
    info.html
+   
    credits.html
+   
    donate.html
+   
    style.css
+   
    script.js
 
 /assets
+   
    Drive-Mad.png
+   
    Stickman-Hook.png
+   
    Geometry-Dash-Lite.png
+   
    IMG_0556.JPG
 
 ⸻
