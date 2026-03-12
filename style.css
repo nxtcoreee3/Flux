@@ -1,0 +1,113 @@
+body{
+margin:0;
+background:#0f0f0f;
+font-family:'DM Sans',sans-serif;
+color:white;
+}
+
+.navbar{
+display:flex;
+justify-content:space-between;
+align-items:center;
+padding:20px 60px;
+background:#151515;
+}
+
+.logo{
+font-family:'Bebas Neue';
+font-size:40px;
+letter-spacing:2px;
+}
+
+.navbar ul{
+display:flex;
+list-style:none;
+gap:30px;
+}
+
+.navbar a{
+color:white;
+text-decoration:none;
+font-weight:600;
+}
+
+.hero{
+text-align:center;
+padding:120px 20px;
+}
+
+.hero h1{
+font-size:64px;
+font-family:'Bebas Neue';
+}
+
+.primary-btn{
+padding:15px 35px;
+background:#3a7dff;
+border-radius:10px;
+color:white;
+text-decoration:none;
+font-weight:600;
+}
+
+.featured{
+padding:60px;
+}
+
+.game-grid{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+gap:30px;
+}
+
+.game-card{
+background:#1c1c1c;
+border-radius:14px;
+overflow:hidden;
+transition:.2s;
+text-align:center;
+}
+
+.game-card:hover{
+transform:translateY(-5px);
+}
+
+.game-card img{
+width:100%;
+}
+
+.game-card h3{
+margin:10px;
+}
+
+.play-btn{
+display:inline-block;
+margin:10px;
+padding:10px 20px;
+background:#3a7dff;
+border-radius:8px;
+color:white;
+text-decoration:none;
+}
+
+.creator-card{
+text-align:center;
+}
+
+.creator-card img{
+width:140px;
+border-radius:50%;
+}
+
+.support-btn{
+display:block;
+width:250px;
+margin:20px auto;
+padding:15px;
+background:#3a7dff;
+text-align:center;
+border-radius:10px;
+text-decoration:none;
+color:white;
+font-weight:600;
+}
