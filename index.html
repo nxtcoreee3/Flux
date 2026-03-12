@@ -3,41 +3,76 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Donate — Flux</title>
+  <title>Flux — Play Unblocked</title>
+
+  <!-- Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+
   <link rel="stylesheet" href="style.css">
+  <meta name="theme-color" content="#0f1724">
 </head>
 <body>
   <header class="topbar">
     <div class="brand">
       <a href="index.html" class="logo">FLUX</a>
+      <span class="tag">Play fast • Play simple</span>
     </div>
 
     <nav class="nav">
       <button class="nav-toggle" aria-controls="main-nav" aria-expanded="false">☰</button>
       <ul id="main-nav" class="nav-list">
-        <li><a href="index.html">Home</a></li>
+        <li><a href="index.html" class="active">Home</a></li>
         <li><a href="games.html">Games</a></li>
         <li><a href="info.html">Info</a></li>
         <li><a href="credits.html">Credits</a></li>
-        <li><a href="donate.html" class="active accent">Donate</a></li>
+        <li><a href="donate.html" class="accent">Donate</a></li>
       </ul>
     </nav>
 
     <div class="right-actions">
-      <a class="icon-btn" href="https://github.com/nxtcoreee3/flux" target="_blank" rel="noopener">⭐ Star</a>
+      <a class="icon-btn" href="https://github.com/nxtcoreee3/flux" target="_blank" rel="noopener">
+        ⭐ Star
+      </a>
+      <a class="cta" href="games.html">Play Now</a>
     </div>
   </header>
 
-  <main class="donate-page">
-    <section class="section glass">
-      <h2>Support the Project</h2>
-      <p>If you like Flux and want to support development, you can star the repo or buy us a coffee. All support goes to hosting and improvements.</p>
+  <main>
+    <section class="hero glass">
+      <div class="hero-inner">
+        <h1>Play great web games instantly</h1>
+        <p>Curated game portal — quick to launch, clean UI, works well on any device.</p>
 
-      <div class="donate-actions">
-        <a class="big-btn" href="https://github.com/nxtcoreee3/flux" target="_blank" rel="noopener">⭐ Star this project</a>
-        <a class="big-btn alt" href="https://ko-fi.com/nxtcoreee3" target="_blank" rel="noopener">☕ Buy us a coffee</a>
+        <div class="hero-actions">
+          <a href="games.html" class="btn-large">Browse Games</a>
+          <a href="donate.html" class="btn-ghost">Support</a>
+        </div>
       </div>
+
+      <div class="hero-visual" aria-hidden="true">
+        <!-- decorative game tiles -->
+        <div class="tile tile-1"></div>
+        <div class="tile tile-2"></div>
+        <div class="tile tile-3"></div>
+      </div>
+    </section>
+
+    <section class="section featured">
+      <div class="section-head">
+        <h2>Featured</h2>
+        <div class="search-wrap">
+          <input id="quick-search" type="search" placeholder="Search games..." aria-label="Search games">
+        </div>
+      </div>
+
+      <div id="game-grid" class="grid">
+        <!-- Game cards are rendered by script.js for easy maintenance -->
+      </div>
+    </section>
+
+    <section class="section how glass">
+      <h3>How it works</h3>
+      <p>Each game is hosted separately on its own public page. When you click Play Flux tries to load the game in a popup iframe. If a site prevents embedding, we provide a clear fallback to open the game in a new tab. Flux only links to public pages — it does not modify networks or bypass security systems.</p>
     </section>
   </main>
 
@@ -45,10 +80,46 @@
     <div class="footer-inner">
       <div class="footer-brand">
         <a href="index.html" class="logo-small">FLUX</a>
+        <p>Curated links • Hosted games • Built by <a href="https://github.com/nxtcoreee3" target="_blank" rel="noopener">nxtcoreee3</a></p>
+      </div>
+
+      <div class="footer-links">
+        <a href="games.html">Games</a>
+        <a href="info.html">Info</a>
+        <a href="credits.html">Credits</a>
+        <a href="donate.html">Donate</a>
+      </div>
+
+      <div class="footer-actions">
+        <a class="star-btn" href="https://github.com/nxtcoreee3/flux" target="_blank" rel="noopener">⭐ Star this project</a>
+        <a class="coffee-btn" href="https://ko-fi.com/nxtcoreee3" target="_blank" rel="noopener">☕ Buy us a coffee</a>
       </div>
     </div>
-    <small class="copyright">Flux © <span id="year5"></span></small>
+    <small class="copyright">Flux © <span id="year"></span> · All rights reserved</small>
   </footer>
+
+  <!-- PLAY MODAL -->
+  <div id="play-modal" class="modal" aria-hidden="true">
+    <div class="modal-backdrop" data-close></div>
+    <aside class="modal-panel" role="dialog" aria-modal="true" aria-label="Play game">
+      <header class="modal-header">
+        <div id="modal-title">Loading...</div>
+        <div class="modal-tools">
+          <button id="open-tab" class="tool-btn">Open in new tab</button>
+          <button id="close-modal" class="tool-btn" aria-label="Close">✕</button>
+        </div>
+      </header>
+
+      <div class="modal-body">
+        <div id="iframe-wrap" class="iframe-wrap">
+          <iframe id="game-iframe" src="" frameborder="0" allow="autoplay; fullscreen" sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
+        </div>
+        <div id="embed-warning" class="embed-warning hidden">
+          This site prevents embedding. <a id="open-fallback" href="#" target="_blank" rel="noopener">Open in a new tab</a>
+        </div>
+      </div>
+    </aside>
+  </div>
 
   <script src="script.js" defer></script>
 </body>
