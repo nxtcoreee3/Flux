@@ -58,18 +58,16 @@
     </section>
 
     <section class="section featured">
-      <div class="section-head">
-        <h2>Featured</h2>
-        <div class="search-wrap">
-          <input id="quick-search" type="search" placeholder="Search games..." aria-label="Search games">
-        </div>
-      </div>
+  <div class="section-head">
+    <h2>Featured</h2>
+    <div class="search-wrap">
+      <input id="quick-search" type="search" placeholder="Search games..." aria-label="Search games">
+    </div>
+  </div>
 
-      <div id="game-grid" class="grid">
-        <!-- Game cards are rendered by script.js for easy maintenance -->
-      </div>
-    </section>
-
+  <!-- THIS IS THE GAME GRID -->
+  <div id="game-grid" class="grid"></div>
+</section>
     <section class="section how glass">
       <h3>How it works</h3>
       <p>Each game is hosted separately on its own public page. When you click Play Flux tries to load the game in a popup iframe. If a site prevents embedding, we provide a clear fallback to open the game in a new tab. Flux only links to public pages — it does not modify networks or bypass security systems.</p>
