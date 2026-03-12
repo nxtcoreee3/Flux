@@ -1,22 +1,20 @@
 /* style.css — modern dark glassmorphism, Bebas Neue headings, DM Sans body
    Responsive, accessible, and animated.
 */
-
-/* --- Base --- */
+/* BASEEE */
 :root{
-  --bg:#07080b;
-  --panel:#0f1724;
-  --glass-bg: rgba(255,255,255,0.04);
-  --glass-border: rgba(255,255,255,0.06);
-  --accent:#3a7dff;
-  --muted:#9aa4b2;
-  --card:#0e1116;
+  --bg:#f5f5f5;        /* main background - light gray */
+  --panel:#ffffff;     /* panel/section background */
+  --glass-bg: rgba(255,255,255,0.7); /* glass effect more visible on light */
+  --glass-border: rgba(0,0,0,0.08);
+  --accent:#3a7dff;    /* keep blue accent */
+  --muted:#666666;     /* muted text darker for readability */
+  --card:#ffffff;      /* card background white */
   --glass-blur:10px;
   --radius:14px;
-  --glass-shadow: 0 8px 30px rgba(15,22,36,0.6);
-  --glass-gradient: linear-gradient(135deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  --glass-shadow: 0 8px 30px rgba(0,0,0,0.1); /* subtle shadow */
+  --glass-gradient: linear-gradient(135deg, rgba(255,255,255,0.5), rgba(255,255,255,0.3));
 }
-
 *{box-sizing:border-box}
 html,body{height:100%}
 body{
