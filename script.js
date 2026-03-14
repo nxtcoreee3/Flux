@@ -8,7 +8,7 @@
    - Firebase Auth
 */
 
-import { initAuthUI } from './firebase-auth.js';
+import { initAuthUI, loadCloudFavs, saveCloudFavs } from './firebase-auth.js';
 
 const GAMES = [
   {
@@ -82,16 +82,33 @@ document.addEventListener('click', (e) => {
   if(el) el.textContent = (new Date()).getFullYear();
 });
 
-/* FAVORITES */
+/* FAVORITES — syncs to Firestore when signed in, falls back to localStorage */
 const FAVORITES_KEY = 'flux_favs';
-function loadFavs(){ try{ return JSON.parse(localStorage.getItem(FAVORITES_KEY)) || []; }catch{ return []; } }
-function saveFavs(arr){ localStorage.setItem(FAVORITES_KEY, JSON.stringify(arr)); }
-function isFav(id){ return loadFavs().includes(id); }
-function toggleFav(id){
-  const favs = loadFavs();
-  const idx = favs.indexOf(id);
-  if(idx === -1) favs.push(id); else favs.splice(idx,1);
-  saveFavs(favs);
+function loadLocalFavs(){ try{ return JSON.parse(localStorage.getItem(FAVORITES_KEY)) || []; }catch{ return []; } }
+function saveLocalFavs(arr){ localStorage.setItem(FAVORITES_KEY, JSON.stringify(arr)); }
+
+// In-memory cache so UI stays snappy
+let _favsCache = loadLocalFavs();
+
+async function refreshFavsCache() {
+  const cloud = await loadCloudFavs();
+  if (cloud !== null) {
+    _favsCache = cloud;
+    saveLocalFavs(cloud); // keep local in sync
+  } else {
+    _favsCache = loadLocalFavs();
+  }
+  // re-render cards to reflect updated favorites
+  applyFilters();
+}
+
+function isFav(id){ return _favsCache.includes(id); }
+
+async function toggleFav(id){
+  const idx = _favsCache.indexOf(id);
+  if(idx === -1) _favsCache.push(id); else _favsCache.splice(idx, 1);
+  saveLocalFavs(_favsCache);
+  await saveCloudFavs(_favsCache);
 }
 
 /* Renderers */
@@ -119,10 +136,11 @@ function createCard(game){
 
   // favorite button
   const favBtn = div.querySelector('.favorite');
-  favBtn.addEventListener('click', () => {
-    toggleFav(game.id);
+  favBtn.addEventListener('click', async () => {
+    await toggleFav(game.id);
     favBtn.textContent = isFav(game.id) ? '★' : '☆';
     favBtn.classList.toggle('active', isFav(game.id));
+    favBtn.setAttribute('aria-pressed', String(isFav(game.id)));
   });
   favBtn.classList.toggle('active', isFav(game.id));
   favBtn.setAttribute('aria-pressed', String(isFav(game.id)));
@@ -189,8 +207,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if(document.getElementById('quick-search')){
     document.getElementById('quick-search').addEventListener('input', debounce(applyFilters, 120));
   }
-  // init Firebase auth UI
-  initAuthUI();
+  // init Firebase auth UI — refresh favorites when user signs in/out
+  initAuthUI(async (user) => {
+    await refreshFavsCache();
+  });
 });
 
 /* --- Play modal: robust iframe embedding with fallback --- */

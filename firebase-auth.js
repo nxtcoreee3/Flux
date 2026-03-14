@@ -14,6 +14,12 @@ import {
   GoogleAuthProvider,
   signOut
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import {
+  getFirestore,
+  doc,
+  getDoc,
+  setDoc
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCHm6nxHzrIGHmWb1W_xDAYwnSoed6oTi4",
@@ -26,6 +32,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+const db = getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
 
 /* --- Auth actions --- */
@@ -53,8 +60,33 @@ export function onAuthChange(callback) {
   onAuthStateChanged(auth, callback);
 }
 
+export function getCurrentUser() {
+  return auth.currentUser;
+}
+
+/* --- Firestore favorites --- */
+export async function loadCloudFavs() {
+  const user = auth.currentUser;
+  if (!user || user.isAnonymous) return null;
+  try {
+    const ref = doc(db, 'users', user.uid);
+    const snap = await getDoc(ref);
+    if (snap.exists()) return snap.data().favorites || [];
+    return [];
+  } catch { return null; }
+}
+
+export async function saveCloudFavs(favs) {
+  const user = auth.currentUser;
+  if (!user || user.isAnonymous) return;
+  try {
+    const ref = doc(db, 'users', user.uid);
+    await setDoc(ref, { favorites: favs }, { merge: true });
+  } catch (e) { console.warn('Could not save favorites:', e); }
+}
+
 /* --- UI: inject auth button into topbar --- */
-export function initAuthUI() {
+export function initAuthUI(onUserChange) {
   const rightActions = document.querySelector('.right-actions');
   if (!rightActions) return;
 
@@ -181,28 +213,24 @@ export function initAuthUI() {
     el.style.display = 'block';
   }
 
-  // Watch auth state
-  onAuthChange((user) => {
+  // Watch auth state — notify script.js so it can reload favorites
+  onAuthChange(async (user) => {
     if (user) {
       authBtn.style.display = 'none';
       userDisplay.style.display = 'flex';
-
       const avatar = document.getElementById('user-avatar');
       const name = document.getElementById('user-name');
-
       if (user.isAnonymous) {
         name.textContent = 'Guest';
         avatar.style.display = 'none';
       } else {
         name.textContent = user.displayName || user.email;
-        if (user.photoURL) {
-          avatar.src = user.photoURL;
-          avatar.style.display = 'block';
-        }
+        if (user.photoURL) { avatar.src = user.photoURL; avatar.style.display = 'block'; }
       }
     } else {
       authBtn.style.display = '';
       userDisplay.style.display = 'none';
     }
+    if (onUserChange) onUserChange(user);
   });
 }
