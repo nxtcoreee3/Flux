@@ -101,13 +101,52 @@ export function initAuthUI(onUserChange) {
   // Create user display (hidden initially)
   const userDisplay = document.createElement('div');
   userDisplay.id = 'user-display';
-  userDisplay.style.cssText = 'display:none;align-items:center;gap:8px;';
+  userDisplay.style.cssText = 'display:none;align-items:center;gap:8px;position:relative;cursor:pointer;';
   userDisplay.innerHTML = `
     <img id="user-avatar" src="" alt="avatar" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:1px solid rgba(0,0,0,0.1);display:none;">
     <span id="user-name" style="font-size:13px;font-weight:600;color:#111827;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
-    <button id="sign-out-btn" class="icon-btn" style="cursor:pointer;font-size:12px;padding:6px 10px;">Sign Out</button>
+    <span style="color:#6b7280;font-size:11px;">▾</span>
+    <div id="profile-dropdown" style="display:none;position:absolute;top:calc(100% + 10px);right:0;background:#fff;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,0.15);border:1px solid rgba(0,0,0,0.07);width:260px;z-index:300;overflow:hidden;">
+      <div style="padding:16px;border-bottom:1px solid rgba(0,0,0,0.06);display:flex;align-items:center;gap:12px;">
+        <img id="profile-avatar-large" src="" alt="avatar" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:1px solid rgba(0,0,0,0.08);display:none;flex-shrink:0;">
+        <div id="profile-avatar-placeholder" style="width:44px;height:44px;border-radius:50%;background:#3a7dff;display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:18px;flex-shrink:0;">?</div>
+        <div style="overflow:hidden;">
+          <div id="profile-display-name" style="font-weight:700;font-size:14px;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
+          <div id="profile-email" style="font-size:12px;color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
+        </div>
+      </div>
+      <div style="padding:12px 16px;border-bottom:1px solid rgba(0,0,0,0.06);display:flex;align-items:center;gap:8px;">
+        <span style="font-size:16px;">★</span>
+        <span id="profile-fav-count" style="font-size:13px;color:#111827;font-weight:600;">0 favourited games</span>
+      </div>
+      <button id="change-password-btn" style="width:100%;padding:12px 16px;background:none;border:none;border-bottom:1px solid rgba(0,0,0,0.06);text-align:left;cursor:pointer;font-size:13px;color:#111827;display:flex;align-items:center;gap:10px;">
+        <span>🔑</span> Change Password
+      </button>
+      <a href="info.html" style="display:flex;align-items:center;gap:10px;padding:12px 16px;font-size:13px;color:#111827;text-decoration:none;border-bottom:1px solid rgba(0,0,0,0.06);">
+        <span>🔒</span> Privacy Policy
+      </a>
+      <button id="sign-out-btn" style="width:100%;padding:12px 16px;background:none;border:none;text-align:left;cursor:pointer;font-size:13px;color:#ef4444;display:flex;align-items:center;gap:10px;">
+        <span>🚪</span> Sign Out
+      </button>
+    </div>
   `;
   rightActions.prepend(userDisplay);
+
+  // Change password modal
+  const pwModal = document.createElement('div');
+  pwModal.id = 'pw-modal';
+  pwModal.style.cssText = 'display:none;position:fixed;inset:0;z-index:400;align-items:center;justify-content:center;background:rgba(0,0,0,0.3);backdrop-filter:blur(4px);';
+  pwModal.innerHTML = `
+    <div style="background:#fff;border-radius:16px;padding:28px;width:100%;max-width:340px;box-shadow:0 30px 80px rgba(0,0,0,0.15);position:relative;">
+      <button id="pw-modal-close" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:18px;cursor:pointer;color:#6b7280;">✕</button>
+      <h3 style="font-family:'Bebas Neue',sans-serif;font-size:24px;margin:0 0 16px;color:#111827;">Change Password</h3>
+      <input id="pw-new" type="password" placeholder="New password" style="width:100%;padding:10px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:14px;margin-bottom:8px;box-sizing:border-box;outline:none;">
+      <input id="pw-confirm" type="password" placeholder="Confirm new password" style="width:100%;padding:10px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:14px;margin-bottom:12px;box-sizing:border-box;outline:none;">
+      <button id="pw-save-btn" style="width:100%;padding:10px;background:#3a7dff;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">Save Password</button>
+      <p id="pw-msg" style="font-size:12px;margin:8px 0 0;text-align:center;display:none;"></p>
+    </div>
+  `;
+  document.body.appendChild(pwModal);
 
   // Auth modal
   const modal = document.createElement('div');
@@ -204,11 +243,53 @@ export function initAuthUI(onUserChange) {
 
   document.getElementById('sign-out-btn').addEventListener('click', async () => {
     await logOut();
+    document.getElementById('profile-dropdown').style.display = 'none';
+  });
+
+  // Toggle dropdown on profile click
+  userDisplay.addEventListener('click', (e) => {
+    const dd = document.getElementById('profile-dropdown');
+    dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+    e.stopPropagation();
+  });
+
+  // Close dropdown on outside click
+  document.addEventListener('click', () => {
+    const dd = document.getElementById('profile-dropdown');
+    if (dd) dd.style.display = 'none';
+  });
+
+  // Change password
+  document.getElementById('change-password-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.getElementById('profile-dropdown').style.display = 'none';
+    pwModal.style.display = 'flex';
+  });
+
+  document.getElementById('pw-modal-close').addEventListener('click', () => { pwModal.style.display = 'none'; });
+  pwModal.addEventListener('click', (e) => { if (e.target === pwModal) pwModal.style.display = 'none'; });
+
+  document.getElementById('pw-save-btn').addEventListener('click', async () => {
+    const { updatePassword } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
+    const newPw = document.getElementById('pw-new').value;
+    const confirmPw = document.getElementById('pw-confirm').value;
+    const msg = document.getElementById('pw-msg');
+    msg.style.display = 'block';
+    if (newPw !== confirmPw) { msg.style.color = '#ef4444'; msg.textContent = 'Passwords do not match.'; return; }
+    if (newPw.length < 6) { msg.style.color = '#ef4444'; msg.textContent = 'Password must be at least 6 characters.'; return; }
+    try {
+      await updatePassword(auth.currentUser, newPw);
+      msg.style.color = '#22c55e';
+      msg.textContent = 'Password updated!';
+      setTimeout(() => { pwModal.style.display = 'none'; msg.style.display = 'none'; }, 1500);
+    } catch (err) {
+      msg.style.color = '#ef4444';
+      msg.textContent = err.message.replace('Firebase: ', '').replace(/\(auth\/.*\)/, '').trim();
+    }
   });
 
   function showAuthError(msg) {
     const el = document.getElementById('auth-error');
-    // clean up firebase error prefix
     el.textContent = msg.replace('Firebase: ', '').replace(/\(auth\/.*\)/, '').trim();
     el.style.display = 'block';
   }
@@ -220,12 +301,38 @@ export function initAuthUI(onUserChange) {
       userDisplay.style.display = 'flex';
       const avatar = document.getElementById('user-avatar');
       const name = document.getElementById('user-name');
+      const profileName = document.getElementById('profile-display-name');
+      const profileEmail = document.getElementById('profile-email');
+      const profileAvatarLarge = document.getElementById('profile-avatar-large');
+      const profilePlaceholder = document.getElementById('profile-avatar-placeholder');
+
       if (user.isAnonymous) {
         name.textContent = 'Guest';
         avatar.style.display = 'none';
+        profileName.textContent = 'Guest';
+        profileEmail.textContent = 'Anonymous session';
+        profilePlaceholder.textContent = '?';
+        profileAvatarLarge.style.display = 'none';
+        profilePlaceholder.style.display = 'flex';
+        document.getElementById('change-password-btn').style.display = 'none';
       } else {
-        name.textContent = user.displayName || user.email;
-        if (user.photoURL) { avatar.src = user.photoURL; avatar.style.display = 'block'; }
+        const displayName = user.displayName || user.email;
+        name.textContent = displayName;
+        profileName.textContent = displayName;
+        profileEmail.textContent = user.email || '';
+        profilePlaceholder.textContent = (user.displayName || user.email || '?')[0].toUpperCase();
+        if (user.photoURL) {
+          avatar.src = user.photoURL;
+          avatar.style.display = 'block';
+          profileAvatarLarge.src = user.photoURL;
+          profileAvatarLarge.style.display = 'block';
+          profilePlaceholder.style.display = 'none';
+        } else {
+          avatar.style.display = 'none';
+          profileAvatarLarge.style.display = 'none';
+          profilePlaceholder.style.display = 'flex';
+        }
+        document.getElementById('change-password-btn').style.display = 'flex';
       }
     } else {
       authBtn.style.display = '';

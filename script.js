@@ -94,11 +94,13 @@ async function refreshFavsCache() {
   const cloud = await loadCloudFavs();
   if (cloud !== null) {
     _favsCache = cloud;
-    saveLocalFavs(cloud); // keep local in sync
+    saveLocalFavs(cloud);
   } else {
     _favsCache = loadLocalFavs();
   }
-  // re-render cards to reflect updated favorites
+  // update fav count in profile dropdown
+  const countEl = document.getElementById('profile-fav-count');
+  if (countEl) countEl.textContent = `${_favsCache.length} favourited game${_favsCache.length !== 1 ? 's' : ''}`;
   applyFilters();
 }
 
@@ -109,6 +111,8 @@ async function toggleFav(id){
   if(idx === -1) _favsCache.push(id); else _favsCache.splice(idx, 1);
   saveLocalFavs(_favsCache);
   await saveCloudFavs(_favsCache);
+  const countEl = document.getElementById('profile-fav-count');
+  if (countEl) countEl.textContent = `${_favsCache.length} favourited game${_favsCache.length !== 1 ? 's' : ''}`;
 }
 
 /* Renderers */
