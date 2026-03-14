@@ -11,10 +11,16 @@ The project is designed to be minimal and easy to expand, allowing new games to 
 
 Flux currently includes the following games:
 	•	Drive Mad
+	
 	•	Stickman Hook
+	
 	•	Geometry Dash Lite
 
-Each game can be launched directly from the website.
+	•	Cookie Clicker
+
+	•	Monkey Mart
+	
+	Each game can be launched directly from the website.
 
 ⸻
 
