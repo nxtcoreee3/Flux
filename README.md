@@ -55,6 +55,8 @@ When a user presses Play, they are redirected to the page where the game is host
    
    Paper-io.png
    
+   Cookie-Clicker.png
+   
    IMG_0556.JPG
 
 ⸻
