@@ -112,7 +112,7 @@ export function initAuthUI(onUserChange) {
         <div id="profile-avatar-placeholder" style="width:44px;height:44px;border-radius:50%;background:#3a7dff;display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:18px;flex-shrink:0;">?</div>
         <div style="overflow:hidden;">
           <div id="profile-display-name" style="font-weight:700;font-size:14px;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
-          <div id="profile-email" style="font-size:12px;color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
+          <div id="profile-email" style="font-size:12px;color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;filter:blur(4px);transition:filter 0.2s;cursor:pointer;" title="Click to reveal" onmouseenter="this.style.filter='none'" onmouseleave="this.style.filter='blur(4px)'" onclick="this.style.filter=this.style.filter?'':'blur(4px)'"></div>
         </div>
       </div>
       <div style="padding:12px 16px;border-bottom:1px solid rgba(0,0,0,0.06);display:flex;align-items:center;gap:8px;">
