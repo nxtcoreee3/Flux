@@ -173,6 +173,20 @@ function renderGames(list){
   list.forEach(g => {
     grid.appendChild(createCard(g));
   });
+
+  // Render favourites section on games.html
+  const favsGrid = document.getElementById('favourites-grid');
+  const favsSection = document.getElementById('favourites-section');
+  if (favsGrid && favsSection) {
+    const favGames = GAMES.filter(g => isFav(g.id));
+    favsGrid.innerHTML = '';
+    if (favGames.length > 0) {
+      favGames.forEach(g => favsGrid.appendChild(createCard(g)));
+      favsSection.style.display = '';
+    } else {
+      favsSection.style.display = 'none';
+    }
+  }
 }
 
 /* search + sort */
