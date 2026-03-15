@@ -10,6 +10,7 @@ The project is designed to be minimal and easy to expand, allowing new games to 
 # Available Games
 
 Flux currently includes the following games:
+	
 	•	Drive Mad
 	
 	•	Stickman Hook
