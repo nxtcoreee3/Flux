@@ -33,39 +33,7 @@ Instead, the games are hosted on separate GitHub Pages sites. Flux works as a di
 When a user presses Play, they are redirected to the page where the game is hosted and can immediately start playing in their browser.
 
 ⸻
-# Project Structure
 
-/flux
-   
-   index.html
-   
-   games.html
-   
-   info.html
-   
-   credits.html
-   
-   donate.html
-   
-   style.css
-   
-   script.js
-
-/assets
-   
-   Drive-Mad.png
-   
-   Stickman-Hook.png
-   
-   Geometry-Dash-Lite.png
-   
-   Paper-io.png
-   
-   Cookie-Clicker.png
-   
-   IMG_0556.JPG
-
-⸻
 # Support the Project
 
 If you enjoy Flux, you can support the project:
