@@ -20,6 +20,8 @@ Flux currently includes the following games:
 	•	Cookie Clicker
 
 	•	Monkey Mart
+
+	•	Polytrack
 	
 	Each game can be launched directly from the website.
 
