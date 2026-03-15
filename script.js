@@ -55,6 +55,13 @@ const GAMES = [
    thumb: 'assets/polytrack.png',
    url: 'https://nxtcoreee3.github.io/Polytrack/',
    desc: 'Drive and race against your older records.'
+   },
+   {
+  id: 'space-waves',
+  title: 'Space Waves',
+  thumb: 'assets/space-waves.png',
+  url: 'https://nxtcoreee3.github.io/Space-Waves/',
+  desc: 'A fast-paced arcade game where you dodge obstacles through challenging levels.'
    }
 ];
 
