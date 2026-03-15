@@ -61,6 +61,13 @@ const GAMES = [
   thumb: 'assets/space-waves.png',
   url: 'https://nxtcoreee3.github.io/Space-Waves/',
   desc: 'A fast-paced arcade game where you dodge obstacles through challenging levels.'
+   },
+   {
+  id: 'holey-io',
+  title: 'Holey.io',
+  thumb: 'assets/holey-io.png',
+  url: 'https://nxtcoreee3.github.io/Holey-io/',
+  desc: 'Control a black hole, swallow objects, and grow bigger than your rivals.'
    }
 ];
 
