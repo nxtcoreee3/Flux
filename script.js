@@ -48,14 +48,14 @@ const GAMES = [
     url: 'https://nxtcoreee3.github.io/Monkey-Mart/',
     desc: 'Run your own monkey supermarket',
     isNew: true
-  }
+  },
   {
    id: 'polytrack',
    title: 'Polytrack',
    thumb: 'assets/polytrack.png',
    url: 'https://nxtcoreee3.github.io/Polytrack/',
    desc: 'Drive and race against your older records.'
-  },
+  }
 ];
 
 /* --- Utilities --- */
