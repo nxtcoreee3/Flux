@@ -47,7 +47,6 @@ const GAMES = [
     thumb: 'assets/Monkey-Mart.png',
     url: 'https://nxtcoreee3.github.io/Monkey-Mart/',
     desc: 'Run your own monkey supermarket',
-    isNew: true
   },
   {
    id: 'polytrack',
