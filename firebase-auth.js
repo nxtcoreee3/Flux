@@ -866,16 +866,10 @@ export function initServerStatus() {
 
 /* ===================== BROADCAST ===================== */
 export function initBroadcast() {
-  import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({ onSnapshot, doc: firestoreDoc }) => {
+  import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({ onSnapshot, getDoc, doc: firestoreDoc }) => {
     let _lastBroadcastId = null;
 
-    onSnapshot(firestoreDoc(db, 'stats', 'broadcast'), (snap) => {
-      if (!snap.exists()) return;
-      const { message, id } = snap.data();
-      if (!message || id === _lastBroadcastId) return;
-      _lastBroadcastId = id;
-
-      // Show toast-style popup bottom right
+    function showBroadcastToast(message) {
       let container = document.getElementById('toast-container');
       if (!container) {
         container = document.createElement('div');
@@ -883,7 +877,6 @@ export function initBroadcast() {
         container.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none;';
         document.body.appendChild(container);
       }
-
       const toast = document.createElement('div');
       toast.style.cssText = `
         background:#111827;border-radius:12px;padding:14px 18px;
@@ -902,7 +895,30 @@ export function initBroadcast() {
         toast.style.opacity = '0'; toast.style.transform = 'translateY(8px)';
         setTimeout(() => toast.remove(), 250);
       }, 5000);
+    }
+
+    const broadcastRef = firestoreDoc(db, 'stats', 'broadcast');
+
+    // Primary: real-time listener
+    onSnapshot(broadcastRef, (snap) => {
+      if (!snap.exists()) return;
+      const { message, id } = snap.data();
+      if (!message || id === _lastBroadcastId) return;
+      _lastBroadcastId = id;
+      showBroadcastToast(message);
     });
+
+    // Fallback poll every 3s for mobile browsers
+    setInterval(async () => {
+      try {
+        const snap = await getDoc(broadcastRef);
+        if (!snap.exists()) return;
+        const { message, id } = snap.data();
+        if (!message || id === _lastBroadcastId) return;
+        _lastBroadcastId = id;
+        showBroadcastToast(message);
+      } catch {}
+    }, 3000);
   });
 }
 
@@ -997,10 +1013,24 @@ export function initChaos() {
     }
   }
 
-  import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({ onSnapshot, doc: firestoreDoc }) => {
-    onSnapshot(firestoreDoc(db, 'stats', 'chaos'), (snap) => {
+  import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({ onSnapshot, getDoc, doc: firestoreDoc }) => {
+    const chaosRef = firestoreDoc(db, 'stats', 'chaos');
+
+    // Primary: real-time listener
+    onSnapshot(chaosRef, (snap) => {
       const effects = snap.exists() ? (snap.data().effects || []) : [];
       applyEffects(effects);
     });
+
+    // Fallback poll every 3s for mobile browsers that drop WebSocket connections
+    setInterval(async () => {
+      try {
+        const snap = await getDoc(chaosRef);
+        const effects = snap.exists() ? (snap.data().effects || []) : [];
+        const effectsKey = [...effects].sort().join(',');
+        const activeKey = [..._activeEffects].sort().join(',');
+        if (effectsKey !== activeKey) applyEffects(effects);
+      } catch {}
+    }, 3000);
   });
 }
