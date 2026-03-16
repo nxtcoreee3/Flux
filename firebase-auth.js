@@ -20,8 +20,6 @@ import {
   setDoc,
   updateDoc,
   increment,
-  collection,
-  getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import {
   getDatabase,
@@ -101,13 +99,8 @@ export function initPresence() {
 /* ===================== GLOBAL FAV COUNT ===================== */
 async function fetchGlobalFavCount() {
   try {
-    const snap = await getDocs(collection(db, 'users'));
-    let total = 0;
-    snap.forEach(d => {
-      const favs = d.data().favorites || [];
-      total += favs.length;
-    });
-    return total;
+    const snap = await getDoc(doc(db, 'stats', 'favourites'));
+    return snap.exists() ? (snap.data().total || 0) : 0;
   } catch { return '—'; }
 }
 
@@ -294,7 +287,23 @@ export async function saveCloudFavs(favs) {
   const user = auth.currentUser;
   if (!user || user.isAnonymous) return;
   try {
-    await setDoc(doc(db, 'users', user.uid), { favorites: favs }, { merge: true });
+    const { runTransaction } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const userRef = doc(db, 'users', user.uid);
+    const statsRef = doc(db, 'stats', 'favourites');
+
+    await runTransaction(db, async (tx) => {
+      const prevSnap = await tx.get(userRef);
+      const prevCount = prevSnap.exists() ? (prevSnap.data().favorites || []).length : 0;
+      const diff = favs.length - prevCount;
+
+      tx.set(userRef, { favorites: favs }, { merge: true });
+
+      if (diff !== 0) {
+        const statsSnap = await tx.get(statsRef);
+        const currentTotal = statsSnap.exists() ? (statsSnap.data().total || 0) : 0;
+        tx.set(statsRef, { total: Math.max(0, currentTotal + diff) });
+      }
+    });
   } catch (e) { console.warn('Could not save favorites:', e); }
 }
 
@@ -658,6 +667,7 @@ export function initServerStatus() {
   ];
 
   let _countdownInterval = null;
+  let _viewerPoll = null;
 
   import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({ onSnapshot, setDoc, doc: firestoreDoc }) => {
     const statusRef = firestoreDoc(db, 'stats', 'server');
@@ -666,88 +676,130 @@ export function initServerStatus() {
       if (!snap.exists()) return;
       const { status, message, restoreAt } = snap.data();
 
+      // Clean up timers
+      if (_countdownInterval) { clearInterval(_countdownInterval); _countdownInterval = null; }
+      if (_viewerPoll) { clearInterval(_viewerPoll); _viewerPoll = null; }
+
       if (status === 'online') {
-        const existing = document.getElementById('server-status-overlay');
-        if (existing) existing.remove();
-        if (_countdownInterval) { clearInterval(_countdownInterval); _countdownInterval = null; }
+        document.getElementById('server-status-overlay')?.remove();
+        document.getElementById('server-status-banner')?.remove();
         return;
       }
 
       const applyOverlay = (isAdmin) => {
-        if (_countdownInterval) { clearInterval(_countdownInterval); _countdownInterval = null; }
-
-        let overlay = document.getElementById('server-status-overlay');
-        if (!overlay) {
-          overlay = document.createElement('div');
-          overlay.id = 'server-status-overlay';
-          document.body.appendChild(overlay);
-        }
-
         const isCrash = status === 'crash';
         const err = ERROR_CODES[Math.floor(Math.random() * ERROR_CODES.length)];
         const lineNo = Math.floor(Math.random() * 900) + 100;
         const viewerCount = _onlineCount || 0;
 
-        overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:#0f0f0f;overflow-y:auto;';
-        overlay.innerHTML = `
-          <div style="text-align:center;max-width:500px;padding:32px;width:100%;">
-            <img src="assets/holyshititcrashed.gif" alt="" style="max-width:280px;width:100%;border-radius:12px;margin-bottom:24px;">
-            <h1 style="font-family:'Bebas Neue',sans-serif;font-size:48px;color:#fff;margin:0 0 12px;">
-              ${isCrash ? 'Server Crashed' : 'Servers are currently shut down!'}
-            </h1>
-            <p style="color:#9ca3af;font-size:15px;line-height:1.6;margin:0 0 16px;">${message}</p>
-
-            <!-- Viewer count -->
-            <div style="display:inline-flex;align-items:center;gap:8px;background:#1a1a1a;border-radius:20px;padding:6px 16px;margin-bottom:20px;">
-              <span style="width:7px;height:7px;border-radius:50%;background:#ef4444;display:inline-block;animation:pulse-dot 2s infinite;"></span>
-              <span id="overlay-viewer-count" style="font-size:13px;color:#9ca3af;">${viewerCount} ${viewerCount === 1 ? 'person' : 'people'} watching</span>
-            </div>
-
-            ${isCrash ? `
-            <div style="background:#1f1f1f;border-radius:8px;padding:12px 16px;font-family:monospace;font-size:12px;color:#ef4444;text-align:left;margin-bottom:16px;">
-              <div style="color:#6b7280;margin-bottom:4px;">// ${err.code}</div>
-              Error: ECONNREFUSED — ${err.code}<br>
-              at ${err.func} (${err.trace}:${lineNo}:12)<br>
-              at processNextTick (internal/process/next_tick.js:68:5)<br>
-              at runMicrotasks (&lt;anonymous&gt;)
-            </div>` : ''}
-
-            ${restoreAt ? `<div style="color:#6b7280;font-size:13px;margin-bottom:16px;">Auto-restoring in <span id="overlay-countdown" style="color:#fff;font-weight:700;">...</span></div>` : ''}
-
-            ${isAdmin ? `<button id="overlay-restore-btn" style="margin-bottom:16px;padding:10px 24px;background:#22c55e;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">✅ Restore Server</button><br>` : ''}
-            <p style="color:#4b5563;font-size:12px;margin-top:4px;">© Flux ${new Date().getFullYear()}</p>
-          </div>
-        `;
-
-        // Live viewer count updates
-        const viewerEl = document.getElementById('overlay-viewer-count');
-        const updateViewers = () => {
-          if (viewerEl) viewerEl.textContent = `${_onlineCount || 0} ${(_onlineCount || 0) === 1 ? 'person' : 'people'} watching`;
-        };
-        // Poll every 5s for viewer updates
-        const viewerPoll = setInterval(() => {
-          if (!document.getElementById('server-status-overlay')) { clearInterval(viewerPoll); return; }
-          updateViewers();
-        }, 5000);
-
-        // Countdown timer
-        if (restoreAt) {
-          const countdownEl = document.getElementById('overlay-countdown');
-          const tick = () => {
-            const secs = Math.max(0, Math.round((new Date(restoreAt) - Date.now()) / 1000));
-            if (!countdownEl || !document.getElementById('server-status-overlay')) { clearInterval(_countdownInterval); return; }
-            const m = Math.floor(secs / 60);
-            const s = secs % 60;
-            countdownEl.textContent = m > 0 ? `${m}m ${s}s` : `${s}s`;
-          };
-          tick();
-          _countdownInterval = setInterval(tick, 1000);
-        }
-
         if (isAdmin) {
-          document.getElementById('overlay-restore-btn')?.addEventListener('click', async () => {
+          // Admin gets a dismissible banner at the top — can still use the site normally
+          document.getElementById('server-status-overlay')?.remove();
+          let banner = document.getElementById('server-status-banner');
+          if (!banner) {
+            banner = document.createElement('div');
+            banner.id = 'server-status-banner';
+            document.body.prepend(banner);
+          }
+          banner.style.cssText = `
+            position:fixed;top:0;left:0;right:0;z-index:9999;
+            background:${isCrash ? '#f59e0b' : '#ef4444'};
+            color:white;padding:10px 16px;
+            display:flex;align-items:center;justify-content:space-between;gap:12px;
+            font-size:13px;font-weight:600;flex-wrap:wrap;
+          `;
+          banner.innerHTML = `
+            <span>${isCrash ? '💥' : '🔴'} Server is ${isCrash ? 'crashed' : 'shut down'} — users are blocked. ${restoreAt ? `Restoring in <span id="banner-countdown" style="font-weight:900;">...</span>` : 'No auto-restore set.'}</span>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <select id="banner-duration" style="padding:5px 8px;border-radius:6px;border:none;font-size:12px;cursor:pointer;background:rgba(255,255,255,0.2);color:white;">
+                <option value="0" ${!restoreAt ? 'selected' : ''}>⛔ No limit</option>
+                <option value="1">⏱ 1 min</option>
+                <option value="2">⏱ 2 min</option>
+                <option value="5">⏱ 5 min</option>
+                <option value="10">⏱ 10 min</option>
+                <option value="30">⏱ 30 min</option>
+                <option value="60">⏱ 1 hour</option>
+              </select>
+              <button id="banner-update-btn" style="padding:5px 10px;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);border-radius:6px;color:white;font-size:12px;font-weight:700;cursor:pointer;">Update Timer</button>
+              <button id="banner-restore-btn" style="padding:5px 12px;background:white;border:none;border-radius:6px;color:#111;font-size:12px;font-weight:700;cursor:pointer;">✅ Restore</button>
+            </div>
+          `;
+
+          document.getElementById('banner-restore-btn').addEventListener('click', async () => {
             await setDoc(firestoreDoc(db, 'stats', 'server'), { status: 'online', message: 'online', updatedAt: new Date().toISOString(), restoreAt: null });
           });
+
+          document.getElementById('banner-update-btn').addEventListener('click', async () => {
+            const mins = parseInt(document.getElementById('banner-duration').value) || 0;
+            const newRestoreAt = mins > 0 ? new Date(Date.now() + mins * 60000).toISOString() : null;
+            await setDoc(firestoreDoc(db, 'stats', 'server'), { status, message, updatedAt: new Date().toISOString(), restoreAt: newRestoreAt });
+          });
+
+          // Countdown in banner
+          if (restoreAt) {
+            const bannerCountdown = document.getElementById('banner-countdown');
+            const tick = () => {
+              const secs = Math.max(0, Math.round((new Date(restoreAt) - Date.now()) / 1000));
+              if (bannerCountdown) { const m = Math.floor(secs/60); const s = secs%60; bannerCountdown.textContent = m > 0 ? `${m}m ${s}s` : `${s}s`; }
+            };
+            tick();
+            _countdownInterval = setInterval(tick, 1000);
+          }
+
+        } else {
+          // Regular users get full blocking overlay
+          document.getElementById('server-status-banner')?.remove();
+          let overlay = document.getElementById('server-status-overlay');
+          if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'server-status-overlay';
+            document.body.appendChild(overlay);
+          }
+
+          overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:#0f0f0f;overflow-y:auto;';
+          overlay.innerHTML = `
+            <div style="text-align:center;max-width:500px;padding:32px;width:100%;">
+              <img src="assets/holyshititcrashed.gif" alt="" style="max-width:280px;width:100%;border-radius:12px;margin-bottom:24px;">
+              <h1 style="font-family:'Bebas Neue',sans-serif;font-size:48px;color:#fff;margin:0 0 12px;">
+                ${isCrash ? 'Server Crashed' : 'Servers are currently shut down!'}
+              </h1>
+              <p style="color:#9ca3af;font-size:15px;line-height:1.6;margin:0 0 16px;">${message}</p>
+              <div style="display:inline-flex;align-items:center;gap:8px;background:#1a1a1a;border-radius:20px;padding:6px 16px;margin-bottom:20px;">
+                <span style="width:7px;height:7px;border-radius:50%;background:#ef4444;display:inline-block;animation:pulse-dot 2s infinite;"></span>
+                <span id="overlay-viewer-count" style="font-size:13px;color:#9ca3af;">${viewerCount} ${viewerCount === 1 ? 'person' : 'people'} watching</span>
+              </div>
+              ${isCrash ? `
+              <div style="background:#1f1f1f;border-radius:8px;padding:12px 16px;font-family:monospace;font-size:12px;color:#ef4444;text-align:left;margin-bottom:16px;">
+                <div style="color:#6b7280;margin-bottom:4px;">// ${err.code}</div>
+                Error: ECONNREFUSED — ${err.code}<br>
+                at ${err.func} (${err.trace}:${lineNo}:12)<br>
+                at processNextTick (internal/process/next_tick.js:68:5)<br>
+                at runMicrotasks (&lt;anonymous&gt;)
+              </div>` : ''}
+              ${restoreAt ? `<div style="color:#6b7280;font-size:13px;margin-bottom:16px;">Attempting to restore in <span id="overlay-countdown" style="color:#fff;font-weight:700;">...</span></div>` : ''}
+              <p style="color:#4b5563;font-size:12px;margin-top:4px;">© Flux ${new Date().getFullYear()}</p>
+            </div>
+          `;
+
+          // Live viewer count
+          const viewerEl = document.getElementById('overlay-viewer-count');
+          _viewerPoll = setInterval(() => {
+            if (!document.getElementById('server-status-overlay')) { clearInterval(_viewerPoll); return; }
+            if (viewerEl) viewerEl.textContent = `${_onlineCount || 0} ${(_onlineCount || 0) === 1 ? 'person' : 'people'} watching`;
+          }, 5000);
+
+          // Countdown timer
+          if (restoreAt) {
+            const countdownEl = document.getElementById('overlay-countdown');
+            const tick = () => {
+              const secs = Math.max(0, Math.round((new Date(restoreAt) - Date.now()) / 1000));
+              if (!countdownEl || !document.getElementById('server-status-overlay')) { clearInterval(_countdownInterval); return; }
+              const m = Math.floor(secs / 60); const s = secs % 60;
+              countdownEl.textContent = m > 0 ? `${m}m ${s}s` : `${s}s`;
+            };
+            tick();
+            _countdownInterval = setInterval(tick, 1000);
+          }
         }
       };
 
