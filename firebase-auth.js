@@ -349,6 +349,49 @@ export async function saveCloudFavs(favs) {
 const OWNER_UID  = 'zEy6TO5ligf2um4rssIZs9C9X7f2';
 const OWNER_USERNAME = 'nxtcoreee3';
 
+export async function getUserRank(uid) {
+  // Returns 'owner', 'admin', or null
+  if (uid === OWNER_UID) return 'owner';
+  try {
+    const snap = await getDoc(doc(db, 'profiles', uid));
+    return snap.exists() ? (snap.data().rank || null) : null;
+  } catch { return null; }
+}
+
+export async function setUserRank(targetUid, rank) {
+  // Only owner can set ranks, owner can't be deranked
+  const user = auth.currentUser;
+  if (!user || user.uid !== OWNER_UID) return;
+  if (targetUid === OWNER_UID) return; // can't derank owner
+  try {
+    await updateDoc(doc(db, 'profiles', targetUid), { rank: rank || null });
+  } catch (e) { console.warn('setUserRank failed:', e); }
+}
+
+/* ── Rank helpers ── */
+export async function getUserRank(uid) {
+  if (uid === OWNER_UID) return 'owner';
+  try {
+    const snap = await getDoc(doc(db, 'profiles', uid));
+    if (!snap.exists()) return 'user';
+    return snap.data().rank || 'user';
+  } catch { return 'user'; }
+}
+
+export function isOwner(uid) { return uid === OWNER_UID; }
+
+export async function setUserRank(targetUid, rank) {
+  // Only owner can rank others; can't change owner's rank; can't rank yourself
+  const user = auth.currentUser;
+  if (!user || user.uid !== OWNER_UID) return { ok: false, error: 'Not authorised' };
+  if (targetUid === OWNER_UID) return { ok: false, error: "Can't change owner rank" };
+  try {
+    const badges = rank === 'owner' ? ['owner', 'admin'] : rank === 'admin' ? ['admin'] : [];
+    await updateDoc(doc(db, 'profiles', targetUid), { rank, badges });
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
 export async function getProfile(uid) {
   try {
     const snap = await getDoc(doc(db, 'profiles', uid));
@@ -836,10 +879,11 @@ export function initAuthUI(onUserChange) {
   modModal.innerHTML = `
     <div style="background:#fff;border-radius:16px;padding:28px;width:100%;max-width:400px;box-shadow:0 30px 80px rgba(0,0,0,0.2);position:relative;max-height:90vh;overflow-y:auto;">
       <button id="mod-modal-close" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:18px;cursor:pointer;color:#6b7280;">✕</button>
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
         <span style="font-size:22px;">⚙️</span>
         <h3 style="font-family:'Bebas Neue',sans-serif;font-size:26px;margin:0;color:#111827;">Mod Panel</h3>
       </div>
+      <div id="mod-rank-label" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:16px;color:#6b7280;"></div>
 
       <!-- ── SERVER CONTROL ── -->
       <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Server Control</div>
@@ -856,15 +900,20 @@ export function initAuthUI(onUserChange) {
         </select>
         <div style="display:flex;flex-direction:column;gap:8px;">
           <button id="mod-shutdown-btn" style="padding:11px;background:#ef4444;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">🔴 Shut Down Server</button>
-          <select id="mod-crash-reason" style="padding:10px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;color:#111827;background:#fff;outline:none;cursor:pointer;">
-            <option value="The server has crashed due to high traffic. We're working on a fix.">🚦 Too much traffic</option>
-            <option value="The database has overloaded and caused a crash. Please try again soon.">🗄️ Database overload</option>
-            <option value="A memory leak has caused the server to crash unexpectedly.">💾 Memory leak</option>
-            <option value="An unexpected internal error has caused a server crash. Our team is investigating.">⚠️ Unexpected internal error</option>
-            <option value="The server is under a DDoS attack. We're working to restore access.">🛡️ DDoS attack</option>
-            <option value="A failed deployment has taken the server down. Rolling back now.">🚀 Failed deployment</option>
-          </select>
-          <button id="mod-crash-btn" style="padding:11px;background:#f59e0b;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">💥 Fake Server Crash</button>
+
+          <!-- Fake crash — owner only -->
+          <div id="mod-crash-section">
+            <select id="mod-crash-reason" style="width:100%;padding:10px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;color:#111827;background:#fff;outline:none;cursor:pointer;margin-bottom:8px;">
+              <option value="The server has crashed due to high traffic. We're working on a fix.">🚦 Too much traffic</option>
+              <option value="The database has overloaded and caused a crash. Please try again soon.">🗄️ Database overload</option>
+              <option value="A memory leak has caused the server to crash unexpectedly.">💾 Memory leak</option>
+              <option value="An unexpected internal error has caused a server crash. Our team is investigating.">⚠️ Unexpected internal error</option>
+              <option value="The server is under a DDoS attack. We're working to restore access.">🛡️ DDoS attack</option>
+              <option value="A failed deployment has taken the server down. Rolling back now.">🚀 Failed deployment</option>
+            </select>
+            <button id="mod-crash-btn" style="width:100%;padding:11px;background:#f59e0b;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">💥 Fake Server Crash</button>
+          </div>
+
           <button id="mod-restore-btn" style="padding:11px;background:#22c55e;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">✅ Restore Server</button>
         </div>
       </div>
@@ -1035,8 +1084,12 @@ export function initAuthUI(onUserChange) {
       const profilePlaceholder = document.getElementById('profile-avatar-placeholder');
       const modBtn = document.getElementById('mod-panel-btn');
 
-      // Show mod panel button only for admin
-      if (modBtn) modBtn.style.display = user.uid === ADMIN_UID ? 'flex' : 'none';
+      // Show mod panel for owner and admins — rank checked from profile
+      if (!user.isAnonymous) {
+        const rank = user.uid === ADMIN_UID ? 'owner' : null;
+        // We'll update after profile loads below
+        if (user.uid === ADMIN_UID && modBtn) modBtn.style.display = 'flex';
+      }
 
       if (!user.isAnonymous) {
         // Check for profile and trigger setup if missing
@@ -1604,7 +1657,7 @@ function showPolicyGate() {
       <p style="font-size:13px;color:#ef4444;line-height:1.6;margin:0 0 24px;">
         If you do not accept, your account will need to be deleted — but you're always welcome to create a new one.
       </p>
-      <a id="policy-gate-read-btn" href="${window.location.pathname.includes('github.io') ? '/Flux/' : '/'}info.html?accept=1&return=${encodeURIComponent(window.location.href)}"
+      <a id="policy-gate-read-btn" href="info.html?accept=1"
         style="display:block;padding:13px;background:#3a7dff;color:white;border-radius:10px;font-weight:700;font-size:15px;text-decoration:none;margin-bottom:10px;">
         📖 Read & Accept Privacy Policy
       </a>

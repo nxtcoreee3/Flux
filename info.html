@@ -152,9 +152,7 @@
       document.getElementById('policy-accept-btn')?.addEventListener('click', () => {
         localStorage.setItem('flux_policy_accepted', '1');
         localStorage.setItem('flux_cookie_consent', 'accepted');
-        // Go back to where they came from
-        const returnTo = params.get('return') || 'index.html';
-        window.location.href = returnTo;
+        window.location.href = 'index.html';
       });
     });
   </script>
