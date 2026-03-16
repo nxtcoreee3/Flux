@@ -289,6 +289,7 @@ export async function saveCloudFavs(favs) {
   try {
     const { runTransaction } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
     const userRef = doc(db, 'users', user.uid);
+    const profileRef = doc(db, 'profiles', user.uid);
     const statsRef = doc(db, 'stats', 'favourites');
 
     await runTransaction(db, async (tx) => {
@@ -297,6 +298,12 @@ export async function saveCloudFavs(favs) {
       const diff = favs.length - prevCount;
 
       tx.set(userRef, { favorites: favs }, { merge: true });
+
+      // Also sync to profile so it shows on public profile page
+      const profileSnap = await tx.get(profileRef);
+      if (profileSnap.exists()) {
+        tx.update(profileRef, { favorites: favs });
+      }
 
       if (diff !== 0) {
         const statsSnap = await tx.get(statsRef);
@@ -346,6 +353,14 @@ export async function isUsernameTaken(username) {
 export async function createProfile({ uid, username, displayName, bio, isPrivate, avatarURL }) {
   const { collection, query, where, getDocs, serverTimestamp: fsTimestamp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
   const badges = uid === OWNER_UID ? ['owner', 'admin'] : [];
+
+  // Pull existing favorites from users collection so they show on profile
+  let existingFavs = [];
+  try {
+    const userSnap = await getDoc(doc(db, 'users', uid));
+    if (userSnap.exists()) existingFavs = userSnap.data().favorites || [];
+  } catch {}
+
   const profileData = {
     uid,
     username: username.toLowerCase(),
@@ -354,14 +369,16 @@ export async function createProfile({ uid, username, displayName, bio, isPrivate
     isPrivate: isPrivate || false,
     avatarURL: avatarURL || '',
     badges,
-    followers: uid === OWNER_UID ? [] : [OWNER_UID],
+    // New users follow the owner, owner doesn't follow them back
+    followers: uid === OWNER_UID ? [] : [],
     following: uid === OWNER_UID ? [] : [OWNER_UID],
+    favorites: existingFavs,
     joinedAt: new Date().toISOString(),
     isBanned: false,
   };
   await setDoc(doc(db, 'profiles', uid), profileData);
 
-  // Auto-follow: add this user to owner's followers, and owner to their following
+  // Add this user to owner's followers list (they follow owner, so owner gains a follower)
   if (uid !== OWNER_UID) {
     const ownerRef = doc(db, 'profiles', OWNER_UID);
     const ownerSnap = await getDoc(ownerRef);
