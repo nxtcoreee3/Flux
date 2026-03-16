@@ -461,18 +461,38 @@ export function initAuthUI(onUserChange) {
   modModal.id = 'mod-modal';
   modModal.style.cssText = 'display:none;position:fixed;inset:0;z-index:500;align-items:center;justify-content:center;background:rgba(0,0,0,0.4);backdrop-filter:blur(4px);';
   modModal.innerHTML = `
-    <div style="background:#fff;border-radius:16px;padding:28px;width:100%;max-width:360px;box-shadow:0 30px 80px rgba(0,0,0,0.2);position:relative;">
+    <div style="background:#fff;border-radius:16px;padding:28px;width:100%;max-width:380px;box-shadow:0 30px 80px rgba(0,0,0,0.2);position:relative;max-height:90vh;overflow-y:auto;">
       <button id="mod-modal-close" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:18px;cursor:pointer;color:#6b7280;">✕</button>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
         <span style="font-size:22px;">⚙️</span>
         <h3 style="font-family:'Bebas Neue',sans-serif;font-size:26px;margin:0;color:#111827;">Mod Panel</h3>
       </div>
+
+      <!-- Current status -->
       <div style="margin-bottom:16px;">
         <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Server Status</div>
         <div id="mod-current-status" style="font-size:13px;font-weight:600;color:#111827;padding:10px 12px;background:#f9fafb;border-radius:8px;border:1px solid rgba(0,0,0,0.07);">Loading...</div>
       </div>
+
+      <!-- Auto-restore duration -->
+      <div style="margin-bottom:16px;">
+        <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Auto-restore after</div>
+        <select id="mod-duration" style="width:100%;padding:10px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;color:#111827;background:#fff;outline:none;cursor:pointer;">
+          <option value="0">⛔ No limit — restore manually</option>
+          <option value="1">⏱ 1 minute</option>
+          <option value="2">⏱ 2 minutes</option>
+          <option value="5">⏱ 5 minutes</option>
+          <option value="10">⏱ 10 minutes</option>
+          <option value="30">⏱ 30 minutes</option>
+          <option value="60">⏱ 1 hour</option>
+        </select>
+      </div>
+
       <div style="display:flex;flex-direction:column;gap:8px;">
+        <!-- Shutdown -->
         <button id="mod-shutdown-btn" style="padding:11px;background:#ef4444;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">🔴 Shut Down Server</button>
+
+        <!-- Crash with reason -->
         <div style="display:flex;flex-direction:column;gap:6px;">
           <select id="mod-crash-reason" style="padding:10px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;color:#111827;background:#fff;outline:none;cursor:pointer;">
             <option value="The server has crashed due to high traffic. We're working on a fix.">🚦 Too much traffic</option>
@@ -484,6 +504,8 @@ export function initAuthUI(onUserChange) {
           </select>
           <button id="mod-crash-btn" style="padding:11px;background:#f59e0b;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">💥 Fake Server Crash</button>
         </div>
+
+        <!-- Restore -->
         <button id="mod-restore-btn" style="padding:11px;background:#22c55e;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">✅ Restore Server</button>
       </div>
       <p id="mod-msg" style="font-size:12px;margin:10px 0 0;text-align:center;display:none;"></p>
@@ -494,15 +516,35 @@ export function initAuthUI(onUserChange) {
   document.getElementById('mod-modal-close').addEventListener('click', () => { modModal.style.display = 'none'; });
   modModal.addEventListener('click', (e) => { if (e.target === modModal) modModal.style.display = 'none'; });
 
+  let _autoRestoreTimer = null;
+
   async function setServerStatus(status, message) {
     const msg = document.getElementById('mod-msg');
+    const durationMins = parseInt(document.getElementById('mod-duration').value) || 0;
+    const restoreAt = durationMins > 0 ? new Date(Date.now() + durationMins * 60000).toISOString() : null;
+
     try {
-      await setDoc(doc(db, 'stats', 'server'), { status, message, updatedAt: new Date().toISOString() });
+      await setDoc(doc(db, 'stats', 'server'), {
+        status, message,
+        updatedAt: new Date().toISOString(),
+        restoreAt
+      });
       msg.style.color = '#22c55e';
-      msg.textContent = `Status set to "${status}"`;
+      msg.textContent = durationMins > 0
+        ? `Status set — auto-restoring in ${durationMins} min`
+        : `Status set to "${status}"`;
       msg.style.display = 'block';
       document.getElementById('mod-current-status').textContent = `${status} — ${message}`;
-      setTimeout(() => { msg.style.display = 'none'; }, 2500);
+      document.getElementById('mod-current-status').style.color = status === 'online' ? '#22c55e' : status === 'crash' ? '#f59e0b' : '#ef4444';
+      setTimeout(() => { msg.style.display = 'none'; }, 3000);
+
+      // Clear any existing timer and set a new one if duration chosen
+      if (_autoRestoreTimer) clearTimeout(_autoRestoreTimer);
+      if (durationMins > 0 && status !== 'online') {
+        _autoRestoreTimer = setTimeout(async () => {
+          await setDoc(doc(db, 'stats', 'server'), { status: 'online', message: 'online', updatedAt: new Date().toISOString(), restoreAt: null });
+        }, durationMins * 60000);
+      }
     } catch (e) {
       msg.style.color = '#ef4444';
       msg.textContent = 'Failed to update status.';
@@ -527,8 +569,9 @@ export function initAuthUI(onUserChange) {
     const snap = await getDoc(doc(db, 'stats', 'server'));
     const statusEl = document.getElementById('mod-current-status');
     if (snap.exists()) {
-      const { status, message } = snap.data();
-      statusEl.textContent = `${status} — ${message}`;
+      const { status, message, restoreAt } = snap.data();
+      const timeLeft = restoreAt ? Math.max(0, Math.round((new Date(restoreAt) - Date.now()) / 60000)) : null;
+      statusEl.textContent = `${status} — ${message}${timeLeft > 0 ? ` (restores in ~${timeLeft}m)` : ''}`;
       statusEl.style.color = status === 'online' ? '#22c55e' : status === 'crash' ? '#f59e0b' : '#ef4444';
     } else {
       statusEl.textContent = 'online — no issues';
@@ -605,53 +648,115 @@ export function initAuthUI(onUserChange) {
 export function initServerStatus() {
   const ADMIN_UID = 'zEy6TO5ligf2um4rssIZs9C9X7f2';
 
+  const ERROR_CODES = [
+    { code: 'ERR_INTERNAL_0x4F2A', trace: 'flux.core.js', func: 'handleRequest' },
+    { code: 'ERR_HEAP_OVERFLOW_0x7C1B', trace: 'flux.memory.js', func: 'allocateBuffer' },
+    { code: 'ERR_DB_TIMEOUT_0x3E9D', trace: 'flux.database.js', func: 'queryPool' },
+    { code: 'ERR_SOCKET_RESET_0x8B44', trace: 'flux.network.js', func: 'openConnection' },
+    { code: 'ERR_SEGFAULT_0x1A7F', trace: 'flux.runtime.js', func: 'processEvent' },
+    { code: 'ERR_STACK_TRACE_0x5C3E', trace: 'flux.server.js', func: 'processNextTick' },
+  ];
+
+  let _countdownInterval = null;
+
   import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({ onSnapshot, setDoc, doc: firestoreDoc }) => {
     const statusRef = firestoreDoc(db, 'stats', 'server');
+
     onSnapshot(statusRef, (snap) => {
       if (!snap.exists()) return;
-      const { status, message } = snap.data();
+      const { status, message, restoreAt } = snap.data();
 
       if (status === 'online') {
         const existing = document.getElementById('server-status-overlay');
         if (existing) existing.remove();
+        if (_countdownInterval) { clearInterval(_countdownInterval); _countdownInterval = null; }
         return;
       }
 
-      // Don't block the admin — they need to be able to restore
-      const currentUser = auth.currentUser;
-      const isAdmin = currentUser && currentUser.uid === ADMIN_UID;
+      const applyOverlay = (isAdmin) => {
+        if (_countdownInterval) { clearInterval(_countdownInterval); _countdownInterval = null; }
 
-      // Block the page with an overlay
-      let overlay = document.getElementById('server-status-overlay');
-      if (!overlay) {
-        overlay = document.createElement('div');
-        overlay.id = 'server-status-overlay';
-        document.body.appendChild(overlay);
-      }
+        let overlay = document.getElementById('server-status-overlay');
+        if (!overlay) {
+          overlay = document.createElement('div');
+          overlay.id = 'server-status-overlay';
+          document.body.appendChild(overlay);
+        }
 
-      const isCrash = status === 'crash';
-      overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;background:#0f0f0f;';
-      overlay.innerHTML = `
-        <div style="text-align:center;max-width:480px;padding:32px;">
-          <img src="assets/holyshititcrashed.gif" alt="" style="max-width:280px;width:100%;border-radius:12px;margin-bottom:24px;">
-          <h1 style="font-family:'Bebas Neue',sans-serif;font-size:48px;color:#fff;margin:0 0 12px;">
-            ${isCrash ? 'Server Crashed' : 'Servers are currently shut down!'}
-          </h1>
-          <p style="color:#9ca3af;font-size:15px;line-height:1.6;margin:0 0 24px;">${message}</p>
-          ${isCrash ? `<div style="background:#1f1f1f;border-radius:8px;padding:12px 16px;font-family:monospace;font-size:12px;color:#ef4444;text-align:left;">
-            Error: ECONNREFUSED 500 Internal Server Error<br>
-            at flux.server.js:${Math.floor(Math.random()*900)+100}<br>
-            at processNextTick (internal/process/next_tick.js:68)
-          </div>` : ''}
-          ${isAdmin ? `<button id="overlay-restore-btn" style="margin-top:20px;padding:10px 24px;background:#22c55e;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">✅ Restore Server</button>` : ''}
-          <p style="color:#4b5563;font-size:12px;margin-top:20px;">© Flux ${new Date().getFullYear()}</p>
-        </div>
-      `;
+        const isCrash = status === 'crash';
+        const err = ERROR_CODES[Math.floor(Math.random() * ERROR_CODES.length)];
+        const lineNo = Math.floor(Math.random() * 900) + 100;
+        const viewerCount = _onlineCount || 0;
 
-      if (isAdmin) {
-        document.getElementById('overlay-restore-btn')?.addEventListener('click', async () => {
-          await setDoc(firestoreDoc(db, 'stats', 'server'), { status: 'online', message: 'online', updatedAt: new Date().toISOString() });
-        });
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:#0f0f0f;overflow-y:auto;';
+        overlay.innerHTML = `
+          <div style="text-align:center;max-width:500px;padding:32px;width:100%;">
+            <img src="assets/holyshititcrashed.gif" alt="" style="max-width:280px;width:100%;border-radius:12px;margin-bottom:24px;">
+            <h1 style="font-family:'Bebas Neue',sans-serif;font-size:48px;color:#fff;margin:0 0 12px;">
+              ${isCrash ? 'Server Crashed' : 'Servers are currently shut down!'}
+            </h1>
+            <p style="color:#9ca3af;font-size:15px;line-height:1.6;margin:0 0 16px;">${message}</p>
+
+            <!-- Viewer count -->
+            <div style="display:inline-flex;align-items:center;gap:8px;background:#1a1a1a;border-radius:20px;padding:6px 16px;margin-bottom:20px;">
+              <span style="width:7px;height:7px;border-radius:50%;background:#ef4444;display:inline-block;animation:pulse-dot 2s infinite;"></span>
+              <span id="overlay-viewer-count" style="font-size:13px;color:#9ca3af;">${viewerCount} ${viewerCount === 1 ? 'person' : 'people'} watching</span>
+            </div>
+
+            ${isCrash ? `
+            <div style="background:#1f1f1f;border-radius:8px;padding:12px 16px;font-family:monospace;font-size:12px;color:#ef4444;text-align:left;margin-bottom:16px;">
+              <div style="color:#6b7280;margin-bottom:4px;">// ${err.code}</div>
+              Error: ECONNREFUSED — ${err.code}<br>
+              at ${err.func} (${err.trace}:${lineNo}:12)<br>
+              at processNextTick (internal/process/next_tick.js:68:5)<br>
+              at runMicrotasks (&lt;anonymous&gt;)
+            </div>` : ''}
+
+            ${restoreAt ? `<div style="color:#6b7280;font-size:13px;margin-bottom:16px;">Auto-restoring in <span id="overlay-countdown" style="color:#fff;font-weight:700;">...</span></div>` : ''}
+
+            ${isAdmin ? `<button id="overlay-restore-btn" style="margin-bottom:16px;padding:10px 24px;background:#22c55e;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">✅ Restore Server</button><br>` : ''}
+            <p style="color:#4b5563;font-size:12px;margin-top:4px;">© Flux ${new Date().getFullYear()}</p>
+          </div>
+        `;
+
+        // Live viewer count updates
+        const viewerEl = document.getElementById('overlay-viewer-count');
+        const updateViewers = () => {
+          if (viewerEl) viewerEl.textContent = `${_onlineCount || 0} ${(_onlineCount || 0) === 1 ? 'person' : 'people'} watching`;
+        };
+        // Poll every 5s for viewer updates
+        const viewerPoll = setInterval(() => {
+          if (!document.getElementById('server-status-overlay')) { clearInterval(viewerPoll); return; }
+          updateViewers();
+        }, 5000);
+
+        // Countdown timer
+        if (restoreAt) {
+          const countdownEl = document.getElementById('overlay-countdown');
+          const tick = () => {
+            const secs = Math.max(0, Math.round((new Date(restoreAt) - Date.now()) / 1000));
+            if (!countdownEl || !document.getElementById('server-status-overlay')) { clearInterval(_countdownInterval); return; }
+            const m = Math.floor(secs / 60);
+            const s = secs % 60;
+            countdownEl.textContent = m > 0 ? `${m}m ${s}s` : `${s}s`;
+          };
+          tick();
+          _countdownInterval = setInterval(tick, 1000);
+        }
+
+        if (isAdmin) {
+          document.getElementById('overlay-restore-btn')?.addEventListener('click', async () => {
+            await setDoc(firestoreDoc(db, 'stats', 'server'), { status: 'online', message: 'online', updatedAt: new Date().toISOString(), restoreAt: null });
+          });
+        }
+      };
+
+      if (auth.currentUser !== undefined) {
+        applyOverlay(auth.currentUser?.uid === ADMIN_UID);
+      } else {
+        onAuthStateChanged(auth, (user) => {
+          applyOverlay(user?.uid === ADMIN_UID);
+        }, { once: true });
       }
     });
   });
