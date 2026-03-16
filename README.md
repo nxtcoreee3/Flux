@@ -22,6 +22,8 @@ Flux currently includes the following games:
 	•	Monkey Mart
 
 	•	Polytrack
+
+	•	Drift Boss
 	
 	Each game can be launched directly from the website.
 
