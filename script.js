@@ -3,7 +3,7 @@
    favorites (cloud+local), dark mode, toasts, recently played, new badge
 */
 
-import { initAuthUI, loadCloudFavs, saveCloudFavs } from './firebase-auth.js';
+import { initAuthUI, loadCloudFavs, saveCloudFavs, initPresence } from './firebase-auth.js';
 
 const GAMES = [
   {
@@ -47,20 +47,7 @@ const GAMES = [
     thumb: 'assets/Monkey-Mart.png',
     url: 'https://nxtcoreee3.github.io/Monkey-Mart/',
     desc: 'Run your own monkey supermarket',
-  },
-  {
-   id: 'polytrack',
-   title: 'Polytrack',
-   thumb: 'assets/polytrack.png',
-   url: 'https://nxtcoreee3.github.io/Polytrack/',
-   desc: 'Drive and race against your older records.'
-  },
-  {
-  id: 'drift-boss',
-  title: 'Drift Boss',
-  thumb: 'assets/drift-boss.png',
-  url: 'https://nxtcoreee3.github.io/Drift-Boss/',
-  desc: 'Drift around tight corners and stay on the track as long as possible.'
+    isNew: true
   }
 ];
 
@@ -292,6 +279,7 @@ function debounce(fn, wait=120) {
 /* ===================== INIT ===================== */
 document.addEventListener('DOMContentLoaded', () => {
   initDarkMode();
+  initPresence();
 
   if (document.getElementById('game-grid') || document.getElementById('games-grid')) {
     renderGames(GAMES);
