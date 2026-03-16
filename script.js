@@ -47,9 +47,15 @@ const GAMES = [
     thumb: 'assets/Monkey-Mart.png',
     url: 'https://nxtcoreee3.github.io/Monkey-Mart/',
     desc: 'Run your own monkey supermarket',
-    isNew: true
+  },
+  {
+  id: 'drift-boss',
+  title: 'Drift Boss',
+  thumb: 'assets/drift-boss.png',
+  url: 'https://nxtcoreee3.github.io/Drift-Boss/',
+  desc: 'Drift around tight corners and stay on the track as long as possible.'
   }
-];
+   ];
 
 // expose game count globally for stats button
 window._FLUX_GAME_COUNT = GAMES.length;
