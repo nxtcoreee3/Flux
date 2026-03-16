@@ -3,7 +3,8 @@
 import {
   getProfile, getProfileByUsername, updateProfile,
   followUser, unfollowUser, banUser, unbanUser,
-  renderBadges, initAuthUI, initServerStatus,
+  renderBadges, assignRole, removeRole, PREDEFINED_ROLES,
+  initAuthUI, initServerStatus,
   initBroadcast, initChaos, initJumpscare, initPresence
 } from './firebase-auth.js';
 
@@ -108,9 +109,46 @@ function renderProfile(profile, { isOwn, isAdmin, isFollowing, canSeeContent, cu
 
   let adminPanel = '';
   if (isAdmin && !isOwn) {
+    const currentRoles = profile.roles || [];
+    const activeRoleIds = currentRoles.map(r => r.id);
+
+    const predefinedBtns = PREDEFINED_ROLES.map(r => {
+      const has = activeRoleIds.includes(r.id);
+      return `<button class="role-toggle-btn" data-role-id="${r.id}" data-role-label="${r.label}" data-role-emoji="${r.emoji}" data-role-color="${r.color}"
+        style="padding:5px 10px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;border:2px solid ${r.color};
+        background:${has ? r.color : 'transparent'};color:${has ? '#fff' : r.color};transition:all 0.15s;">
+        ${r.emoji} ${r.label}
+      </button>`;
+    }).join('');
+
+    const activeRoleChips = currentRoles.length
+      ? currentRoles.map(r => `<span style="display:inline-flex;align-items:center;gap:4px;background:${r.color || '#6b7280'};color:#fff;font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px;">
+          ${r.emoji || '🏷️'} ${r.label}
+          <button class="role-remove-btn" data-role-id="${r.id}" style="background:none;border:none;color:rgba(255,255,255,0.8);cursor:pointer;font-size:12px;padding:0 0 0 2px;line-height:1;">✕</button>
+        </span>`).join('')
+      : '<span style="font-size:12px;color:var(--muted);">No roles assigned</span>';
+
     adminPanel = `
       <div class="ban-panel">
-        <div class="ban-panel-title">⚠️ Admin Controls</div>
+        <div class="ban-panel-title">⚙️ Admin Controls</div>
+
+        <!-- Roles section -->
+        <div style="margin-bottom:14px;">
+          <div style="font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Roles</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">${activeRoleChips}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">${predefinedBtns}</div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+            <input id="custom-role-label" type="text" placeholder="Custom role name..." maxlength="20"
+              style="flex:1;min-width:120px;padding:6px 10px;border:1px solid rgba(0,0,0,0.15);border-radius:8px;font-size:12px;background:transparent;color:var(--text);outline:none;">
+            <input id="custom-role-emoji" type="text" placeholder="🏷️" maxlength="2"
+              style="width:44px;padding:6px 8px;border:1px solid rgba(0,0,0,0.15);border-radius:8px;font-size:14px;text-align:center;background:transparent;color:var(--text);outline:none;">
+            <input id="custom-role-color" type="color" value="#6b7280"
+              style="width:36px;height:32px;border:1px solid rgba(0,0,0,0.15);border-radius:8px;cursor:pointer;padding:2px;">
+            <button id="custom-role-add" style="padding:6px 12px;background:#3a7dff;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px;">+ Add</button>
+          </div>
+        </div>
+
+        <!-- Ban section -->
         ${profile.isBanned
           ? `<button id="unban-btn" style="padding:8px 16px;background:#22c55e;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;">✅ Unban User</button>`
           : `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
@@ -166,7 +204,7 @@ function renderProfile(profile, { isOwn, isAdmin, isFollowing, canSeeContent, cu
         <div class="profile-info">
           <h1 class="profile-displayname">${profile.displayName || profile.username}</h1>
           <p class="profile-username">@${profile.username} ${profile.isPrivate ? '🔒' : ''} ${profile.isBanned ? '<span class="ban-badge">🚫 Banned</span>' : ''}</p>
-          <div class="profile-badges">${renderBadges(profile.badges || [])}</div>
+          <div class="profile-badges">${renderBadges(profile.badges || [], profile.roles || [])}</div>
           ${profile.bio ? `<p class="profile-bio">${profile.bio}</p>` : ''}
         </div>
       </div>
@@ -234,6 +272,41 @@ function bindEvents(profile, { isOwn, isAdmin, isFollowing, currentUser }) {
   });
   document.getElementById('unban-btn')?.addEventListener('click', async () => {
     await unbanUser(profile.uid);
+    location.reload();
+  });
+
+  // Role toggle (predefined)
+  document.querySelectorAll('.role-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const { roleId, roleLabel, roleEmoji, roleColor } = btn.dataset;
+      const currentRoles = profile.roles || [];
+      const has = currentRoles.find(r => r.id === roleId);
+      if (has) {
+        await removeRole(profile.uid, roleId);
+      } else {
+        await assignRole(profile.uid, { id: roleId, label: roleLabel, emoji: roleEmoji, color: roleColor });
+      }
+      location.reload();
+    });
+  });
+
+  // Role remove chip
+  document.querySelectorAll('.role-remove-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      await removeRole(profile.uid, btn.dataset.roleId);
+      location.reload();
+    });
+  });
+
+  // Custom role add
+  document.getElementById('custom-role-add')?.addEventListener('click', async () => {
+    const label = document.getElementById('custom-role-label').value.trim();
+    const emoji = document.getElementById('custom-role-emoji').value.trim() || '🏷️';
+    const color = document.getElementById('custom-role-color').value;
+    if (!label) { alert('Enter a role name.'); return; }
+    const id = 'custom_' + label.toLowerCase().replace(/\s+/g, '_') + '_' + Date.now();
+    await assignRole(profile.uid, { id, label, emoji, color });
     location.reload();
   });
 }

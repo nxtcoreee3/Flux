@@ -423,12 +423,57 @@ export async function unbanUser(targetUid) {
   await updateDoc(doc(db, 'profiles', targetUid), { isBanned: false, banReason: '', bannedAt: null });
 }
 
-export function renderBadges(badges = []) {
-  return badges.map(b => {
+/* ===================== ROLE SYSTEM ===================== */
+export const PREDEFINED_ROLES = [
+  { id: 'moderator', label: 'Moderator', emoji: '🛡️', color: '#8b5cf6' },
+  { id: 'vip',       label: 'VIP',       emoji: '⭐', color: '#f59e0b' },
+  { id: 'verified',  label: 'Verified',  emoji: '✓',  color: '#22c55e' },
+  { id: 'helper',    label: 'Helper',    emoji: '🤝', color: '#06b6d4' },
+  { id: 'booster',   label: 'Booster',   emoji: '🚀', color: '#ec4899' },
+  { id: 'og',        label: 'OG',        emoji: '🏆', color: '#d97706' },
+];
+
+export function renderBadges(badges = [], roles = []) {
+  const badgeHTML = badges.map(b => {
     if (b === 'owner') return `<span style="display:inline-flex;align-items:center;gap:3px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;letter-spacing:0.3px;">👑 Owner</span>`;
     if (b === 'admin') return `<span style="display:inline-flex;align-items:center;gap:3px;background:#3a7dff;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;letter-spacing:0.3px;">⚡ Admin</span>`;
     return '';
   }).join(' ');
+
+  const roleHTML = (roles || []).map(r => {
+    // Check predefined first
+    const pre = PREDEFINED_ROLES.find(p => p.id === r.id);
+    if (pre) {
+      return `<span style="display:inline-flex;align-items:center;gap:3px;background:${pre.color};color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;letter-spacing:0.3px;">${pre.emoji} ${pre.label}</span>`;
+    }
+    // Custom role
+    const color = r.color || '#6b7280';
+    return `<span style="display:inline-flex;align-items:center;gap:3px;background:${color};color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;letter-spacing:0.3px;">${r.emoji || '🏷️'} ${r.label}</span>`;
+  }).join(' ');
+
+  return [badgeHTML, roleHTML].filter(Boolean).join(' ');
+}
+
+export async function assignRole(targetUid, role) {
+  // role = { id, label, emoji, color }
+  const user = auth.currentUser;
+  if (!user || user.uid !== OWNER_UID) return;
+  const ref = doc(db, 'profiles', targetUid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const existing = snap.data().roles || [];
+  if (existing.find(r => r.id === role.id)) return; // already has it
+  await updateDoc(ref, { roles: [...existing, role] });
+}
+
+export async function removeRole(targetUid, roleId) {
+  const user = auth.currentUser;
+  if (!user || user.uid !== OWNER_UID) return;
+  const ref = doc(db, 'profiles', targetUid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const existing = snap.data().roles || [];
+  await updateDoc(ref, { roles: existing.filter(r => r.id !== roleId) });
 }
 
 /* ===================== PROFILE SETUP MODAL ===================== */

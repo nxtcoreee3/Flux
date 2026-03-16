@@ -130,7 +130,7 @@ function renderMessage(msg, currentUser) {
     ? `<img class="chat-msg-avatar" src="${msg.avatarURL}" alt="">`
     : `<div class="chat-msg-avatar-placeholder">${(msg.displayName || msg.username || '?')[0].toUpperCase()}</div>`;
 
-  const badgesHTML = renderBadges(msg.badges || []);
+  const badgesHTML = renderBadges(msg.badges || [], msg.roles || []);
 
   const div = document.createElement('div');
   div.className = 'chat-msg';
@@ -168,6 +168,7 @@ async function sendMessage() {
       displayName: _currentProfile.displayName,
       avatarURL: _currentProfile.avatarURL || '',
       badges: _currentProfile.badges || [],
+      roles: _currentProfile.roles || [],
       text,
       sentAt: serverTimestamp(),
     });
@@ -228,7 +229,7 @@ async function runSearch(term) {
         <span class="search-result-name">${profile.displayName || profile.username}</span>
         <span class="search-result-username">@${profile.username}</span>
       </div>
-      <div>${renderBadges(profile.badges || [])}</div>
+      <div>${renderBadges(profile.badges || [], profile.roles || [])}</div>
     `;
     container.appendChild(item);
   });
@@ -252,7 +253,7 @@ function showMyProfileCard(profile) {
       <div>
         <div style="font-size:14px;font-weight:700;color:var(--text);">${profile.displayName || profile.username}</div>
         <div style="font-size:12px;color:var(--muted);">@${profile.username}</div>
-        <div style="margin-top:4px;">${renderBadges(profile.badges || [])}</div>
+        <div style="margin-top:4px;">${renderBadges(profile.badges || [], profile.roles || [])}</div>
       </div>
     </a>
     <div style="display:flex;gap:16px;margin-top:14px;padding-top:12px;border-top:1px solid var(--glass-border);">
