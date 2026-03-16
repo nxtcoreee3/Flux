@@ -95,6 +95,15 @@ async function initChat() {
   });
 }
 
+const _profileCache = {};
+
+async function getCachedProfile(uid) {
+  if (_profileCache[uid]) return _profileCache[uid];
+  const p = await getProfile(uid);
+  if (p) _profileCache[uid] = p;
+  return p;
+}
+
 function startChatListener(currentUser) {
   if (_unsubChat) _unsubChat();
 
@@ -110,20 +119,20 @@ function startChatListener(currentUser) {
       return;
     }
 
-    // Render all messages (async for live profile fetch)
-    const renders = await Promise.all(
-      snap.docs.map(docSnap => {
-        const msg = { id: docSnap.id, ...docSnap.data() };
-        return renderMessage(msg, currentUser);
-      })
-    );
-    renders.forEach(el => container.appendChild(el));
+    // Render immediately with baked-in data, then patch badges async
+    snap.docs.forEach(docSnap => {
+      const msg = { id: docSnap.id, ...docSnap.data() };
+      const el = renderMessageSync(msg, currentUser);
+      container.appendChild(el);
+      // Patch badges in background without blocking render
+      patchMessageBadges(el, msg.uid);
+    });
 
     if (wasAtBottom) container.scrollTop = container.scrollHeight;
   });
 }
 
-async function renderMessage(msg, currentUser) {
+function renderMessageSync(msg, currentUser) {
   const isAdmin = currentUser?.uid === OWNER_UID;
   const isOwn = currentUser?.uid === msg.uid;
   const time = msg.sentAt?.toDate
@@ -134,21 +143,19 @@ async function renderMessage(msg, currentUser) {
     ? `<img class="chat-msg-avatar" src="${msg.avatarURL}" alt="">`
     : `<div class="chat-msg-avatar-placeholder">${(msg.displayName || msg.username || '?')[0].toUpperCase()}</div>`;
 
-  // Fetch live profile to get current roles/badges
-  const liveProfile = await getProfile(msg.uid);
-  const badges = liveProfile?.badges || msg.badges || [];
-  const roles = liveProfile?.roles || msg.roles || [];
-  const badgesHTML = renderBadges(badges, roles);
+  // Use baked-in badges for instant render
+  const badgesHTML = renderBadges(msg.badges || [], msg.roles || []);
 
   const div = document.createElement('div');
   div.className = 'chat-msg';
   div.dataset.id = msg.id;
+  div.dataset.uid = msg.uid;
   div.innerHTML = `
     ${avatarHTML}
     <div class="chat-msg-body">
       <div class="chat-msg-meta">
         <a class="chat-msg-name" href="profile.html?user=${msg.username}">@${msg.username}</a>
-        ${badgesHTML}
+        <span class="msg-badges">${badgesHTML}</span>
         <span class="chat-msg-time">${time}</span>
         ${(isAdmin || isOwn) ? `<button class="chat-msg-delete" title="Delete">✕</button>` : ''}
       </div>
@@ -158,6 +165,17 @@ async function renderMessage(msg, currentUser) {
 
   div.querySelector('.chat-msg-delete')?.addEventListener('click', () => deleteMessage(msg.id));
   return div;
+}
+
+async function patchMessageBadges(el, uid) {
+  try {
+    const liveProfile = await getCachedProfile(uid);
+    if (!liveProfile) return;
+    const badgesEl = el.querySelector('.msg-badges');
+    if (badgesEl) {
+      badgesEl.innerHTML = renderBadges(liveProfile.badges || [], liveProfile.roles || []);
+    }
+  } catch {}
 }
 
 async function sendMessage() {
