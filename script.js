@@ -54,8 +54,15 @@ const GAMES = [
   thumb: 'assets/drift-boss.png',
   url: 'https://nxtcoreee3.github.io/Drift-Boss/',
   desc: 'Drift around tight corners and stay on the track as long as possible.'
+  },
+  {
+  id: 'polytrack',
+  title: 'Polytrack',
+  thumb: 'assets/polytrack.png',
+  url: 'https://nxtcoreee3.github.io/Polytrack/',
+  desc: 'Drive and race against your older records.'
   }
-   ];
+  ];
 
 // expose game count globally for stats button
 window._FLUX_GAME_COUNT = GAMES.length;
