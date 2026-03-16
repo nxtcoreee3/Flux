@@ -4,7 +4,7 @@ import {
   getProfile, getProfileByUsername, updateProfile,
   followUser, unfollowUser, banUser, unbanUser,
   renderBadges, assignRole, removeRole, PREDEFINED_ROLES,
-  initAuthUI, initServerStatus,
+  initAuthUI, initServerStatus, initCookieConsent,
   initBroadcast, initChaos, initJumpscare, initPresence
 } from './firebase-auth.js';
 
@@ -43,6 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('year');
   if (el) el.textContent = new Date().getFullYear();
 
+  initCookieConsent();
   initPresence();
   initServerStatus();
   initBroadcast();
@@ -244,14 +245,20 @@ function bindEvents(profile, { isOwn, isAdmin, isFollowing, currentUser }) {
     const btn = e.currentTarget;
     const nowFollowing = btn.classList.contains('following');
     btn.disabled = true;
+
+    // Find the followers count element and update it optimistically
+    const followerStatEl = document.querySelector('.profile-stat-num');
+
     if (nowFollowing) {
       await unfollowUser(profile.uid);
       btn.classList.remove('following');
       btn.textContent = 'Follow';
+      if (followerStatEl) followerStatEl.textContent = Math.max(0, parseInt(followerStatEl.textContent) - 1);
     } else {
       await followUser(profile.uid);
       btn.classList.add('following');
       btn.textContent = 'Following';
+      if (followerStatEl) followerStatEl.textContent = parseInt(followerStatEl.textContent) + 1;
     }
     btn.disabled = false;
   });

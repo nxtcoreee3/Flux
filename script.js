@@ -3,7 +3,7 @@
    favorites (cloud+local), dark mode, toasts, recently played, new badge, stats button
 */
 
-import { initAuthUI, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare } from './firebase-auth.js';
+import { initAuthUI, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent } from './firebase-auth.js';
 
 const GAMES = [
   {
@@ -295,6 +295,7 @@ function debounce(fn, wait=120) {
 
 /* ===================== INIT ===================== */
 document.addEventListener('DOMContentLoaded', () => {
+  initCookieConsent();
   initDarkMode();
   initStatsButton();
   initPresence();

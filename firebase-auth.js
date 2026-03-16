@@ -581,6 +581,13 @@ export function initProfileSetup(onComplete) {
             </label>
           </div>
 
+          <div style="display:flex;align-items:flex-start;gap:10px;padding:12px;background:#f9fafb;border-radius:10px;border:1px solid rgba(0,0,0,0.07);">
+            <input type="checkbox" id="psetup-privacy-agree" style="margin-top:2px;width:16px;height:16px;cursor:pointer;flex-shrink:0;">
+            <label for="psetup-privacy-agree" style="font-size:12px;color:#6b7280;cursor:pointer;line-height:1.5;">
+              I have read and agree to the <a href="info.html" target="_blank" style="color:var(--accent, #3a7dff);text-decoration:underline;">Privacy Policy</a>. I understand that Flux collects my username, display name, bio, favourited games, recently played games, and follower data. Firebase may also collect usage analytics and authentication data.
+            </label>
+          </div>
+
           <p id="psetup-error" style="color:#ef4444;font-size:12px;margin:0;display:none;text-align:center;"></p>
 
           <button id="psetup-submit" style="padding:12px;background:#3a7dff;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:15px;">Create Profile</button>
@@ -632,6 +639,7 @@ export function initProfileSetup(onComplete) {
       const btn = document.getElementById('psetup-submit');
 
       errEl.style.display = 'none';
+      if (!document.getElementById('psetup-privacy-agree').checked) { errEl.textContent = 'You must agree to the Privacy Policy to create a profile.'; errEl.style.display = 'block'; return; }
       if (!username) { errEl.textContent = 'Username is required.'; errEl.style.display = 'block'; return; }
       if (!/^[a-z0-9_.]{3,20}$/.test(username)) { errEl.textContent = 'Invalid username format.'; errEl.style.display = 'block'; return; }
 
@@ -1508,5 +1516,59 @@ export function initJumpscare() {
         triggerJumpscare();
       } catch {}
     }, 1500);
+  });
+}
+
+/* ===================== COOKIE CONSENT ===================== */
+export function initCookieConsent() {
+  const CONSENT_KEY = 'flux_cookie_consent';
+  if (localStorage.getItem(CONSENT_KEY) === 'accepted') return;
+
+  // Block the page until accepted
+  const overlay = document.createElement('div');
+  overlay.id = 'cookie-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.7);backdrop-filter:blur(6px);display:flex;align-items:flex-end;justify-content:center;padding:24px;box-sizing:border-box;';
+
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:20px;padding:28px;width:100%;max-width:560px;box-shadow:0 30px 80px rgba(0,0,0,0.3);position:relative;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+        <span style="font-size:28px;">🍪</span>
+        <h2 style="font-family:'Bebas Neue',sans-serif;font-size:26px;margin:0;color:#111827;">Cookies & Privacy</h2>
+      </div>
+      <p style="font-size:13px;color:#6b7280;line-height:1.6;margin:0 0 12px;">
+        Flux uses cookies and local storage to keep you signed in and remember your preferences. We also use <strong>Firebase</strong> (by Google) for authentication, database storage, and analytics — which may collect usage data such as IP addresses, device info, and session activity.
+      </p>
+      <p style="font-size:13px;color:#6b7280;line-height:1.6;margin:0 0 20px;">
+        By using Flux you agree to this. You can read our full <a href="info.html" style="color:#3a7dff;text-decoration:underline;">Privacy Policy</a> for details. This site <strong>requires cookies to function</strong> — if you decline you will not be able to use the site.
+      </p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button id="cookie-accept" style="flex:1;min-width:140px;padding:12px;background:#3a7dff;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">✅ Accept & Continue</button>
+        <button id="cookie-decline" style="flex:1;min-width:140px;padding:12px;background:transparent;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-weight:600;cursor:pointer;font-size:14px;color:#6b7280;">❌ Decline</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  document.getElementById('cookie-accept').addEventListener('click', () => {
+    localStorage.setItem(CONSENT_KEY, 'accepted');
+    overlay.remove();
+  });
+
+  document.getElementById('cookie-decline').addEventListener('click', () => {
+    // Replace page with declined message
+    overlay.innerHTML = `
+      <div style="background:#fff;border-radius:20px;padding:32px;width:100%;max-width:480px;box-shadow:0 30px 80px rgba(0,0,0,0.3);text-align:center;">
+        <span style="font-size:48px;display:block;margin-bottom:16px;">🚫</span>
+        <h2 style="font-family:'Bebas Neue',sans-serif;font-size:32px;margin:0 0 12px;color:#111827;">Cookies Required</h2>
+        <p style="font-size:14px;color:#6b7280;line-height:1.6;margin:0 0 20px;">
+          Flux requires cookies to function — they're used for authentication and saving your preferences. Without them the site cannot work.
+        </p>
+        <button id="cookie-reconsider" style="padding:12px 28px;background:#3a7dff;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">Go Back</button>
+      </div>
+    `;
+    document.getElementById('cookie-reconsider').addEventListener('click', () => {
+      overlay.remove();
+      initCookieConsent();
+    });
   });
 }

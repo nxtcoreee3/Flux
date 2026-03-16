@@ -3,7 +3,7 @@
 import {
   getProfile, searchProfiles, renderBadges,
   initAuthUI, initServerStatus, initBroadcast,
-  initChaos, initJumpscare, initPresence
+  initChaos, initJumpscare, initPresence, initCookieConsent
 } from './firebase-auth.js';
 
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -36,6 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('year');
   if (el) el.textContent = new Date().getFullYear();
 
+  initCookieConsent();
   initPresence();
   initServerStatus();
   initBroadcast();
