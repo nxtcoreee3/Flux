@@ -1,5 +1,5 @@
-/* firebase-auth.js — Flux
-   Auth + Firestore + Realtime DB + reCAPTCHA + Email Verification + Password Reset
+/* firebase-auth.js
+   Handles Firebase Authentication + Firestore favorites + Live visitor counter + Stats button
 */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -10,8 +10,6 @@ import {
   signInAnonymously,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  sendEmailVerification,
-  sendPasswordResetEmail,
   GoogleAuthProvider,
   signOut
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -32,8 +30,6 @@ import {
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-const RECAPTCHA_SITE_KEY = '6LfoiowsAAAAANuRA2uVkkqARzQYdz_QKwZKLo5M';
-
 const firebaseConfig = {
   apiKey: "AIzaSyCHm6nxHzrIGHmWb1W_xDAYwnSoed6oTi4",
   authDomain: "fluxbynxtcoreee3.firebaseapp.com",
@@ -49,49 +45,6 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const rtdb = getDatabase(app);
 const googleProvider = new GoogleAuthProvider();
-
-/* ===================== RECAPTCHA ===================== */
-function loadRecaptchaScript() {
-  if (document.getElementById('recaptcha-script')) return;
-  const s = document.createElement('script');
-  s.id = 'recaptcha-script';
-  s.src = 'https://www.google.com/recaptcha/api.js';
-  s.async = true;
-  document.head.appendChild(s);
-}
-
-function renderCaptcha(containerId) {
-  return new Promise((resolve) => {
-    const waitForGrecaptcha = setInterval(() => {
-      if (window.grecaptcha && window.grecaptcha.render) {
-        clearInterval(waitForGrecaptcha);
-        const container = document.getElementById(containerId);
-        if (!container || container.dataset.rendered) { resolve(); return; }
-        container.dataset.rendered = '1';
-        window.grecaptcha.render(containerId, {
-          sitekey: RECAPTCHA_SITE_KEY,
-          callback: () => resolve(),
-          'expired-callback': () => { container.dataset.rendered = ''; window.grecaptcha.reset(); }
-        });
-      }
-    }, 100);
-  });
-}
-
-function getCaptchaToken(containerId) {
-  const container = document.getElementById(containerId);
-  if (!container) return null;
-  const widgetId = container.dataset.widgetId;
-  return widgetId !== undefined
-    ? window.grecaptcha?.getResponse(widgetId)
-    : window.grecaptcha?.getResponse();
-}
-
-function resetCaptcha(containerId) {
-  try { window.grecaptcha?.reset(); } catch {}
-  const container = document.getElementById(containerId);
-  if (container) { delete container.dataset.rendered; container.innerHTML = ''; }
-}
 
 /* ===================== LIVE PRESENCE ===================== */
 let _onlineCount = 0;
@@ -110,8 +63,10 @@ export function initPresence() {
 
   onValue(ref(rtdb, 'presence'), (snap) => {
     _onlineCount = snap.exists() ? Object.keys(snap.val()).length : 0;
+    // update stats dropdown if open
     const el = document.getElementById('stats-online-count');
     if (el) el.textContent = _onlineCount;
+    // update the eye button count
     const badge = document.getElementById('stats-btn-count');
     if (badge) badge.textContent = _onlineCount;
   });
@@ -122,7 +77,10 @@ async function fetchGlobalFavCount() {
   try {
     const snap = await getDocs(collection(db, 'users'));
     let total = 0;
-    snap.forEach(d => { total += (d.data().favorites || []).length; });
+    snap.forEach(d => {
+      const favs = d.data().favorites || [];
+      total += favs.length;
+    });
     return total;
   } catch { return '—'; }
 }
@@ -134,16 +92,26 @@ export function initStatsButton() {
 
   const wrapper = document.createElement('div');
   wrapper.style.cssText = 'position:relative;display:flex;align-items:center;';
+
   wrapper.innerHTML = `
     <button id="stats-btn" class="icon-btn" title="Live stats" style="cursor:pointer;display:flex;align-items:center;gap:6px;padding:8px 12px;">
       <span style="font-size:15px;">👁️</span>
       <span id="stats-btn-count" style="font-size:13px;font-weight:700;color:var(--accent);">—</span>
     </button>
-    <div id="stats-dropdown" style="display:none;position:absolute;top:calc(100% + 10px);right:0;background:var(--panel);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,0.15);border:1px solid var(--glass-border);width:240px;z-index:300;overflow:hidden;">
+
+    <div id="stats-dropdown" style="
+      display:none;position:absolute;top:calc(100% + 10px);right:0;
+      background:var(--panel);border-radius:14px;
+      box-shadow:0 20px 60px rgba(0,0,0,0.15);
+      border:1px solid var(--glass-border);width:240px;z-index:300;overflow:hidden;
+    ">
+      <!-- header -->
       <div style="padding:14px 16px;border-bottom:1px solid var(--glass-border);display:flex;align-items:center;gap:8px;">
         <span style="font-size:16px;">📊</span>
         <span style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--text);">Flux Stats</span>
       </div>
+
+      <!-- online now -->
       <div style="padding:14px 16px;border-bottom:1px solid var(--glass-border);display:flex;align-items:center;gap:12px;">
         <div style="width:36px;height:36px;border-radius:10px;background:rgba(34,197,94,0.12);display:flex;align-items:center;justify-content:center;font-size:16px;">👥</div>
         <div>
@@ -155,6 +123,8 @@ export function initStatsButton() {
           </div>
         </div>
       </div>
+
+      <!-- total favourites -->
       <div style="padding:14px 16px;border-bottom:1px solid var(--glass-border);display:flex;align-items:center;gap:12px;">
         <div style="width:36px;height:36px;border-radius:10px;background:rgba(255,209,102,0.15);display:flex;align-items:center;justify-content:center;font-size:16px;">★</div>
         <div>
@@ -165,6 +135,8 @@ export function initStatsButton() {
           </div>
         </div>
       </div>
+
+      <!-- total games -->
       <div style="padding:14px 16px;display:flex;align-items:center;gap:12px;">
         <div style="width:36px;height:36px;border-radius:10px;background:rgba(58,125,255,0.12);display:flex;align-items:center;justify-content:center;font-size:16px;">🎮</div>
         <div>
@@ -177,22 +149,33 @@ export function initStatsButton() {
       </div>
     </div>
   `;
+
   rightActions.prepend(wrapper);
 
   const btn = wrapper.querySelector('#stats-btn');
   const dd = wrapper.querySelector('#stats-dropdown');
+
   btn.addEventListener('click', async (e) => {
     e.stopPropagation();
     const isOpen = dd.style.display !== 'none';
     dd.style.display = isOpen ? 'none' : 'block';
+
     if (!isOpen) {
+      // fill in live data when opening
       document.getElementById('stats-online-count').textContent = _onlineCount;
       document.getElementById('stats-btn-count').textContent = _onlineCount;
+
+      // fetch global fav count
       document.getElementById('stats-fav-count').textContent = '…';
-      document.getElementById('stats-fav-count').textContent = await fetchGlobalFavCount();
-      document.getElementById('stats-game-count').textContent = window._FLUX_GAME_COUNT || '—';
+      const favCount = await fetchGlobalFavCount();
+      document.getElementById('stats-fav-count').textContent = favCount;
+
+      // game count from GAMES array (passed via window)
+      const gameCount = window._FLUX_GAME_COUNT || '—';
+      document.getElementById('stats-game-count').textContent = gameCount;
     }
   });
+
   document.addEventListener('click', () => { dd.style.display = 'none'; });
 }
 
@@ -225,8 +208,6 @@ export async function saveCloudFavs(favs) {
 
 /* ===================== AUTH UI ===================== */
 export function initAuthUI(onUserChange) {
-  loadRecaptchaScript();
-
   const rightActions = document.querySelector('.right-actions');
   if (!rightActions) return;
 
@@ -244,23 +225,23 @@ export function initAuthUI(onUserChange) {
     <img id="user-avatar" src="" alt="avatar" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:1px solid rgba(0,0,0,0.1);display:none;">
     <span id="user-name" style="font-size:13px;font-weight:600;color:#111827;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
     <span style="color:#6b7280;font-size:11px;">▾</span>
-    <div id="profile-dropdown" style="display:none;position:absolute;top:calc(100% + 10px);right:0;background:var(--panel);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,0.15);border:1px solid var(--glass-border);width:260px;z-index:300;overflow:hidden;">
-      <div style="padding:16px;border-bottom:1px solid var(--glass-border);display:flex;align-items:center;gap:12px;">
+    <div id="profile-dropdown" style="display:none;position:absolute;top:calc(100% + 10px);right:0;background:#fff;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,0.15);border:1px solid rgba(0,0,0,0.07);width:260px;z-index:300;overflow:hidden;">
+      <div style="padding:16px;border-bottom:1px solid rgba(0,0,0,0.06);display:flex;align-items:center;gap:12px;">
         <img id="profile-avatar-large" src="" alt="avatar" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:1px solid rgba(0,0,0,0.08);display:none;flex-shrink:0;">
         <div id="profile-avatar-placeholder" style="width:44px;height:44px;border-radius:50%;background:#3a7dff;display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:18px;flex-shrink:0;">?</div>
         <div style="overflow:hidden;">
-          <div id="profile-display-name" style="font-weight:700;font-size:14px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
-          <div id="profile-email" style="font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
+          <div id="profile-display-name" style="font-weight:700;font-size:14px;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
+          <div id="profile-email" style="font-size:12px;color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
         </div>
       </div>
-      <div style="padding:12px 16px;border-bottom:1px solid var(--glass-border);display:flex;align-items:center;gap:8px;">
+      <div style="padding:12px 16px;border-bottom:1px solid rgba(0,0,0,0.06);display:flex;align-items:center;gap:8px;">
         <span style="font-size:16px;">★</span>
-        <span id="profile-fav-count" style="font-size:13px;color:var(--text);font-weight:600;">0 favourited games</span>
+        <span id="profile-fav-count" style="font-size:13px;color:#111827;font-weight:600;">0 favourited games</span>
       </div>
-      <button id="change-password-btn" style="width:100%;padding:12px 16px;background:none;border:none;border-bottom:1px solid var(--glass-border);text-align:left;cursor:pointer;font-size:13px;color:var(--text);display:flex;align-items:center;gap:10px;">
+      <button id="change-password-btn" style="width:100%;padding:12px 16px;background:none;border:none;border-bottom:1px solid rgba(0,0,0,0.06);text-align:left;cursor:pointer;font-size:13px;color:#111827;display:flex;align-items:center;gap:10px;">
         <span>🔑</span> Change Password
       </button>
-      <a href="info.html" style="display:flex;align-items:center;gap:10px;padding:12px 16px;font-size:13px;color:var(--text);text-decoration:none;border-bottom:1px solid var(--glass-border);">
+      <a href="info.html" style="display:flex;align-items:center;gap:10px;padding:12px 16px;font-size:13px;color:#111827;text-decoration:none;border-bottom:1px solid rgba(0,0,0,0.06);">
         <span>🔒</span> Privacy Policy
       </a>
       <button id="sign-out-btn" style="width:100%;padding:12px 16px;background:none;border:none;text-align:left;cursor:pointer;font-size:13px;color:#ef4444;display:flex;align-items:center;gap:10px;">
@@ -270,176 +251,74 @@ export function initAuthUI(onUserChange) {
   `;
   rightActions.prepend(userDisplay);
 
-  /* ---- Change Password Modal ---- */
   const pwModal = document.createElement('div');
   pwModal.id = 'pw-modal';
   pwModal.style.cssText = 'display:none;position:fixed;inset:0;z-index:400;align-items:center;justify-content:center;background:rgba(0,0,0,0.3);backdrop-filter:blur(4px);';
   pwModal.innerHTML = `
-    <div style="background:var(--panel);border-radius:16px;padding:28px;width:100%;max-width:360px;box-shadow:0 30px 80px rgba(0,0,0,0.15);position:relative;">
-      <button id="pw-modal-close" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted);">✕</button>
-      <h3 style="font-family:'Bebas Neue',sans-serif;font-size:24px;margin:0 0 6px;color:var(--text);">Change Password</h3>
-      <p style="font-size:12px;color:var(--muted);margin:0 0 14px;">Enter your new password below.</p>
-      <input id="pw-new" type="password" placeholder="New password" style="width:100%;padding:10px 12px;border:1px solid var(--glass-border);border-radius:10px;font-size:14px;margin-bottom:8px;box-sizing:border-box;outline:none;background:var(--input-bg);color:var(--text);">
-      <input id="pw-confirm" type="password" placeholder="Confirm new password" style="width:100%;padding:10px 12px;border:1px solid var(--glass-border);border-radius:10px;font-size:14px;margin-bottom:12px;box-sizing:border-box;outline:none;background:var(--input-bg);color:var(--text);">
-      <div id="pw-captcha" style="margin-bottom:12px;transform:scale(0.88);transform-origin:left;"></div>
+    <div style="background:#fff;border-radius:16px;padding:28px;width:100%;max-width:340px;box-shadow:0 30px 80px rgba(0,0,0,0.15);position:relative;">
+      <button id="pw-modal-close" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:18px;cursor:pointer;color:#6b7280;">✕</button>
+      <h3 style="font-family:'Bebas Neue',sans-serif;font-size:24px;margin:0 0 16px;color:#111827;">Change Password</h3>
+      <input id="pw-new" type="password" placeholder="New password" style="width:100%;padding:10px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:14px;margin-bottom:8px;box-sizing:border-box;outline:none;">
+      <input id="pw-confirm" type="password" placeholder="Confirm new password" style="width:100%;padding:10px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:14px;margin-bottom:12px;box-sizing:border-box;outline:none;">
       <button id="pw-save-btn" style="width:100%;padding:10px;background:#3a7dff;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">Save Password</button>
       <p id="pw-msg" style="font-size:12px;margin:8px 0 0;text-align:center;display:none;"></p>
     </div>
   `;
   document.body.appendChild(pwModal);
 
-  /* ---- Reset Password Modal ---- */
-  const resetModal = document.createElement('div');
-  resetModal.id = 'reset-modal';
-  resetModal.style.cssText = 'display:none;position:fixed;inset:0;z-index:400;align-items:center;justify-content:center;background:rgba(0,0,0,0.3);backdrop-filter:blur(4px);';
-  resetModal.innerHTML = `
-    <div style="background:var(--panel);border-radius:16px;padding:28px;width:100%;max-width:360px;box-shadow:0 30px 80px rgba(0,0,0,0.15);position:relative;">
-      <button id="reset-modal-close" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted);">✕</button>
-      <h3 style="font-family:'Bebas Neue',sans-serif;font-size:24px;margin:0 0 6px;color:var(--text);">Reset Password</h3>
-      <p style="font-size:12px;color:var(--muted);margin:0 0 14px;">Enter your email and we'll send you a reset link.</p>
-      <input id="reset-email" type="email" placeholder="Your email" style="width:100%;padding:10px 12px;border:1px solid var(--glass-border);border-radius:10px;font-size:14px;margin-bottom:12px;box-sizing:border-box;outline:none;background:var(--input-bg);color:var(--text);">
-      <div id="reset-captcha" style="margin-bottom:12px;transform:scale(0.88);transform-origin:left;"></div>
-      <button id="reset-send-btn" style="width:100%;padding:10px;background:#3a7dff;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">Send Reset Email</button>
-      <p id="reset-msg" style="font-size:12px;margin:8px 0 0;text-align:center;display:none;"></p>
-    </div>
-  `;
-  document.body.appendChild(resetModal);
-
-  /* ---- Main Auth Modal ---- */
   const modal = document.createElement('div');
   modal.id = 'auth-modal';
   modal.style.cssText = 'display:none;position:fixed;inset:0;z-index:200;align-items:center;justify-content:center;background:rgba(0,0,0,0.3);backdrop-filter:blur(4px);';
   modal.innerHTML = `
-    <div style="background:var(--panel);border-radius:16px;padding:32px;width:100%;max-width:380px;box-shadow:0 30px 80px rgba(0,0,0,0.15);position:relative;max-height:90vh;overflow-y:auto;">
-      <button id="auth-modal-close" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted);">✕</button>
-      <h2 style="font-family:'Bebas Neue',sans-serif;font-size:28px;margin:0 0 6px;color:var(--text);">Welcome to Flux</h2>
-      <p style="color:var(--muted);font-size:13px;margin:0 0 20px;">Sign in to save your favorites across devices.</p>
-
-      <button id="google-signin-btn" style="width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:12px;border:1px solid var(--glass-border);border-radius:10px;background:var(--panel);cursor:pointer;font-weight:600;font-size:14px;margin-bottom:8px;color:var(--text);">
+    <div style="background:#fff;border-radius:16px;padding:32px;width:100%;max-width:380px;box-shadow:0 30px 80px rgba(0,0,0,0.15);position:relative;">
+      <button id="auth-modal-close" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:18px;cursor:pointer;color:#6b7280;">✕</button>
+      <h2 style="font-family:'Bebas Neue',sans-serif;font-size:28px;margin:0 0 6px;color:#111827;">Welcome to Flux</h2>
+      <p style="color:#6b7280;font-size:13px;margin:0 0 20px;">Sign in to save your favorites across devices.</p>
+      <button id="google-signin-btn" style="width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;background:#fff;cursor:pointer;font-weight:600;font-size:14px;margin-bottom:12px;">
         <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
         Continue with Google
       </button>
-      <p style="font-size:11px;color:var(--muted);text-align:center;margin:0 0 10px;">reCAPTCHA will appear after clicking Google sign-in</p>
-
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-        <div style="flex:1;height:1px;background:var(--glass-border);"></div>
-        <span style="color:var(--muted);font-size:12px;">or</span>
-        <div style="flex:1;height:1px;background:var(--glass-border);"></div>
+        <div style="flex:1;height:1px;background:rgba(0,0,0,0.08);"></div>
+        <span style="color:#6b7280;font-size:12px;">or</span>
+        <div style="flex:1;height:1px;background:rgba(0,0,0,0.08);"></div>
       </div>
-
-      <input id="auth-email" type="email" placeholder="Email" style="width:100%;padding:10px 12px;border:1px solid var(--glass-border);border-radius:10px;font-size:14px;margin-bottom:8px;box-sizing:border-box;outline:none;background:var(--input-bg);color:var(--text);">
-      <input id="auth-password" type="password" placeholder="Password" style="width:100%;padding:10px 12px;border:1px solid var(--glass-border);border-radius:10px;font-size:14px;margin-bottom:10px;box-sizing:border-box;outline:none;background:var(--input-bg);color:var(--text);">
-
-      <div id="auth-captcha" style="margin-bottom:12px;transform:scale(0.88);transform-origin:left;min-height:78px;"></div>
-
-      <div style="display:flex;gap:8px;margin-bottom:8px;">
+      <input id="auth-email" type="email" placeholder="Email" style="width:100%;padding:10px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:14px;margin-bottom:8px;box-sizing:border-box;outline:none;">
+      <input id="auth-password" type="password" placeholder="Password" style="width:100%;padding:10px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:14px;margin-bottom:12px;box-sizing:border-box;outline:none;">
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
         <button id="email-signin-btn" style="flex:1;padding:10px;background:#3a7dff;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">Sign In</button>
-        <button id="email-register-btn" style="flex:1;padding:10px;background:transparent;border:1px solid var(--glass-border);border-radius:10px;font-weight:600;cursor:pointer;font-size:14px;color:var(--muted);">Register</button>
+        <button id="email-register-btn" style="flex:1;padding:10px;background:transparent;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-weight:600;cursor:pointer;font-size:14px;color:#6b7280;">Register</button>
       </div>
-
-      <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-        <button id="forgot-password-btn" style="background:none;border:none;color:var(--muted);font-size:12px;cursor:pointer;text-decoration:underline;padding:0;">Forgot password?</button>
-        <button id="guest-signin-btn" style="background:none;border:none;color:var(--muted);font-size:12px;cursor:pointer;text-decoration:underline;padding:0;">Continue as guest</button>
-      </div>
-
+      <button id="guest-signin-btn" style="width:100%;padding:10px;background:transparent;border:none;color:#6b7280;font-size:13px;cursor:pointer;text-decoration:underline;">Continue as guest</button>
       <p id="auth-error" style="color:#ef4444;font-size:12px;margin:8px 0 0;text-align:center;display:none;"></p>
     </div>
   `;
   document.body.appendChild(modal);
 
-  /* ---- Wire Auth Modal ---- */
-  const openModal = () => {
-    modal.style.display = 'flex';
-    // render captcha for email login
-    setTimeout(() => renderCaptcha('auth-captcha'), 100);
-  };
-
-  authBtn.addEventListener('click', openModal);
+  authBtn.addEventListener('click', () => { modal.style.display = 'flex'; });
   document.getElementById('auth-modal-close').addEventListener('click', () => { modal.style.display = 'none'; });
   modal.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
 
-  // Google sign in — show captcha first in a mini modal
   document.getElementById('google-signin-btn').addEventListener('click', async () => {
-    const token = getCaptchaToken('auth-captcha');
-    if (!token) { showAuthError('Please complete the reCAPTCHA first.'); return; }
-    try {
-      await signInWithGoogle();
-      modal.style.display = 'none';
-      resetCaptcha('auth-captcha');
-    } catch (err) { showAuthError(err.message); resetCaptcha('auth-captcha'); setTimeout(() => renderCaptcha('auth-captcha'), 100); }
+    try { await signInWithGoogle(); modal.style.display = 'none'; }
+    catch (err) { showAuthError(err.message); }
   });
-
-  // Email sign in
   document.getElementById('email-signin-btn').addEventListener('click', async () => {
-    const token = getCaptchaToken('auth-captcha');
-    if (!token) { showAuthError('Please complete the reCAPTCHA first.'); return; }
     const email = document.getElementById('auth-email').value;
     const password = document.getElementById('auth-password').value;
-    try {
-      await signInWithEmail(email, password);
-      modal.style.display = 'none';
-      resetCaptcha('auth-captcha');
-    } catch (err) { showAuthError(err.message); resetCaptcha('auth-captcha'); setTimeout(() => renderCaptcha('auth-captcha'), 100); }
+    try { await signInWithEmail(email, password); modal.style.display = 'none'; }
+    catch (err) { showAuthError(err.message); }
   });
-
-  // Email register — send verification email after
   document.getElementById('email-register-btn').addEventListener('click', async () => {
-    const token = getCaptchaToken('auth-captcha');
-    if (!token) { showAuthError('Please complete the reCAPTCHA first.'); return; }
     const email = document.getElementById('auth-email').value;
     const password = document.getElementById('auth-password').value;
-    try {
-      const cred = await registerWithEmail(email, password);
-      await sendEmailVerification(cred.user);
-      modal.style.display = 'none';
-      resetCaptcha('auth-captcha');
-      // show verification notice
-      showVerificationNotice();
-    } catch (err) { showAuthError(err.message); resetCaptcha('auth-captcha'); setTimeout(() => renderCaptcha('auth-captcha'), 100); }
+    try { await registerWithEmail(email, password); modal.style.display = 'none'; }
+    catch (err) { showAuthError(err.message); }
   });
-
-  // Guest
   document.getElementById('guest-signin-btn').addEventListener('click', async () => {
     try { await signInAsGuest(); modal.style.display = 'none'; }
     catch (err) { showAuthError(err.message); }
   });
-
-  // Forgot password
-  document.getElementById('forgot-password-btn').addEventListener('click', () => {
-    modal.style.display = 'none';
-    resetModal.style.display = 'flex';
-    setTimeout(() => renderCaptcha('reset-captcha'), 100);
-  });
-
-  /* ---- Wire Reset Modal ---- */
-  document.getElementById('reset-modal-close').addEventListener('click', () => { resetModal.style.display = 'none'; });
-  resetModal.addEventListener('click', (e) => { if (e.target === resetModal) resetModal.style.display = 'none'; });
-
-  document.getElementById('reset-send-btn').addEventListener('click', async () => {
-    const token = getCaptchaToken('reset-captcha');
-    if (!token) { showResetMsg('Please complete the reCAPTCHA.', false); return; }
-    const email = document.getElementById('reset-email').value;
-    if (!email) { showResetMsg('Please enter your email.', false); return; }
-    try {
-      await sendPasswordResetEmail(auth, email);
-      showResetMsg('Reset link sent! Check your inbox 📬', true);
-      resetCaptcha('reset-captcha');
-      setTimeout(() => { resetModal.style.display = 'none'; }, 3000);
-    } catch (err) {
-      showResetMsg(err.message.replace('Firebase: ', '').replace(/\(auth\/.*\)/, '').trim(), false);
-      resetCaptcha('reset-captcha');
-      setTimeout(() => renderCaptcha('reset-captcha'), 100);
-    }
-  });
-
-  function showResetMsg(msg, success) {
-    const el = document.getElementById('reset-msg');
-    el.style.color = success ? '#22c55e' : '#ef4444';
-    el.textContent = msg;
-    el.style.display = 'block';
-  }
-
-  /* ---- Wire Change Password Modal ---- */
   document.getElementById('sign-out-btn').addEventListener('click', async () => {
     await logOut();
     document.getElementById('profile-dropdown').style.display = 'none';
@@ -459,37 +338,27 @@ export function initAuthUI(onUserChange) {
     e.stopPropagation();
     document.getElementById('profile-dropdown').style.display = 'none';
     pwModal.style.display = 'flex';
-    setTimeout(() => renderCaptcha('pw-captcha'), 100);
   });
   document.getElementById('pw-modal-close').addEventListener('click', () => { pwModal.style.display = 'none'; });
   pwModal.addEventListener('click', (e) => { if (e.target === pwModal) pwModal.style.display = 'none'; });
 
   document.getElementById('pw-save-btn').addEventListener('click', async () => {
-    const token = getCaptchaToken('pw-captcha');
-    if (!token) { showPwMsg('Please complete the reCAPTCHA.', false); return; }
     const { updatePassword } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
     const newPw = document.getElementById('pw-new').value;
     const confirmPw = document.getElementById('pw-confirm').value;
-    if (newPw !== confirmPw) { showPwMsg('Passwords do not match.', false); return; }
-    if (newPw.length < 6) { showPwMsg('Password must be at least 6 characters.', false); return; }
+    const msg = document.getElementById('pw-msg');
+    msg.style.display = 'block';
+    if (newPw !== confirmPw) { msg.style.color = '#ef4444'; msg.textContent = 'Passwords do not match.'; return; }
+    if (newPw.length < 6) { msg.style.color = '#ef4444'; msg.textContent = 'Password must be at least 6 characters.'; return; }
     try {
       await updatePassword(auth.currentUser, newPw);
-      showPwMsg('Password updated! ✅', true);
-      resetCaptcha('pw-captcha');
-      setTimeout(() => { pwModal.style.display = 'none'; }, 1500);
+      msg.style.color = '#22c55e'; msg.textContent = 'Password updated!';
+      setTimeout(() => { pwModal.style.display = 'none'; msg.style.display = 'none'; }, 1500);
     } catch (err) {
-      showPwMsg(err.message.replace('Firebase: ', '').replace(/\(auth\/.*\)/, '').trim(), false);
-      resetCaptcha('pw-captcha');
-      setTimeout(() => renderCaptcha('pw-captcha'), 100);
+      msg.style.color = '#ef4444';
+      msg.textContent = err.message.replace('Firebase: ', '').replace(/\(auth\/.*\)/, '').trim();
     }
   });
-
-  function showPwMsg(msg, success) {
-    const el = document.getElementById('pw-msg');
-    el.style.color = success ? '#22c55e' : '#ef4444';
-    el.textContent = msg;
-    el.style.display = 'block';
-  }
 
   function showAuthError(msg) {
     const el = document.getElementById('auth-error');
@@ -497,23 +366,6 @@ export function initAuthUI(onUserChange) {
     el.style.display = 'block';
   }
 
-  /* ---- Email Verification Notice ---- */
-  function showVerificationNotice() {
-    const notice = document.createElement('div');
-    notice.style.cssText = 'position:fixed;inset:0;z-index:500;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.4);backdrop-filter:blur(4px);';
-    notice.innerHTML = `
-      <div style="background:var(--panel);border-radius:16px;padding:32px;max-width:340px;width:100%;text-align:center;box-shadow:0 30px 80px rgba(0,0,0,0.2);">
-        <div style="font-size:48px;margin-bottom:12px;">📧</div>
-        <h3 style="font-family:'Bebas Neue',sans-serif;font-size:24px;margin:0 0 8px;color:var(--text);">Check your inbox!</h3>
-        <p style="color:var(--muted);font-size:13px;margin:0 0 20px;">We've sent a verification email. Please verify your email before signing in.</p>
-        <button id="notice-close" style="background:#3a7dff;color:white;border:none;border-radius:10px;padding:10px 24px;font-weight:700;cursor:pointer;font-size:14px;">Got it</button>
-      </div>
-    `;
-    document.body.appendChild(notice);
-    notice.querySelector('#notice-close').addEventListener('click', () => notice.remove());
-  }
-
-  /* ---- Auth State ---- */
   onAuthChange(async (user) => {
     if (user) {
       authBtn.style.display = 'none';
@@ -549,19 +401,17 @@ export function initAuthUI(onUserChange) {
         }
         profilePlaceholder.textContent = (user.displayName || user.email || '?')[0].toUpperCase();
         if (user.photoURL) {
-          avatar.src = user.photoURL; avatar.style.display = 'block';
-          profileAvatarLarge.src = user.photoURL; profileAvatarLarge.style.display = 'block';
+          avatar.src = user.photoURL;
+          avatar.style.display = 'block';
+          profileAvatarLarge.src = user.photoURL;
+          profileAvatarLarge.style.display = 'block';
           profilePlaceholder.style.display = 'none';
         } else {
-          avatar.style.display = 'none'; profileAvatarLarge.style.display = 'none';
+          avatar.style.display = 'none';
+          profileAvatarLarge.style.display = 'none';
           profilePlaceholder.style.display = 'flex';
         }
         document.getElementById('change-password-btn').style.display = 'flex';
-
-        // show unverified banner if email not verified
-        if (!user.emailVerified && !user.providerData.find(p => p.providerId === 'google.com')) {
-          showUnverifiedBanner(user);
-        }
       }
     } else {
       authBtn.style.display = '';
@@ -569,22 +419,4 @@ export function initAuthUI(onUserChange) {
     }
     if (onUserChange) onUserChange(user);
   });
-
-  function showUnverifiedBanner(user) {
-    if (document.getElementById('verify-banner')) return;
-    const banner = document.createElement('div');
-    banner.id = 'verify-banner';
-    banner.style.cssText = 'background:#f59e0b;color:white;text-align:center;padding:8px 16px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:10px;';
-    banner.innerHTML = `
-      <span>⚠️ Your email isn't verified yet.</span>
-      <button id="resend-verify-btn" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);color:white;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;font-weight:700;">Resend email</button>
-      <button id="dismiss-banner" style="background:none;border:none;color:white;cursor:pointer;font-size:16px;padding:0 4px;">✕</button>
-    `;
-    document.body.prepend(banner);
-    document.getElementById('resend-verify-btn').addEventListener('click', async () => {
-      await sendEmailVerification(user);
-      document.getElementById('resend-verify-btn').textContent = 'Sent! ✅';
-    });
-    document.getElementById('dismiss-banner').addEventListener('click', () => banner.remove());
-  }
 }
