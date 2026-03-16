@@ -470,23 +470,18 @@ export function initAuthUI(onUserChange) {
   modModal.id = 'mod-modal';
   modModal.style.cssText = 'display:none;position:fixed;inset:0;z-index:500;align-items:center;justify-content:center;background:rgba(0,0,0,0.4);backdrop-filter:blur(4px);';
   modModal.innerHTML = `
-    <div style="background:#fff;border-radius:16px;padding:28px;width:100%;max-width:380px;box-shadow:0 30px 80px rgba(0,0,0,0.2);position:relative;max-height:90vh;overflow-y:auto;">
+    <div style="background:#fff;border-radius:16px;padding:28px;width:100%;max-width:400px;box-shadow:0 30px 80px rgba(0,0,0,0.2);position:relative;max-height:90vh;overflow-y:auto;">
       <button id="mod-modal-close" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:18px;cursor:pointer;color:#6b7280;">✕</button>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
         <span style="font-size:22px;">⚙️</span>
         <h3 style="font-family:'Bebas Neue',sans-serif;font-size:26px;margin:0;color:#111827;">Mod Panel</h3>
       </div>
 
-      <!-- Current status -->
-      <div style="margin-bottom:16px;">
-        <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Server Status</div>
-        <div id="mod-current-status" style="font-size:13px;font-weight:600;color:#111827;padding:10px 12px;background:#f9fafb;border-radius:8px;border:1px solid rgba(0,0,0,0.07);">Loading...</div>
-      </div>
-
-      <!-- Auto-restore duration -->
-      <div style="margin-bottom:16px;">
-        <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Auto-restore after</div>
-        <select id="mod-duration" style="width:100%;padding:10px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;color:#111827;background:#fff;outline:none;cursor:pointer;">
+      <!-- ── SERVER CONTROL ── -->
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Server Control</div>
+      <div style="margin-bottom:12px;">
+        <div id="mod-current-status" style="font-size:13px;font-weight:600;color:#111827;padding:10px 12px;background:#f9fafb;border-radius:8px;border:1px solid rgba(0,0,0,0.07);margin-bottom:10px;">Loading...</div>
+        <select id="mod-duration" style="width:100%;padding:10px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;color:#111827;background:#fff;outline:none;cursor:pointer;margin-bottom:8px;">
           <option value="0">⛔ No limit — restore manually</option>
           <option value="1">⏱ 1 minute</option>
           <option value="2">⏱ 2 minutes</option>
@@ -495,14 +490,8 @@ export function initAuthUI(onUserChange) {
           <option value="30">⏱ 30 minutes</option>
           <option value="60">⏱ 1 hour</option>
         </select>
-      </div>
-
-      <div style="display:flex;flex-direction:column;gap:8px;">
-        <!-- Shutdown -->
-        <button id="mod-shutdown-btn" style="padding:11px;background:#ef4444;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">🔴 Shut Down Server</button>
-
-        <!-- Crash with reason -->
-        <div style="display:flex;flex-direction:column;gap:6px;">
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <button id="mod-shutdown-btn" style="padding:11px;background:#ef4444;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">🔴 Shut Down Server</button>
           <select id="mod-crash-reason" style="padding:10px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;color:#111827;background:#fff;outline:none;cursor:pointer;">
             <option value="The server has crashed due to high traffic. We're working on a fix.">🚦 Too much traffic</option>
             <option value="The database has overloaded and caused a crash. Please try again soon.">🗄️ Database overload</option>
@@ -512,12 +501,34 @@ export function initAuthUI(onUserChange) {
             <option value="A failed deployment has taken the server down. Rolling back now.">🚀 Failed deployment</option>
           </select>
           <button id="mod-crash-btn" style="padding:11px;background:#f59e0b;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">💥 Fake Server Crash</button>
+          <button id="mod-restore-btn" style="padding:11px;background:#22c55e;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">✅ Restore Server</button>
         </div>
-
-        <!-- Restore -->
-        <button id="mod-restore-btn" style="padding:11px;background:#22c55e;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">✅ Restore Server</button>
       </div>
-      <p id="mod-msg" style="font-size:12px;margin:10px 0 0;text-align:center;display:none;"></p>
+
+      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
+
+      <!-- ── BROADCAST ── -->
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">📢 Broadcast Message</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px;">
+        <input id="mod-broadcast-text" type="text" placeholder="Type your message..." maxlength="120"
+          style="padding:10px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;outline:none;box-sizing:border-box;">
+        <button id="mod-broadcast-btn" style="padding:11px;background:#3a7dff;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">📣 Send to Everyone</button>
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
+
+      <!-- ── ADMIN ABUSE ── -->
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">😈 Admin Abuse</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <button class="abuse-btn" data-effect="shake" style="padding:10px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:#111827;">🫨 Shake</button>
+        <button class="abuse-btn" data-effect="flip" style="padding:10px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:#111827;">🙃 Flip Page</button>
+        <button class="abuse-btn" data-effect="confetti" style="padding:10px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:#111827;">🎉 Confetti</button>
+        <button class="abuse-btn" data-effect="crazytext" style="padding:10px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:#111827;">🤪 Crazy Text</button>
+        <button class="abuse-btn" data-effect="colour" style="padding:10px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:#111827;">🎨 Colour Chaos</button>
+        <button id="mod-abuse-stop" style="padding:10px 8px;border:2px solid #ef4444;border-radius:10px;background:#fff;cursor:pointer;font-size:13px;font-weight:700;color:#ef4444;">🛑 Stop All</button>
+      </div>
+
+      <p id="mod-msg" style="font-size:12px;margin:12px 0 0;text-align:center;display:none;"></p>
     </div>
   `;
   document.body.appendChild(modModal);
@@ -531,23 +542,14 @@ export function initAuthUI(onUserChange) {
     const msg = document.getElementById('mod-msg');
     const durationMins = parseInt(document.getElementById('mod-duration').value) || 0;
     const restoreAt = durationMins > 0 ? new Date(Date.now() + durationMins * 60000).toISOString() : null;
-
     try {
-      await setDoc(doc(db, 'stats', 'server'), {
-        status, message,
-        updatedAt: new Date().toISOString(),
-        restoreAt
-      });
+      await setDoc(doc(db, 'stats', 'server'), { status, message, updatedAt: new Date().toISOString(), restoreAt });
       msg.style.color = '#22c55e';
-      msg.textContent = durationMins > 0
-        ? `Status set — auto-restoring in ${durationMins} min`
-        : `Status set to "${status}"`;
+      msg.textContent = durationMins > 0 ? `Status set — restoring in ${durationMins} min` : `Status set to "${status}"`;
       msg.style.display = 'block';
-      document.getElementById('mod-current-status').textContent = `${status} — ${message}`;
+      document.getElementById('mod-current-status').textContent = `${status} — ${message}${durationMins > 0 ? ` (restores in ~${durationMins}m)` : ''}`;
       document.getElementById('mod-current-status').style.color = status === 'online' ? '#22c55e' : status === 'crash' ? '#f59e0b' : '#ef4444';
       setTimeout(() => { msg.style.display = 'none'; }, 3000);
-
-      // Clear any existing timer and set a new one if duration chosen
       if (_autoRestoreTimer) clearTimeout(_autoRestoreTimer);
       if (durationMins > 0 && status !== 'online') {
         _autoRestoreTimer = setTimeout(async () => {
@@ -555,22 +557,57 @@ export function initAuthUI(onUserChange) {
         }, durationMins * 60000);
       }
     } catch (e) {
-      msg.style.color = '#ef4444';
-      msg.textContent = 'Failed to update status.';
-      msg.style.display = 'block';
+      msg.style.color = '#ef4444'; msg.textContent = 'Failed to update status.'; msg.style.display = 'block';
     }
   }
 
   document.getElementById('mod-shutdown-btn').addEventListener('click', () =>
     setServerStatus('shutdown', 'The server has been shut down by an admin. Please check back later.'));
-  document.getElementById('mod-crash-btn').addEventListener('click', () => {
-    const reason = document.getElementById('mod-crash-reason').value;
-    setServerStatus('crash', reason);
-  });
+  document.getElementById('mod-crash-btn').addEventListener('click', () =>
+    setServerStatus('crash', document.getElementById('mod-crash-reason').value));
   document.getElementById('mod-restore-btn').addEventListener('click', () =>
     setServerStatus('online', 'online'));
 
-  // Open mod modal and load current status
+  // Broadcast
+  document.getElementById('mod-broadcast-btn').addEventListener('click', async () => {
+    const text = document.getElementById('mod-broadcast-text').value.trim();
+    if (!text) return;
+    const msg = document.getElementById('mod-msg');
+    try {
+      await setDoc(doc(db, 'stats', 'broadcast'), {
+        message: text,
+        sentAt: new Date().toISOString(),
+        id: Math.random().toString(36).slice(2)
+      });
+      document.getElementById('mod-broadcast-text').value = '';
+      msg.style.color = '#22c55e'; msg.textContent = 'Message sent!'; msg.style.display = 'block';
+      setTimeout(() => { msg.style.display = 'none'; }, 2500);
+    } catch (e) {
+      msg.style.color = '#ef4444'; msg.textContent = 'Failed to send.'; msg.style.display = 'block';
+    }
+  });
+
+  // Admin abuse buttons — toggle on/off
+  const _activeEffects = new Set();
+  modModal.querySelectorAll('.abuse-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const effect = btn.dataset.effect;
+      const isActive = _activeEffects.has(effect);
+      const newEffects = new Set(_activeEffects);
+      if (isActive) newEffects.delete(effect); else newEffects.add(effect);
+      try {
+        await setDoc(doc(db, 'stats', 'chaos'), { effects: [...newEffects], updatedAt: new Date().toISOString() });
+      } catch (e) { console.warn('Chaos write failed', e); }
+    });
+  });
+
+  document.getElementById('mod-abuse-stop').addEventListener('click', async () => {
+    try {
+      await setDoc(doc(db, 'stats', 'chaos'), { effects: [], updatedAt: new Date().toISOString() });
+    } catch (e) { console.warn('Chaos stop failed', e); }
+  });
+
+  // Open mod modal
   document.getElementById('mod-panel-btn').addEventListener('click', async (e) => {
     e.stopPropagation();
     document.getElementById('profile-dropdown').style.display = 'none';
@@ -586,6 +623,19 @@ export function initAuthUI(onUserChange) {
       statusEl.textContent = 'online — no issues';
       statusEl.style.color = '#22c55e';
     }
+    // Sync active chaos effects to button states
+    try {
+      const chaosSnap = await getDoc(doc(db, 'stats', 'chaos'));
+      const active = chaosSnap.exists() ? (chaosSnap.data().effects || []) : [];
+      _activeEffects.clear();
+      active.forEach(e => _activeEffects.add(e));
+      modModal.querySelectorAll('.abuse-btn').forEach(btn => {
+        const on = _activeEffects.has(btn.dataset.effect);
+        btn.style.background = on ? '#111827' : '#fff';
+        btn.style.color = on ? '#fff' : '#111827';
+        btn.style.borderColor = on ? '#111827' : '#e5e7eb';
+      });
+    } catch {}
   });
 
   function showAuthError(msg) {
@@ -810,6 +860,147 @@ export function initServerStatus() {
           applyOverlay(user?.uid === ADMIN_UID);
         }, { once: true });
       }
+    });
+  });
+}
+
+/* ===================== BROADCAST ===================== */
+export function initBroadcast() {
+  import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({ onSnapshot, doc: firestoreDoc }) => {
+    let _lastBroadcastId = null;
+
+    onSnapshot(firestoreDoc(db, 'stats', 'broadcast'), (snap) => {
+      if (!snap.exists()) return;
+      const { message, id } = snap.data();
+      if (!message || id === _lastBroadcastId) return;
+      _lastBroadcastId = id;
+
+      // Show toast-style popup bottom right
+      let container = document.getElementById('toast-container');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none;';
+        document.body.appendChild(container);
+      }
+
+      const toast = document.createElement('div');
+      toast.style.cssText = `
+        background:#111827;border-radius:12px;padding:14px 18px;
+        box-shadow:0 8px 30px rgba(0,0,0,0.3);border-left:4px solid #3a7dff;
+        display:flex;flex-direction:column;gap:4px;
+        pointer-events:all;max-width:300px;
+        opacity:0;transform:translateY(8px);transition:all 0.25s ease;
+      `;
+      toast.innerHTML = `
+        <span style="font-size:11px;font-weight:700;color:#3a7dff;text-transform:uppercase;letter-spacing:0.5px;">📣 Admin Broadcast</span>
+        <span style="font-size:14px;color:#fff;font-weight:500;">${message}</span>
+      `;
+      container.appendChild(toast);
+      requestAnimationFrame(() => { toast.style.opacity = '1'; toast.style.transform = 'translateY(0)'; });
+      setTimeout(() => {
+        toast.style.opacity = '0'; toast.style.transform = 'translateY(8px)';
+        setTimeout(() => toast.remove(), 250);
+      }, 5000);
+    });
+  });
+}
+
+/* ===================== CHAOS ===================== */
+export function initChaos() {
+  const COLOURS = ['#3a7dff','#ef4444','#22c55e','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316'];
+  const FONTS = ['Comic Sans MS', 'Impact', 'Courier New', 'Georgia', 'Papyrus', 'Arial Black'];
+  let _chaosSheet = null;
+  let _confettiInterval = null;
+  let _crazyInterval = null;
+  let _activeEffects = new Set();
+
+  function getSheet() {
+    if (!_chaosSheet) {
+      const style = document.createElement('style');
+      document.head.appendChild(style);
+      _chaosSheet = style.sheet;
+    }
+    return _chaosSheet;
+  }
+
+  function clearRules() {
+    const sheet = getSheet();
+    while (sheet.cssRules.length) sheet.deleteRule(0);
+  }
+
+  function applyEffects(effects) {
+    const prev = _activeEffects;
+    _activeEffects = new Set(effects);
+
+    clearRules();
+    if (_confettiInterval) { clearInterval(_confettiInterval); _confettiInterval = null; }
+    if (_crazyInterval) { clearInterval(_crazyInterval); _crazyInterval = null; }
+    document.documentElement.style.transform = '';
+    document.documentElement.style.transition = '';
+    document.querySelectorAll('.chaos-confetti').forEach(el => el.remove());
+
+    if (_activeEffects.has('shake')) {
+      getSheet().insertRule(`@keyframes chaos-shake { 0%,100%{transform:translate(0,0)} 20%{transform:translate(-4px,3px)} 40%{transform:translate(4px,-3px)} 60%{transform:translate(-3px,4px)} 80%{transform:translate(3px,-2px)} }`, 0);
+      getSheet().insertRule(`body { animation: chaos-shake 0.4s infinite !important; }`, 1);
+    }
+
+    if (_activeEffects.has('flip')) {
+      document.documentElement.style.transform = 'rotate(180deg)';
+      document.documentElement.style.transition = 'transform 0.6s ease';
+    }
+
+    if (_activeEffects.has('colour')) {
+      const col = COLOURS[Math.floor(Math.random() * COLOURS.length)];
+      getSheet().insertRule(`:root { --accent: ${col} !important; --primary: ${col} !important; }`, 0);
+      getSheet().insertRule(`a, button, .play-btn { background-color: ${col} !important; border-color: ${col} !important; }`, 1);
+    }
+
+    if (_activeEffects.has('crazytext')) {
+      const randomise = () => {
+        document.querySelectorAll('h1,h2,h3,.title,.card-body').forEach(el => {
+          el.style.fontFamily = FONTS[Math.floor(Math.random() * FONTS.length)];
+          el.style.fontSize = `${Math.floor(Math.random() * 16) + 10}px`;
+          el.style.color = COLOURS[Math.floor(Math.random() * COLOURS.length)];
+          el.style.transform = `rotate(${Math.floor(Math.random() * 10) - 5}deg)`;
+        });
+      };
+      randomise();
+      _crazyInterval = setInterval(randomise, 800);
+    } else {
+      // Restore text if crazytext was on before
+      if (prev.has('crazytext')) {
+        document.querySelectorAll('h1,h2,h3,.title,.card-body').forEach(el => {
+          el.style.fontFamily = ''; el.style.fontSize = ''; el.style.color = ''; el.style.transform = '';
+        });
+      }
+    }
+
+    if (_activeEffects.has('confetti')) {
+      const spawnConfetti = () => {
+        const el = document.createElement('div');
+        el.className = 'chaos-confetti';
+        const size = Math.random() * 10 + 6;
+        el.style.cssText = `
+          position:fixed;top:-20px;left:${Math.random()*100}vw;
+          width:${size}px;height:${size}px;border-radius:${Math.random()>0.5?'50%':'2px'};
+          background:${COLOURS[Math.floor(Math.random()*COLOURS.length)]};
+          z-index:99998;pointer-events:none;
+          animation:chaos-fall ${Math.random()*2+2}s linear forwards;
+        `;
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 4000);
+      };
+      getSheet().insertRule(`@keyframes chaos-fall { to { transform: translateY(110vh) rotate(720deg); opacity:0; } }`, 0);
+      spawnConfetti();
+      _confettiInterval = setInterval(spawnConfetti, 120);
+    }
+  }
+
+  import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({ onSnapshot, doc: firestoreDoc }) => {
+    onSnapshot(firestoreDoc(db, 'stats', 'chaos'), (snap) => {
+      const effects = snap.exists() ? (snap.data().effects || []) : [];
+      applyEffects(effects);
     });
   });
 }
