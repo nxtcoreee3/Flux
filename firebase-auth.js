@@ -53,12 +53,15 @@ let _onlineCount = 0;
 
 async function updatePeakOnline(count) {
   try {
+    const { runTransaction } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
     const peakRef = doc(db, 'stats', 'peak');
-    const snap = await getDoc(peakRef);
-    const current = snap.exists() ? (snap.data().count || 0) : 0;
-    if (count > current) {
-      await setDoc(peakRef, { count, date: new Date().toISOString() });
-    }
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(peakRef);
+      const current = snap.exists() ? (snap.data().count || 0) : 0;
+      if (count > current) {
+        tx.set(peakRef, { count, date: new Date().toISOString() });
+      }
+    });
   } catch (e) { console.warn('Could not update peak:', e); }
 }
 
@@ -120,16 +123,20 @@ export async function trackDailyVisitor() {
   if (localStorage.getItem(storageKey)) return; // already counted today on this device
 
   try {
+    const { runTransaction } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
     const visitorRef = doc(db, 'stats', 'visitors');
-    const snap = await getDoc(visitorRef);
 
-    if (snap.exists() && snap.data().date === today) {
-      // Same day — just increment
-      await updateDoc(visitorRef, { count: increment(1) });
-    } else {
-      // New day (or first ever) — reset counter
-      await setDoc(visitorRef, { date: today, count: 1 });
-    }
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(visitorRef);
+      if (snap.exists() && snap.data().date === today) {
+        // Same day — atomically increment so concurrent visitors don't overwrite each other
+        tx.update(visitorRef, { count: increment(1) });
+      } else {
+        // New day (or first ever) — reset to 1
+        tx.set(visitorRef, { date: today, count: 1 });
+      }
+    });
+
     localStorage.setItem(storageKey, '1');
   } catch (e) { console.warn('Could not track visitor:', e); }
 }
