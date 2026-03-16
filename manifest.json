@@ -1,0 +1,26 @@
+{
+  "name": "Flux",
+  "short_name": "Flux",
+  "description": "Play great web games instantly",
+  "start_url": "/Flux/",
+  "display": "standalone",
+  "background_color": "#0f1724",
+  "theme_color": "#0f1724",
+  "icons": [
+    {
+      "src": "assets/thumbnail.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/thumbnail.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/thumbnail.png",
+      "sizes": "any",
+      "type": "image/png"
+    }
+  ]
+}
