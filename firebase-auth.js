@@ -145,6 +145,13 @@ async function fetchVisitorsToday() {
 
 /* ===================== STATS BUTTON ===================== */
 export function initStatsButton() {
+  // Inject beta pulse keyframe globally for beta badges
+  if (!document.getElementById('flux-beta-style')) {
+    const s = document.createElement('style');
+    s.id = 'flux-beta-style';
+    s.textContent = `@keyframes beta-pulse { 0%,100%{transform:scale(1);opacity:0.4} 50%{transform:scale(1.4);opacity:0} }`;
+    document.head.appendChild(s);
+  }
   const rightActions = document.querySelector('.right-actions');
   if (!rightActions) return;
 
@@ -662,7 +669,7 @@ export function initAuthUI(onUserChange) {
         <span>👤</span> My Profile
       </a>
       <a href="social.html" style="display:flex;align-items:center;gap:10px;padding:12px 16px;font-size:13px;color:#111827;text-decoration:none;border-bottom:1px solid rgba(0,0,0,0.06);">
-        <span>💬</span> Social & Chat
+        <span>💬</span> Social & Chat <span style="display:inline-flex;align-items:center;background:linear-gradient(135deg,#f59e0b,#ef4444);color:white;font-size:8px;font-weight:800;padding:1px 5px;border-radius:20px;letter-spacing:0.8px;text-transform:uppercase;margin-left:4px;position:relative;animation:none;" class="dropdown-beta">BETA</span>
       </a>
       <a href="info.html" style="display:flex;align-items:center;gap:10px;padding:12px 16px;font-size:13px;color:#111827;text-decoration:none;border-bottom:1px solid rgba(0,0,0,0.06);">
         <span>🔒</span> Privacy Policy
