@@ -68,6 +68,13 @@ const GAMES = [
   thumb: 'assets/8-ball-classic.png',
   url: 'https://nxtcoreee3.github.io/8-Ball-Classic/',
   desc: 'Play classic 8-ball pool against friends or the AI in a fun, simple game.'
+},
+{
+  id: 'moto-x3m',
+  title: 'Moto X3M',
+  thumb: 'assets/moto-x3m.png',
+  url: 'https://nxtcoreee3.github.io/Moto-X3M/',
+  desc: 'Race through crazy bike levels, do stunts, and beat the clock.'
 }
 ];
 
