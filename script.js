@@ -61,7 +61,14 @@ const GAMES = [
     thumb: 'assets/polytrack.png',
     url: 'https://nxtcoreee3.github.io/Polytrack/',
     desc: 'Drive and race against your older records.'
-  }
+  },
+{
+  id: '8-ball-classic',
+  title: '8 Ball Classic',
+  thumb: 'assets/8-ball-classic.png',
+  url: 'https://nxtcoreee3.github.io/8-Ball-Classic/',
+  desc: 'Play classic 8-ball pool against friends or the AI in a fun, simple game.'
+}
 ];
 
 // expose game count globally for stats button
