@@ -1199,7 +1199,6 @@ export function initAuthUI(onUserChange) {
         const profile = await getProfile(user.uid);
         if (!profile) {
           initProfileSetup((p) => {
-            // Update display name in nav if profile created
             if (p && name) name.textContent = p.displayName || p.username;
           });
         } else {
@@ -1209,6 +1208,10 @@ export function initAuthUI(onUserChange) {
           const profileLinkEl = document.getElementById('view-profile-btn');
           if (profileLinkEl) profileLinkEl.style.display = 'flex';
           if (profileLinkEl) profileLinkEl.href = `profile.html?user=${profile.username}`;
+          // Sync avatar from Google if it changed
+          if (user.photoURL && user.photoURL !== profile.avatarURL) {
+            updateDoc(doc(db, 'profiles', user.uid), { avatarURL: user.photoURL }).catch(() => {});
+          }
         }
       }
 
