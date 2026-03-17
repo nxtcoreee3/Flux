@@ -11,7 +11,7 @@ import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/
 import {
   getFirestore, collection, addDoc, deleteDoc,
   doc, query, orderBy, limit, onSnapshot,
-  serverTimestamp, getDoc
+  serverTimestamp, getDoc, getDocs, where
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -46,6 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   initChat();
   initSearch();
+  initRecommended();
 });
 
 /* ══════════════════════════════════════
@@ -324,6 +325,100 @@ function showMyProfileCard(profile) {
     </div>
   `;
   card.style.display = 'block';
+}
+
+/* ══════════════════════════════════════
+   RECOMMENDED FOLLOWS
+══════════════════════════════════════ */
+async function initRecommended() {
+  const card = document.getElementById('recommended-card');
+  const list = document.getElementById('recommended-list');
+  if (!card || !list) return;
+
+  onAuthStateChanged(auth, async (user) => {
+    if (!user || user.isAnonymous) { card.style.display = 'none'; return; }
+
+    const myProfile = await getProfile(user.uid);
+    if (!myProfile) { card.style.display = 'none'; return; }
+
+    const myFollowing = myProfile.following || [];
+    const recommendations = [];
+    const seen = new Set([user.uid, ...myFollowing]);
+
+    // 1. Mutuals — people that people I follow also follow
+    try {
+      for (const followedUid of myFollowing.slice(0, 5)) {
+        const theirProfile = await getProfile(followedUid);
+        if (!theirProfile) continue;
+        for (const uid of (theirProfile.following || [])) {
+          if (!seen.has(uid)) {
+            seen.add(uid);
+            const p = await getProfile(uid);
+            if (p && !p.isBanned) recommendations.push({ ...p, reason: `Followed by @${theirProfile.username}` });
+          }
+          if (recommendations.length >= 3) break;
+        }
+        if (recommendations.length >= 3) break;
+      }
+    } catch {}
+
+    // 2. Fill remaining with newest users
+    if (recommendations.length < 5) {
+      try {
+        const q = query(collection(db, 'profiles'), orderBy('joinedAt', 'desc'), limit(20));
+        const snap = await getDocs(q);
+        for (const d of snap.docs) {
+          if (recommendations.length >= 5) break;
+          const p = { uid: d.id, ...d.data() };
+          if (!seen.has(p.uid) && !p.isBanned) {
+            seen.add(p.uid);
+            recommendations.push({ ...p, reason: 'New to Flux' });
+          }
+        }
+      } catch {}
+    }
+
+    if (!recommendations.length) { card.style.display = 'none'; return; }
+
+    list.innerHTML = '';
+    recommendations.forEach(profile => {
+      const avatarHTML = profile.avatarURL
+        ? `<img src="${profile.avatarURL}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;border:1px solid var(--glass-border);flex-shrink:0;">`
+        : `<div style="width:38px;height:38px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:15px;flex-shrink:0;">${(profile.displayName || profile.username || '?')[0].toUpperCase()}</div>`;
+
+      const item = document.createElement('div');
+      item.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--glass-border);';
+      item.innerHTML = `
+        <a href="profile.html?user=${profile.username}" style="display:flex;align-items:center;gap:10px;text-decoration:none;flex:1;min-width:0;">
+          ${avatarHTML}
+          <div style="min-width:0;">
+            <div style="font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${profile.displayName || profile.username}</div>
+            <div style="font-size:11px;color:var(--muted);">@${profile.username}</div>
+            <div style="font-size:10px;color:var(--accent);margin-top:1px;">${profile.reason}</div>
+          </div>
+        </a>
+        <button class="rec-follow-btn" data-uid="${profile.uid}" data-username="${profile.username}"
+          style="padding:5px 12px;background:var(--accent);color:white;border:none;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">
+          Follow
+        </button>
+      `;
+      item.querySelector('.rec-follow-btn').addEventListener('click', async (e) => {
+        const btn = e.currentTarget;
+        const { followUser } = await import('./firebase-auth.js');
+        btn.disabled = true;
+        btn.textContent = '...';
+        await followUser(btn.dataset.uid);
+        btn.textContent = '✓';
+        btn.style.background = '#22c55e';
+        setTimeout(() => item.style.opacity = '0.4', 800);
+      });
+      list.appendChild(item);
+    });
+
+    // Remove border from last item
+    list.lastChild?.style.setProperty('border-bottom', 'none');
+    card.style.display = 'block';
+  });
 }
 
 /* ── helpers ── */
