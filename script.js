@@ -82,6 +82,13 @@ const GAMES = [
   thumb: 'assets/table-tennis-world-tour.png',
   url: 'https://nxtcoreee3.github.io/Table-Tennis-World-Tour/',
   desc: 'Play fast‑paced table tennis matches against players worldwide.'
+},
+{
+  id: 'crazy-cars',
+  title: 'Crazy Cars',
+  thumb: 'assets/crazy-cars.png',
+  url: 'https://nxtcoreee3.github.io/Crazy-Cars/',
+  desc: 'Race at high speed while dodging traffic and obstacles.'
 }
 ];
 
