@@ -71,7 +71,7 @@ const GAMES = [
 },
 {
   id: 'moto-x3m',
-  title: 'Moto X3M3',
+  title: 'Moto X3M',
   thumb: 'assets/moto-x3m.png',
   url: 'https://nxtcoreee3.github.io/Moto-X3M/',
   desc: 'Race through crazy bike levels, do stunts, and beat the clock.'
