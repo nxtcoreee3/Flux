@@ -61,43 +61,8 @@ const GAMES = [
     thumb: 'assets/polytrack.png',
     url: 'https://nxtcoreee3.github.io/Polytrack/',
     desc: 'Drive and race against your older records.'
-  },
-{
-  id: '8-ball-classic',
-  title: '8 Ball Classic',
-  thumb: 'assets/8-ball-classic.png',
-  url: 'https://nxtcoreee3.github.io/8-Ball-Classic/',
-  desc: 'Play classic 8-ball pool against friends or the AI in a fun, simple game.'
-},
-{
-  id: 'moto-x3m',
-  title: 'Moto X3M',
-  thumb: 'assets/moto-x3m.png',
-  url: 'https://nxtcoreee3.github.io/Moto-X3M/',
-  desc: 'Race through crazy bike levels, do stunts, and beat the clock.'
-},
-{
-  id: 'table-tennis-world-tour',
-  title: 'Table Tennis World Tour',
-  thumb: 'assets/table-tennis-world-tour.png',
-  url: 'https://nxtcoreee3.github.io/Table-Tennis-World-Tour/',
-  desc: 'Play fast‑paced table tennis matches against players worldwide.'
-},
-{
-  id: 'crazy-cars',
-  title: 'Crazy Cars',
-  thumb: 'assets/crazy-cars.png',
-  url: 'https://nxtcoreee3.github.io/Crazy-Cars/',
-  desc: 'Race at high speed while dodging traffic and obstacles.'
-},
-{
-  id: 'crazy-motorcycle',
-  title: 'Crazy Motorcycle',
-  thumb: 'assets/crazy-motorcycle.png',
-  url: 'https://nxtcoreee3.github.io/Crazy-Motorcycle/',
-  desc: 'Ride through obstacle-filled tracks, jump gaps, and reach the finish line.'
- }
-   ];
+  }
+];
 
 // expose game count globally for stats button
 window._FLUX_GAME_COUNT = GAMES.length;
@@ -353,6 +318,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (user && !user.isAnonymous && !sessionStorage.getItem('flux_welcomed')) {
       showToast(`Welcome back! 👋`, 'success');
       sessionStorage.setItem('flux_welcomed', '1');
+    }
+  });
+
+  // Also load favs independently in case initAuthUI callback doesn't fire on page load
+  loadCloudFavs().then(cloud => {
+    if (cloud !== null) {
+      _favsCache = cloud;
+      saveLocalFavs(cloud);
+      applyFilters();
     }
   });
 });
