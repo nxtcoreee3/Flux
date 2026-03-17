@@ -224,43 +224,79 @@ function renderProfile(profile, { isOwn, isAdmin, isFollowing, canSeeContent, cu
   const bannerColor = theme.bannerColor || '#3a7dff';
   const accentColor = theme.accentColor || '';
   const bannerEmoji = theme.bannerEmoji || '';
+  const effect = theme.effect || '';
+
+  // Generate floating emojis for confetti effect
+  let bannerInner = bannerEmoji ? `<span style="font-size:48px;position:relative;z-index:1;">${bannerEmoji}</span>` : '';
+  if (effect === 'confetti') {
+    const confettiEmojis = ['🎉','✨','🎊','⭐','💫','🌟'];
+    const positions = [[10,20],[25,60],[40,15],[55,70],[70,25],[85,55],[15,80],[90,40]];
+    bannerInner += positions.map(([l,t], i) =>
+      `<span style="position:absolute;left:${l}%;top:${t}%;font-size:18px;animation:banner-float ${2+i*0.3}s ease-in-out infinite;animation-delay:${i*0.2}s;">${confettiEmojis[i % confettiEmojis.length]}</span>`
+    ).join('');
+  } else if (effect === 'stars') {
+    const starPos = [[8,30],[20,70],[35,20],[50,60],[65,30],[78,75],[90,20],[45,80]];
+    bannerInner += starPos.map(([l,t], i) =>
+      `<span style="position:absolute;left:${l}%;top:${t}%;font-size:14px;animation:banner-float ${2+i*0.4}s ease-in-out infinite;animation-delay:${i*0.25}s;">⭐</span>`
+    ).join('');
+  } else if (effect === 'fire') {
+    const firePos = [[5,40],[18,65],[32,30],[47,70],[62,25],[75,60],[88,35]];
+    bannerInner += firePos.map(([l,t], i) =>
+      `<span style="position:absolute;left:${l}%;top:${t}%;font-size:16px;animation:banner-float ${1.5+i*0.3}s ease-in-out infinite;animation-delay:${i*0.15}s;">🔥</span>`
+    ).join('');
+  }
 
   return `
-    ${accentColor ? `<style>.profile-hero { --accent: ${accentColor}; } .btn-follow { background: ${accentColor} !important; } .profile-stat-num { color: ${accentColor} !important; }</style>` : ''}
-    <div class="profile-hero" style="--banner-color:${bannerColor};">
-      <div style="position:absolute;top:0;left:0;right:0;height:80px;background:${bannerColor};opacity:0.9;border-radius:20px 20px 0 0;display:flex;align-items:center;justify-content:center;font-size:32px;">${bannerEmoji}</div>
-      <div class="profile-top">
-        <div class="profile-avatar-wrap">${avatarHTML}</div>
-        <div class="profile-info">
-          <h1 class="profile-displayname">${profile.displayName || profile.username}</h1>
-          <p class="profile-username">@${profile.username} ${profile.isPrivate ? '🔒' : ''} ${profile.isBanned ? '<span class="ban-badge">🚫 Banned</span>' : ''}</p>
-          <div class="profile-badges">${renderBadges(profile.badges || [], profile.roles || [])}</div>
-          ${profile.bio ? `<p class="profile-bio">${profile.bio}</p>` : ''}
-        </div>
+    ${accentColor ? `<style>
+      #profile-root .btn-follow:not(.following) { background: ${accentColor} !important; }
+      #profile-root .profile-stat-num { color: ${accentColor} !important; }
+      #profile-root .profile-section-title { color: ${accentColor} !important; }
+    </style>` : ''}
+
+    <div class="profile-card">
+      <!-- Banner -->
+      <div class="profile-banner" style="background:${bannerColor};">${bannerInner}</div>
+
+      <!-- Avatar overlapping banner -->
+      <div class="profile-avatar-ring">
+        ${profile.avatarURL
+          ? `<img class="profile-avatar" src="${profile.avatarURL}" alt="${profile.displayName}">`
+          : `<div class="profile-avatar-placeholder">${(profile.displayName || profile.username || '?')[0].toUpperCase()}</div>`}
       </div>
 
-      <div class="profile-actions">
-        ${followBtn}
-        ${editBtn}
-        ${joinDate ? `<span style="font-size:12px;color:var(--muted);">Joined ${joinDate}</span>` : ''}
-      </div>
+      <div class="profile-body">
+        <div class="profile-name-row">
+          <div>
+            <h1 class="profile-displayname">${profile.displayName || profile.username}</h1>
+            <p class="profile-username">@${profile.username} ${profile.isPrivate ? '🔒' : ''} ${profile.isBanned ? '<span class="ban-badge">🚫 Banned</span>' : ''}</p>
+          </div>
+          <div style="display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;">
+            ${followBtn}
+            ${editBtn}
+          </div>
+        </div>
 
-      <div class="profile-stats">
-        <div class="profile-stat">
-          <span class="profile-stat-num">${followersCount}</span>
-          <span class="profile-stat-label">Followers</span>
-        </div>
-        <div class="profile-stat">
-          <span class="profile-stat-num">${followingCount}</span>
-          <span class="profile-stat-label">Following</span>
-        </div>
-        <div class="profile-stat">
-          <span class="profile-stat-num">${favsCount}</span>
-          <span class="profile-stat-label">Favourites</span>
-        </div>
-      </div>
+        ${(profile.badges?.length || profile.roles?.length) ? `<div class="profile-badges">${renderBadges(profile.badges || [], profile.roles || [])}</div>` : ''}
+        ${profile.bio ? `<p class="profile-bio">${profile.bio}</p>` : ''}
+        ${joinDate ? `<p style="font-size:12px;color:var(--muted);margin:0 0 16px;">Joined ${joinDate}</p>` : ''}
 
-      ${adminPanel}
+        <div class="profile-stats">
+          <div class="profile-stat">
+            <span class="profile-stat-num">${followersCount}</span>
+            <span class="profile-stat-label">Followers</span>
+          </div>
+          <div class="profile-stat">
+            <span class="profile-stat-num">${followingCount}</span>
+            <span class="profile-stat-label">Following</span>
+          </div>
+          <div class="profile-stat">
+            <span class="profile-stat-num">${favsCount}</span>
+            <span class="profile-stat-label">Favourites</span>
+          </div>
+        </div>
+
+        ${adminPanel}
+      </div>
     </div>
 
     ${contentHTML}
@@ -373,6 +409,7 @@ function showEditModal(profile) {
   const bannerColor = theme.bannerColor || '#3a7dff';
   const accentColor = theme.accentColor || '#3a7dff';
   const bannerEmoji = theme.bannerEmoji || '🎮';
+  const currentEffect = theme.effect || 'none';
 
   const overlay = document.createElement('div');
   overlay.id = 'edit-modal-overlay';
@@ -411,6 +448,15 @@ function showEditModal(profile) {
           </div>
           <!-- Preview -->
           <div id="theme-preview" style="margin-top:10px;height:40px;border-radius:8px;background:${bannerColor};display:flex;align-items:center;justify-content:center;font-size:22px;transition:background 0.2s;">${bannerEmoji}</div>
+          <div style="margin-top:10px;">
+            <label class="field-label" style="margin-bottom:6px;">Banner Effect</label>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              ${[['none','✕ None'],['confetti','🎉 Confetti'],['stars','⭐ Stars'],['fire','🔥 Fire']].map(([val, label]) =>
+                `<button type="button" class="effect-btn" data-effect="${val}" style="padding:6px 12px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;border:2px solid ${currentEffect===val?'var(--accent)':'var(--glass-border)'};background:${currentEffect===val?'var(--accent)':'transparent'};color:${currentEffect===val?'#fff':'var(--text)'};">${label}</button>`
+              ).join('')}
+            </div>
+            <input type="hidden" id="edit-effect" value="${currentEffect}">
+          </div>
         </div>
 
         <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;background:var(--bg);border-radius:10px;border:1px solid var(--glass-border);">
@@ -442,6 +488,19 @@ function showEditModal(profile) {
   document.getElementById('edit-banner-color').addEventListener('input', updatePreview);
   document.getElementById('edit-banner-emoji').addEventListener('input', updatePreview);
 
+  // Effect buttons
+  overlay.querySelectorAll('.effect-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.getElementById('edit-effect').value = btn.dataset.effect;
+      overlay.querySelectorAll('.effect-btn').forEach(b => {
+        const on = b === btn;
+        b.style.borderColor = on ? 'var(--accent)' : 'var(--glass-border)';
+        b.style.background = on ? 'var(--accent)' : 'transparent';
+        b.style.color = on ? '#fff' : 'var(--text)';
+      });
+    });
+  });
+
   // Toggle
   const cb = document.getElementById('edit-private');
   const track = document.getElementById('edit-toggle-track');
@@ -461,6 +520,7 @@ function showEditModal(profile) {
     const bannerColor = document.getElementById('edit-banner-color').value;
     const accentColor = document.getElementById('edit-accent-color').value;
     const bannerEmoji = document.getElementById('edit-banner-emoji').value.trim() || '🎮';
+    const effect = document.getElementById('edit-effect').value;
     const btn = document.getElementById('edit-save');
     const errEl = document.getElementById('edit-error');
 
@@ -469,7 +529,7 @@ function showEditModal(profile) {
 
     await updateProfile(profile.uid, {
       displayName, bio, isPrivate,
-      theme: { bannerColor, accentColor, bannerEmoji }
+      theme: { bannerColor, accentColor, bannerEmoji, effect }
     });
     overlay.remove();
     location.reload();
