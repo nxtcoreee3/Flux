@@ -282,12 +282,16 @@ export function getCurrentUser() { return auth.currentUser; }
 
 /* ===================== FIRESTORE FAVORITES ===================== */
 export async function loadCloudFavs() {
-  const user = auth.currentUser;
-  if (!user || user.isAnonymous) return null;
-  try {
-    const snap = await getDoc(doc(db, 'users', user.uid));
-    return snap.exists() ? snap.data().favorites || [] : [];
-  } catch { return null; }
+  return new Promise((resolve) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      unsubscribe();
+      if (!user || user.isAnonymous) { resolve(null); return; }
+      try {
+        const snap = await getDoc(doc(db, 'users', user.uid));
+        resolve(snap.exists() ? snap.data().favorites || [] : []);
+      } catch { resolve(null); }
+    });
+  });
 }
 
 export async function syncProfileFavs(favs) {
