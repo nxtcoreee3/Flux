@@ -278,6 +278,7 @@ function renderProfile(profile, { isOwn, isAdmin, isFollowing, canSeeContent, cu
 
         ${(profile.badges?.length || profile.roles?.length) ? `<div class="profile-badges">${renderBadges(profile.badges || [], profile.roles || [])}</div>` : ''}
         ${profile.bio ? `<p class="profile-bio">${profile.bio}</p>` : ''}
+        ${profile.currentlyPlaying ? `<p style="font-size:13px;color:var(--muted);margin:0 0 10px;display:flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block;animation:pulse-dot 2s infinite;flex-shrink:0;"></span>Playing <strong style="color:var(--text);">${profile.currentlyPlaying.title}</strong></p>` : ''}
         ${joinDate ? `<p style="font-size:12px;color:var(--muted);margin:0 0 16px;">Joined ${joinDate}</p>` : ''}
 
         <div class="profile-stats">
@@ -292,6 +293,14 @@ function renderProfile(profile, { isOwn, isAdmin, isFollowing, canSeeContent, cu
           <div class="profile-stat">
             <span class="profile-stat-num">${favsCount}</span>
             <span class="profile-stat-label">Favourites</span>
+          </div>
+          <div class="profile-stat">
+            <span class="profile-stat-num">${profile.points || 0}</span>
+            <span class="profile-stat-label">⭐ Points</span>
+          </div>
+          <div class="profile-stat">
+            <span class="profile-stat-num">${profile.loginStreak || 0}</span>
+            <span class="profile-stat-label">🔥 Streak</span>
           </div>
         </div>
 

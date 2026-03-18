@@ -104,6 +104,180 @@ async function fetchGlobalFavCount() {
   } catch { return '—'; }
 }
 
+/* ===================== STREAK & POINTS ===================== */
+export async function trackLoginStreak() {
+  const user = auth.currentUser;
+  if (!user || user.isAnonymous) return;
+  const today = getSwedishDate();
+  const storageKey = `flux_streak_${today}`;
+  if (localStorage.getItem(storageKey)) return; // already tracked today
+
+  try {
+    const { runTransaction } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const profileRef = doc(db, 'profiles', user.uid);
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(profileRef);
+      if (!snap.exists()) return;
+      const data = snap.data();
+      const lastLogin = data.lastLoginDate || '';
+      const streak = data.loginStreak || 0;
+      const points = data.points || 0;
+
+      // Calculate yesterday in Swedish time
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toLocaleDateString('sv-SE', { timeZone: 'Europe/Stockholm' });
+
+      const newStreak = lastLogin === yesterdayStr ? streak + 1 : 1;
+      // Points: 10 base + 2 per streak day (capped at 50 bonus)
+      const streakBonus = Math.min((newStreak - 1) * 2, 50);
+      const pointsEarned = 10 + streakBonus;
+
+      tx.update(profileRef, {
+        loginStreak: newStreak,
+        longestStreak: Math.max(newStreak, data.longestStreak || 0),
+        lastLoginDate: today,
+        points: points + pointsEarned,
+        totalPointsEarned: (data.totalPointsEarned || 0) + pointsEarned,
+      });
+    });
+    localStorage.setItem(storageKey, '1');
+  } catch (e) { console.warn('Streak tracking failed:', e); }
+}
+
+export async function trackTimeOnSite() {
+  const user = auth.currentUser;
+  if (!user || user.isAnonymous) return;
+  const startTime = Date.now();
+  const POINTS_PER_MINUTE = 1; // 1 point per minute, awarded every 5 minutes
+  const INTERVAL = 5 * 60 * 1000; // 5 minutes
+
+  const interval = setInterval(async () => {
+    try {
+      const minutesElapsed = 5;
+      const pointsEarned = minutesElapsed * POINTS_PER_MINUTE;
+      const profileRef = doc(db, 'profiles', user.uid);
+      const snap = await getDoc(profileRef);
+      if (!snap.exists()) { clearInterval(interval); return; }
+      await updateDoc(profileRef, {
+        points: (snap.data().points || 0) + pointsEarned,
+        totalPointsEarned: (snap.data().totalPointsEarned || 0) + pointsEarned,
+        timeOnSiteMinutes: (snap.data().timeOnSiteMinutes || 0) + minutesElapsed,
+      });
+    } catch {}
+  }, INTERVAL);
+
+  // Clear on page unload
+  window.addEventListener('beforeunload', () => clearInterval(interval));
+}
+
+export async function giftPoints(targetUid, amount, reason = '') {
+  const user = auth.currentUser;
+  if (!user || user.uid !== OWNER_UID) return { ok: false, error: 'Only the owner can gift points.' };
+  if (!amount || amount <= 0) return { ok: false, error: 'Invalid amount.' };
+  try {
+    const profileRef = doc(db, 'profiles', targetUid);
+    const snap = await getDoc(profileRef);
+    if (!snap.exists()) return { ok: false, error: 'Profile not found.' };
+    await updateDoc(profileRef, {
+      points: (snap.data().points || 0) + amount,
+      totalPointsEarned: (snap.data().totalPointsEarned || 0) + amount,
+    });
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+export async function fetchLeaderboard() {
+  try {
+    const { collection: col, query: q, orderBy: ob, limit: lim, getDocs: gd } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const [pointsSnap, streakSnap] = await Promise.all([
+      gd(q(col(db, 'profiles'), ob('points', 'desc'), lim(10))),
+      gd(q(col(db, 'profiles'), ob('loginStreak', 'desc'), lim(10))),
+    ]);
+    return {
+      points: pointsSnap.docs.map(d => ({ uid: d.id, ...d.data() })),
+      streaks: streakSnap.docs.map(d => ({ uid: d.id, ...d.data() })),
+    };
+  } catch { return { points: [], streaks: [] }; }
+}
+
+/* ===================== GAME PLAY TRACKING ===================== */
+export async function trackGamePlay(gameId, gameTitle) {
+  try {
+    const { runTransaction } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const gameRef = doc(db, 'gamestats', gameId);
+
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(gameRef);
+      if (snap.exists()) {
+        tx.update(gameRef, {
+          plays: (snap.data().plays || 0) + 1,
+          title: gameTitle,
+          lastPlayed: new Date().toISOString(),
+        });
+      } else {
+        tx.set(gameRef, {
+          plays: 1,
+          title: gameTitle,
+          firstSeen: new Date().toISOString(),
+          lastPlayed: new Date().toISOString(),
+        });
+      }
+    });
+
+    // Recalculate hot game
+    await updateHotGame();
+  } catch (e) { console.warn('Game tracking failed:', e); }
+}
+
+async function updateHotGame() {
+  try {
+    const { collection: col, query: q, orderBy: ob, limit: lim, getDocs: gd } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const snap = await gd(q(col(db, 'gamestats'), ob('plays', 'desc'), lim(1)));
+    if (snap.empty) return;
+    const hotGame = snap.docs[0];
+    await setDoc(doc(db, 'stats', 'hotgame'), {
+      id: hotGame.id,
+      title: hotGame.data().title,
+      plays: hotGame.data().plays,
+      updatedAt: new Date().toISOString(),
+    });
+  } catch {}
+}
+
+export async function fetchHotGame() {
+  try {
+    const snap = await getDoc(doc(db, 'stats', 'hotgame'));
+    return snap.exists() ? snap.data() : null;
+  } catch { return null; }
+}
+
+export async function fetchGameFirstSeen(gameId) {
+  try {
+    const snap = await getDoc(doc(db, 'gamestats', gameId));
+    return snap.exists() ? snap.data().firstSeen : null;
+  } catch { return null; }
+}
+
+/* ===================== CURRENTLY PLAYING ===================== */
+export async function setCurrentlyPlaying(gameId, gameTitle) {
+  const user = auth.currentUser;
+  if (!user || user.isAnonymous) return;
+  try {
+    await updateDoc(doc(db, 'profiles', user.uid), {
+      currentlyPlaying: { id: gameId, title: gameTitle, since: new Date().toISOString() }
+    });
+  } catch {}
+}
+
+export async function clearCurrentlyPlaying() {
+  const user = auth.currentUser;
+  if (!user || user.isAnonymous) return;
+  try {
+    await updateDoc(doc(db, 'profiles', user.uid), { currentlyPlaying: null });
+  } catch {}
+}
+
 /* ===================== DAILY VISITOR TRACKING ===================== */
 function getSwedishDate() {
   return new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Stockholm' }); // "YYYY-MM-DD"
@@ -973,7 +1147,19 @@ export function initAuthUI(onUserChange) {
 
       <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
 
-      <!-- ── CHAT LOCKS ── -->
+      <!-- ── GIFT POINTS ── -->
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🎁 Gift Points</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <input id="mod-gift-username" type="text" placeholder="Username..." maxlength="20"
+          style="padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;outline:none;box-sizing:border-box;">
+        <div style="display:flex;gap:8px;">
+          <input id="mod-gift-amount" type="number" placeholder="Points..." min="1" max="10000"
+            style="flex:1;padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;outline:none;">
+          <button id="mod-gift-btn" style="padding:9px 16px;background:#f59e0b;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:13px;">🎁 Gift</button>
+        </div>
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
       <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🔒 Chat Controls</div>
       <div style="display:flex;flex-direction:column;gap:8px;">
         <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#f9fafb;border-radius:10px;border:1px solid rgba(0,0,0,0.07);">
@@ -1085,6 +1271,22 @@ export function initAuthUI(onUserChange) {
       btn.style.color = _dmLocked ? '#fff' : '#6b7280';
       btn.style.borderColor = _dmLocked ? '#22c55e' : '#e5e7eb';
     } catch (e) { console.warn('DM lock failed', e); }
+  });
+
+  // Gift points
+  document.getElementById('mod-gift-btn').addEventListener('click', async () => {
+    const username = document.getElementById('mod-gift-username').value.trim().toLowerCase();
+    const amount = parseInt(document.getElementById('mod-gift-amount').value);
+    const msg = document.getElementById('mod-msg');
+    if (!username || !amount) { msg.style.color='#ef4444'; msg.textContent='Enter username and amount.'; msg.style.display='block'; return; }
+    const profile = await getProfileByUsername(username);
+    if (!profile) { msg.style.color='#ef4444'; msg.textContent='User not found.'; msg.style.display='block'; return; }
+    const result = await giftPoints(profile.uid, amount);
+    msg.style.color = result.ok ? '#22c55e' : '#ef4444';
+    msg.textContent = result.ok ? `✓ Gifted ${amount} points to @${username}!` : result.error;
+    msg.style.display = 'block';
+    if (result.ok) { document.getElementById('mod-gift-username').value=''; document.getElementById('mod-gift-amount').value=''; }
+    setTimeout(() => { msg.style.display='none'; }, 3000);
   });
 
   // Admin abuse buttons — toggle on/off

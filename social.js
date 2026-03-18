@@ -4,7 +4,7 @@ import {
   getProfile, searchProfiles, renderBadges,
   initAuthUI, initServerStatus, initBroadcast,
   initChaos, initJumpscare, initPresence, initCookieConsent,
-  initDarkMode, initChatLock
+  initDarkMode, initChatLock, fetchLeaderboard
 } from './firebase-auth.js';
 
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -49,6 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initChat();
   initSearch();
   initRecommended();
+  initLeaderboard();
 
   initChatLock('global',
     () => {
@@ -206,6 +207,7 @@ function renderMessageSync(msg, currentUser) {
         <span class="chat-msg-time">${time}</span>
         ${(isAdmin || isOwn) ? `<button class="chat-msg-delete" title="Delete">✕</button>` : ''}
       </div>
+      <div class="msg-playing"></div>
       <div class="chat-msg-text">${escapeHtml(msg.text)}</div>
     </div>
   `;
@@ -221,6 +223,11 @@ async function patchMessageBadges(el, uid) {
     const badgesEl = el.querySelector('.msg-badges');
     if (badgesEl) {
       badgesEl.innerHTML = renderBadges(liveProfile.badges || [], liveProfile.roles || []);
+    }
+    // Show currently playing
+    const playingEl = el.querySelector('.msg-playing');
+    if (playingEl && liveProfile.currentlyPlaying) {
+      playingEl.innerHTML = `<span style="font-size:10px;color:#22c55e;">🎮 Playing ${liveProfile.currentlyPlaying.title}</span>`;
     }
   } catch {}
 }
@@ -364,6 +371,75 @@ function showMyProfileCard(profile) {
     </div>
   `;
   card.style.display = 'block';
+}
+
+/* ══════════════════════════════════════
+   LEADERBOARD
+══════════════════════════════════════ */
+async function initLeaderboard() {
+  const card = document.getElementById('leaderboard-card');
+  if (!card) return;
+
+  card.innerHTML = '<div style="padding:16px;color:var(--muted);font-size:13px;text-align:center;">Loading...</div>';
+
+  const { points, streaks } = await fetchLeaderboard();
+
+  const medals = ['🥇','🥈','🥉'];
+
+  const renderList = (list, valueKey, valueLabel, icon) => {
+    if (!list.length) return '<div style="color:var(--muted);font-size:12px;text-align:center;padding:8px;">No data yet</div>';
+    return list.map((p, i) => {
+      const avatarHTML = p.avatarURL
+        ? `<img src="${p.avatarURL}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;">`
+        : `<div style="width:32px;height:32px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:13px;flex-shrink:0;">${(p.displayName||p.username||'?')[0].toUpperCase()}</div>`;
+      return `
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--glass-border);">
+          <span style="font-size:16px;width:24px;text-align:center;flex-shrink:0;">${medals[i] || `${i+1}`}</span>
+          ${avatarHTML}
+          <a href="profile.html?user=${p.username}" style="flex:1;min-width:0;text-decoration:none;">
+            <div style="font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.displayName || p.username}</div>
+            <div style="font-size:11px;color:var(--muted);">@${p.username}</div>
+          </a>
+          <div style="text-align:right;flex-shrink:0;">
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--accent);">${(p[valueKey]||0).toLocaleString()}</div>
+            <div style="font-size:10px;color:var(--muted);">${icon} ${valueLabel}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  };
+
+  card.innerHTML = `
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--text);margin-bottom:14px;">🏆 Leaderboards</div>
+
+    <div style="display:flex;gap:4px;background:var(--bg);border-radius:10px;padding:3px;margin-bottom:12px;">
+      <button id="lb-tab-points" class="lb-tab lb-tab-active" style="flex:1;padding:6px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;background:var(--panel);color:var(--text);">⭐ Points</button>
+      <button id="lb-tab-streaks" class="lb-tab" style="flex:1;padding:6px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;background:transparent;color:var(--muted);">🔥 Streaks</button>
+    </div>
+
+    <div id="lb-points-list">${renderList(points, 'points', 'pts', '⭐')}</div>
+    <div id="lb-streaks-list" style="display:none;">${renderList(streaks, 'loginStreak', 'days', '🔥')}</div>
+  `;
+
+  // Remove border from last items
+  card.querySelectorAll('#lb-points-list > div:last-child, #lb-streaks-list > div:last-child').forEach(el => el.style.borderBottom = 'none');
+
+  document.getElementById('lb-tab-points').addEventListener('click', () => {
+    document.getElementById('lb-points-list').style.display = '';
+    document.getElementById('lb-streaks-list').style.display = 'none';
+    document.getElementById('lb-tab-points').style.background = 'var(--panel)';
+    document.getElementById('lb-tab-points').style.color = 'var(--text)';
+    document.getElementById('lb-tab-streaks').style.background = 'transparent';
+    document.getElementById('lb-tab-streaks').style.color = 'var(--muted)';
+  });
+  document.getElementById('lb-tab-streaks').addEventListener('click', () => {
+    document.getElementById('lb-streaks-list').style.display = '';
+    document.getElementById('lb-points-list').style.display = 'none';
+    document.getElementById('lb-tab-streaks').style.background = 'var(--panel)';
+    document.getElementById('lb-tab-streaks').style.color = 'var(--text)';
+    document.getElementById('lb-tab-points').style.background = 'transparent';
+    document.getElementById('lb-tab-points').style.color = 'var(--muted)';
+  });
 }
 
 /* ══════════════════════════════════════

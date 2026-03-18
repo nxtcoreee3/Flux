@@ -3,7 +3,7 @@
    favorites (cloud+local), dark mode, toasts, recently played, new badge, stats button
 */
 
-import { initAuthUI, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent } from './firebase-auth.js';
+import { initAuthUI, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, setCurrentlyPlaying, clearCurrentlyPlaying } from './firebase-auth.js';
 
 const GAMES = [
   {
@@ -101,6 +101,28 @@ const GAMES = [
 
 // expose game count globally for stats button
 window._FLUX_GAME_COUNT = GAMES.length;
+
+// Hot game and new game tracking
+let _hotGameId = null;
+const _newGameCache = {}; // gameId -> firstSeen timestamp
+const NEW_GAME_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+async function loadHotGame() {
+  const hot = await fetchHotGame();
+  if (hot) {
+    _hotGameId = hot.id;
+    applyFilters(); // re-render with badge
+  }
+}
+
+async function isNewGame(gameId) {
+  if (_newGameCache[gameId] !== undefined) {
+    return _newGameCache[gameId] && (Date.now() - new Date(_newGameCache[gameId]).getTime() < NEW_GAME_TTL);
+  }
+  const firstSeen = await fetchGameFirstSeen(gameId);
+  _newGameCache[gameId] = firstSeen;
+  return firstSeen && (Date.now() - new Date(firstSeen).getTime() < NEW_GAME_TTL);
+}
 
 /* --- Utilities --- */
 const quickSearch = document.getElementById('quick-search') || document.getElementById('games-search');
@@ -244,8 +266,12 @@ function createCard(game) {
   div.className = 'card';
   div.setAttribute('data-id', game.id);
 
+  const isHot = _hotGameId === game.id;
+  const isNew = _newGameCache[game.id] && (Date.now() - new Date(_newGameCache[game.id]).getTime() < NEW_GAME_TTL);
+
   div.innerHTML = `
-    ${game.isNew ? '<span class="new-badge">NEW</span>' : ''}
+    ${isHot ? '<span class="hot-badge">🔥 HOT</span>' : ''}
+    ${isNew && !isHot ? '<span class="new-badge">NEW</span>' : ''}
     <img class="thumb" src="${game.thumb}" alt="${game.title} thumbnail" loading="lazy">
     <div class="card-body">
       <h3 class="title">${game.title}</h3>
@@ -279,6 +305,13 @@ function createCard(game) {
   div.querySelector('.play-btn').addEventListener('click', (e) => {
     addRecent(game.id);
     renderRecentSection();
+    trackGamePlay(game.id, game.title).then(() => {
+      // Update hot game badge after tracking
+      fetchHotGame().then(hot => {
+        if (hot && hot.id !== _hotGameId) { _hotGameId = hot.id; applyFilters(); }
+      });
+    });
+    setCurrentlyPlaying(game.id, game.title);
     openPlayModal(e.currentTarget.dataset.url, e.currentTarget.dataset.title);
   });
 
@@ -347,18 +380,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
   initAuthUI(async (user) => {
     await refreshFavsCache();
-    if (user && !user.isAnonymous && !sessionStorage.getItem('flux_welcomed')) {
-      showToast(`Welcome back! 👋`, 'success');
-      sessionStorage.setItem('flux_welcomed', '1');
+    if (user && !user.isAnonymous) {
+      trackLoginStreak();
+      trackTimeOnSite();
+      if (!sessionStorage.getItem('flux_welcomed')) {
+        showToast(`Welcome back! 👋`, 'success');
+        sessionStorage.setItem('flux_welcomed', '1');
+      }
     }
   });
 
   // Load favs from cloud then render games so stars are correct from the start
-  loadCloudFavs().then(cloud => {
-    if (cloud !== null) {
-      _favsCache = cloud;
-      saveLocalFavs(cloud);
-    }
+  loadCloudFavs().then(async cloud => {
+    if (cloud !== null) { _favsCache = cloud; saveLocalFavs(cloud); }
+    // Load hot game + new game data before rendering
+    await loadHotGame();
+    // Pre-fetch firstSeen for all games
+    await Promise.all(GAMES.map(g => fetchGameFirstSeen(g.id).then(fs => { _newGameCache[g.id] = fs; })));
     if (document.getElementById('game-grid') || document.getElementById('games-grid')) {
       renderGames(GAMES);
     }
@@ -432,7 +470,7 @@ function openPlayModal(url, title) {
   modal.setAttribute('aria-hidden', 'false');
   if (openTabBtn) openTabBtn.onclick = () => window.open(url, '_blank', 'noopener');
 
-  const closeModal = () => { modal.setAttribute('aria-hidden','true'); if(iframe) iframe.src='about:blank'; };
+  const closeModal = () => { modal.setAttribute('aria-hidden','true'); if(iframe) iframe.src='about:blank'; clearCurrentlyPlaying(); };
   if (closeBtn) closeBtn.onclick = closeModal;
   modal.querySelectorAll('[data-close]').forEach(el => el.onclick = closeModal);
   window.addEventListener('keydown', function escClose(e) { if(e.key==='Escape'){ closeModal(); window.removeEventListener('keydown',escClose); } });
