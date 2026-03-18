@@ -4,7 +4,7 @@ import {
   getProfile, getProfileByUsername, updateProfile,
   followUser, unfollowUser, banUser, unbanUser,
   renderBadges, assignRole, removeRole, PREDEFINED_ROLES,
-  setUserRank, getUserRank,
+  setUserRank, getUserRank, getContrastColor,
   initAuthUI, initServerStatus, initCookieConsent,
   initBroadcast, initChaos, initJumpscare, initPresence
 } from './firebase-auth.js';
@@ -226,9 +226,12 @@ function renderProfile(profile, { isOwn, isAdmin, isFollowing, canSeeContent, cu
   const accentColor = theme.accentColor || '';
   const bannerEmoji = theme.bannerEmoji || '';
   const effect = theme.effect || '';
+  const cardStyle = theme.cardStyle || 'default';
+  const bannerTextColor = getContrastColor(bannerColor);
 
   // Generate floating emojis for confetti effect
-  let bannerInner = bannerEmoji ? `<span style="font-size:48px;position:relative;z-index:1;">${bannerEmoji}</span>` : '';
+  const bannerTextColor = getContrastColor(bannerColor);
+  let bannerInner = bannerEmoji ? `<span style="font-size:48px;position:relative;z-index:1;color:${bannerTextColor};">${bannerEmoji}</span>` : '';
   if (effect === 'confetti') {
     const confettiEmojis = ['🎉','✨','🎊','⭐','💫','🌟'];
     const positions = [[10,20],[25,60],[40,15],[55,70],[70,25],[85,55],[15,80],[90,40]];
@@ -247,6 +250,15 @@ function renderProfile(profile, { isOwn, isAdmin, isFollowing, canSeeContent, cu
     ).join('');
   }
 
+  const cardStyle = theme.cardStyle || 'default';
+  const cardStyleMap = {
+    default: '',
+    rounded: 'border-radius:32px !important;',
+    sharp: 'border-radius:4px !important;',
+    glass: 'backdrop-filter:blur(20px) !important;border:1px solid rgba(255,255,255,0.15) !important;',
+    minimal: 'border:none !important;box-shadow:none !important;',
+  };
+
   return `
     ${accentColor ? `<style>
       #profile-root .btn-follow:not(.following) { background: ${accentColor} !important; }
@@ -254,7 +266,7 @@ function renderProfile(profile, { isOwn, isAdmin, isFollowing, canSeeContent, cu
       #profile-root .profile-section-title { color: ${accentColor} !important; }
     </style>` : ''}
 
-    <div class="profile-card">
+    <div class="profile-card" style="${cardStyleMap[cardStyle] || ''}">
       <div class="profile-banner">
         <div class="profile-banner-inner" style="background:${bannerColor};">${bannerInner}</div>
       </div>
@@ -419,6 +431,7 @@ function showEditModal(profile) {
   const accentColor = theme.accentColor || '#3a7dff';
   const bannerEmoji = theme.bannerEmoji || '🎮';
   const currentEffect = theme.effect || 'none';
+  const currentCardStyle = theme.cardStyle || 'default';
 
   const overlay = document.createElement('div');
   overlay.id = 'edit-modal-overlay';
@@ -466,6 +479,16 @@ function showEditModal(profile) {
             </div>
             <input type="hidden" id="edit-effect" value="${currentEffect}">
           </div>
+          <div style="margin-top:10px;">
+            <label class="field-label" style="margin-bottom:6px;">Card Style</label>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              ${[['default','Default'],['rounded','Rounded'],['sharp','Sharp'],['glass','Glass'],['minimal','Minimal']].map(([val, label]) =>
+                `<button type="button" class="cardstyle-btn" data-style="${val}" style="padding:6px 12px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;border:2px solid ${currentCardStyle===val?'var(--accent)':'var(--glass-border)'};background:${currentCardStyle===val?'var(--accent)':'transparent'};color:${currentCardStyle===val?'#fff':'var(--text)'};">${label}</button>`
+              ).join('')}
+            </div>
+            <input type="hidden" id="edit-card-style" value="${currentCardStyle}">
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:8px;">💡 Text on your banner auto-adjusts for readability</div>
         </div>
 
         <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;background:var(--bg);border-radius:10px;border:1px solid var(--glass-border);">
@@ -510,6 +533,19 @@ function showEditModal(profile) {
     });
   });
 
+  // Card style buttons
+  overlay.querySelectorAll('.cardstyle-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.getElementById('edit-card-style').value = btn.dataset.style;
+      overlay.querySelectorAll('.cardstyle-btn').forEach(b => {
+        const on = b === btn;
+        b.style.borderColor = on ? 'var(--accent)' : 'var(--glass-border)';
+        b.style.background = on ? 'var(--accent)' : 'transparent';
+        b.style.color = on ? '#fff' : 'var(--text)';
+      });
+    });
+  });
+
   // Toggle
   const cb = document.getElementById('edit-private');
   const track = document.getElementById('edit-toggle-track');
@@ -530,6 +566,7 @@ function showEditModal(profile) {
     const accentColor = document.getElementById('edit-accent-color').value;
     const bannerEmoji = document.getElementById('edit-banner-emoji').value.trim() || '🎮';
     const effect = document.getElementById('edit-effect').value;
+    const cardStyle = document.getElementById('edit-card-style').value;
     const btn = document.getElementById('edit-save');
     const errEl = document.getElementById('edit-error');
 
@@ -538,7 +575,7 @@ function showEditModal(profile) {
 
     await updateProfile(profile.uid, {
       displayName, bio, isPrivate,
-      theme: { bannerColor, accentColor, bannerEmoji, effect }
+      theme: { bannerColor, accentColor, bannerEmoji, effect, cardStyle }
     });
     overlay.remove();
     location.reload();

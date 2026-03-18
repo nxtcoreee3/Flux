@@ -183,6 +183,12 @@ export async function giftPoints(targetUid, amount, reason = '') {
       points: (snap.data().points || 0) + amount,
       totalPointsEarned: (snap.data().totalPointsEarned || 0) + amount,
     });
+    await sendNotification(targetUid, {
+      type: 'points',
+      title: `You received ${amount} points! 🎁`,
+      body: reason || 'Points gifted by the owner',
+      link: 'profile.html',
+    });
     return { ok: true };
   } catch (e) { return { ok: false, error: e.message }; }
 }
@@ -723,7 +729,154 @@ export async function updateProfile(uid, updates) {
   } catch (e) { console.warn('Profile update failed:', e); }
 }
 
-export async function followUser(targetUid) {
+/* ===================== NOTIFICATIONS ===================== */
+export async function sendNotification(targetUid, { type, title, body, link = '' }) {
+  try {
+    const { addDoc, collection: col } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await addDoc(col(db, 'notifications'), {
+      uid: targetUid,
+      type, title, body, link,
+      read: false,
+      createdAt: new Date().toISOString(),
+    });
+  } catch (e) { console.warn('Notification failed:', e); }
+}
+
+export function initNotifications() {
+  const user = auth.currentUser;
+  if (!user || user.isAnonymous) return;
+
+  // Inject bell into nav
+  const rightActions = document.querySelector('.right-actions');
+  if (!rightActions || document.getElementById('notif-btn')) return;
+
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = 'position:relative;display:flex;align-items:center;';
+  wrapper.innerHTML = `
+    <button id="notif-btn" class="icon-btn" title="Notifications" style="cursor:pointer;position:relative;padding:8px 10px;font-size:16px;">
+      🔔
+      <span id="notif-badge" style="display:none;position:absolute;top:4px;right:4px;background:#ef4444;color:white;font-size:9px;font-weight:800;padding:1px 4px;border-radius:20px;min-width:14px;text-align:center;line-height:14px;">0</span>
+    </button>
+    <div id="notif-dropdown" style="display:none;position:absolute;top:calc(100% + 10px);right:0;background:var(--panel);border:1px solid var(--glass-border);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.15);width:300px;z-index:300;overflow:hidden;">
+      <div style="padding:14px 16px;border-bottom:1px solid var(--glass-border);display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--text);">🔔 Notifications</span>
+        <button id="notif-mark-all" style="background:none;border:none;font-size:11px;color:var(--accent);cursor:pointer;font-weight:700;">Mark all read</button>
+      </div>
+      <div id="notif-list" style="max-height:340px;overflow-y:auto;"></div>
+    </div>
+  `;
+  rightActions.prepend(wrapper);
+
+  const btn = wrapper.querySelector('#notif-btn');
+  const dd = wrapper.querySelector('#notif-dropdown');
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isOpen = dd.style.display !== 'none';
+    dd.style.display = isOpen ? 'none' : 'block';
+    if (!isOpen) loadNotifications(user.uid);
+  });
+  document.addEventListener('click', () => { dd.style.display = 'none'; });
+
+  document.getElementById('notif-mark-all').addEventListener('click', async (e) => {
+    e.stopPropagation();
+    await markAllNotificationsRead(user.uid);
+    document.getElementById('notif-badge').style.display = 'none';
+    loadNotifications(user.uid);
+  });
+
+  // Listen for unread count
+  import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({ collection: col, query: q, where: w, onSnapshot: ons }) => {
+    const unreadQ = q(col(db, 'notifications'), w('uid', '==', user.uid), w('read', '==', false));
+    ons(unreadQ, (snap) => {
+      const badge = document.getElementById('notif-badge');
+      if (!badge) return;
+      if (snap.size > 0) {
+        badge.textContent = snap.size > 9 ? '9+' : snap.size;
+        badge.style.display = 'inline-block';
+      } else {
+        badge.style.display = 'none';
+      }
+    });
+  });
+}
+
+async function loadNotifications(uid) {
+  const list = document.getElementById('notif-list');
+  if (!list) return;
+  list.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px;">Loading...</div>';
+
+  try {
+    const { collection: col, query: q, where: w, orderBy: ob, limit: lim, getDocs: gd } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const snap = await gd(q(col(db, 'notifications'), w('uid', '==', uid), ob('createdAt', 'desc'), lim(20)));
+
+    if (snap.empty) {
+      list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;">No notifications yet</div>';
+      return;
+    }
+
+    list.innerHTML = '';
+    snap.docs.forEach(d => {
+      const n = { id: d.id, ...d.data() };
+      const icons = { follow: '👤', message: '💬', points: '⭐', system: '📣', report: '⚠️' };
+      const timeAgo = getTimeAgo(n.createdAt);
+      const item = document.createElement(n.link ? 'a' : 'div');
+      if (n.link) { item.href = n.link; item.style.textDecoration = 'none'; }
+      item.style.cssText = `display:flex;align-items:flex-start;gap:12px;padding:12px 16px;border-bottom:1px solid var(--glass-border);cursor:pointer;transition:background 0.1s;${!n.read ? 'background:rgba(58,125,255,0.05);' : ''}`;
+      item.innerHTML = `
+        <span style="font-size:20px;flex-shrink:0;margin-top:2px;">${icons[n.type] || '🔔'}</span>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:${n.read ? '500' : '700'};color:var(--text);">${n.title}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px;">${n.body}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:4px;">${timeAgo}</div>
+        </div>
+        ${!n.read ? '<span style="width:8px;height:8px;border-radius:50%;background:var(--accent);flex-shrink:0;margin-top:4px;"></span>' : ''}
+      `;
+      item.addEventListener('mouseenter', () => item.style.background = 'var(--bg)');
+      item.addEventListener('mouseleave', () => item.style.background = n.read ? '' : 'rgba(58,125,255,0.05)');
+      // Mark as read on click
+      item.addEventListener('click', async () => {
+        if (!n.read) await updateDoc(doc(db, 'notifications', n.id), { read: true });
+      });
+      list.appendChild(item);
+    });
+    // Remove last border
+    list.lastChild?.style.setProperty('border-bottom', 'none');
+  } catch (e) { list.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px;">Failed to load</div>'; }
+}
+
+async function markAllNotificationsRead(uid) {
+  try {
+    const { collection: col, query: q, where: w, getDocs: gd, writeBatch: wb } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const snap = await gd(q(col(db, 'notifications'), w('uid', '==', uid), w('read', '==', false)));
+    const batch = wb(db);
+    snap.docs.forEach(d => batch.update(d.ref, { read: true }));
+    await batch.commit();
+  } catch {}
+}
+
+function getTimeAgo(isoString) {
+  const diff = Date.now() - new Date(isoString).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+/* ===================== AUTO TEXT CONTRAST ===================== */
+export function getContrastColor(hexColor) {
+  const hex = hexColor.replace('#', '');
+  const r = parseInt(hex.substr(0,2), 16);
+  const g = parseInt(hex.substr(2,2), 16);
+  const b = parseInt(hex.substr(4,2), 16);
+  // Perceived luminance formula
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.5 ? '#111827' : '#ffffff';
+}
+
+
   const user = auth.currentUser;
   if (!user || user.isAnonymous) return;
   try {
@@ -738,6 +891,16 @@ export async function followUser(targetUid) {
     await updateDoc(myRef, { following: arrayUnion(targetUid) });
     console.log('followUser: updating their followers...', targetUid);
     await updateDoc(theirRef, { followers: arrayUnion(user.uid) });
+    // Send notification to followed user
+    const myProfile = await getProfile(user.uid);
+    if (myProfile) {
+      await sendNotification(targetUid, {
+        type: 'follow',
+        title: `@${myProfile.username} followed you`,
+        body: 'You have a new follower!',
+        link: `profile.html?user=${myProfile.username}`,
+      });
+    }
     console.log('followUser: done!');
   } catch (e) { console.error('Follow failed:', e.code, e.message); }
 }
@@ -1591,17 +1754,16 @@ export function initAuthUI(onUserChange) {
             if (p && name) name.textContent = p.displayName || p.username;
           });
         } else {
-          // Use profile display name in nav
           if (name) name.textContent = profile.displayName || profile.username || user.displayName || user.email;
-          // Show profile link in dropdown
           const profileLinkEl = document.getElementById('view-profile-btn');
           if (profileLinkEl) profileLinkEl.style.display = 'flex';
           if (profileLinkEl) profileLinkEl.href = `profile.html?user=${profile.username}`;
-          // Sync avatar from Google if it changed
           if (user.photoURL && user.photoURL !== profile.avatarURL) {
             updateDoc(doc(db, 'profiles', user.uid), { avatarURL: user.photoURL }).catch(() => {});
           }
         }
+        // Init notifications for signed-in users
+        initNotifications();
       }
 
       if (user.isAnonymous) {
