@@ -275,11 +275,11 @@ function createCard(game) {
   const avgRating = stats.ratingCount ? (stats.ratingTotal / stats.ratingCount).toFixed(1) : null;
 
   const compatBadge = compat === 'ipad'
-    ? '<span class="compat-badge" title="📱 Touchscreen compatible — works great on iPad and touch devices">📱 iPad</span>'
+    ? '<span class="compat-badge" data-tip="📱 Touchscreen compatible — works great on iPad and touch devices">📱 iPad</span>'
     : compat === 'pc'
-    ? '<span class="compat-badge" title="🖥️ Requires a keyboard — best played on PC or laptop">🖥️ PC Only</span>'
+    ? '<span class="compat-badge" data-tip="🖥️ Requires a keyboard — best played on PC or laptop">🖥️ PC Only</span>'
     : compat === 'both'
-    ? '<span class="compat-badge" title="✅ Works on both — touchscreen friendly and also works with a keyboard">✅ iPad & PC</span>'
+    ? '<span class="compat-badge" data-tip="✅ Works on both — touchscreen friendly and also works with a keyboard">✅ iPad & PC</span>'
     : '';
 
   const ratingHTML = avgRating
@@ -634,3 +634,34 @@ document.addEventListener('keydown', (e) => {
     });
   }
 });
+
+/* ===================== FLOATING TOOLTIP ===================== */
+(function() {
+  const tip = document.createElement('div');
+  tip.id = 'flux-tooltip';
+  tip.style.cssText = 'position:fixed;z-index:99999;background:#111827;color:#fff;font-size:12px;font-weight:500;padding:7px 11px;border-radius:9px;pointer-events:none;box-shadow:0 4px 16px rgba(0,0,0,0.3);white-space:nowrap;opacity:0;transition:opacity 0.15s ease;max-width:260px;white-space:normal;line-height:1.4;';
+  document.body.appendChild(tip);
+
+  document.addEventListener('mouseover', (e) => {
+    const badge = e.target.closest('.compat-badge');
+    if (!badge) return;
+    const text = badge.dataset.tip;
+    if (!text) return;
+    tip.textContent = text;
+    tip.style.opacity = '1';
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    const badge = e.target.closest('.compat-badge');
+    if (!badge) { tip.style.opacity = '0'; return; }
+    const x = e.clientX;
+    const y = e.clientY;
+    tip.style.left = (x - tip.offsetWidth / 2) + 'px';
+    tip.style.top = (y - tip.offsetHeight - 10) + 'px';
+  });
+
+  document.addEventListener('mouseout', (e) => {
+    if (!e.target.closest('.compat-badge')) return;
+    tip.style.opacity = '0';
+  });
+})();
