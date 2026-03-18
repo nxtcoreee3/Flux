@@ -162,17 +162,6 @@ function initDarkMode() {
   const saved = localStorage.getItem(DARK_KEY);
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   applyDark(saved !== null ? saved === '1' : prefersDark);
-
-  const rightActions = document.querySelector('.right-actions');
-  if (!rightActions) return;
-  const btn = document.createElement('button');
-  btn.id = 'dark-toggle';
-  btn.className = 'icon-btn';
-  btn.title = 'Toggle dark mode';
-  btn.style.cursor = 'pointer';
-  btn.textContent = document.documentElement.classList.contains('dark') ? '☀️' : '🌙';
-  btn.addEventListener('click', () => applyDark(!document.documentElement.classList.contains('dark')));
-  rightActions.prepend(btn);
 }
 
 /* ===================== TOASTS ===================== */
