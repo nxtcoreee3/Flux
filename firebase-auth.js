@@ -1404,10 +1404,17 @@ export function initAuthUI(onUserChange) {
       if (!gameId) { msg.style.color='#ef4444'; msg.textContent='Select a game first.'; msg.style.display='block'; setTimeout(()=>{msg.style.display='none';},2000); return; }
       const compat = btn.dataset.compat;
       const result = await setGameCompatibility(gameId, gameTitle, compat);
-      msg.style.color = result.ok ? '#22c55e' : '#ef4444';
-      msg.textContent = result.ok ? `✓ ${gameTitle} labelled as ${compat || 'none'}` : result.error;
-      msg.style.display = 'block';
-      setTimeout(()=>{msg.style.display='none';}, 2500);
+      if (result.ok) {
+        const t = document.createElement('div');
+        t.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9999;background:var(--panel,#fff);border-radius:12px;padding:12px 16px;box-shadow:0 8px 30px rgba(0,0,0,0.14);border-left:4px solid #22c55e;display:flex;align-items:center;gap:10px;font-size:13px;font-weight:500;color:var(--text,#111);opacity:0;transform:translateY(8px);transition:all 0.2s ease;max-width:280px;';
+        t.innerHTML = `<span>✅</span><span>✓ ${gameTitle} labelled as ${compat ? compat.toUpperCase() : 'unlabelled'}</span>`;
+        document.body.appendChild(t);
+        requestAnimationFrame(() => { t.style.opacity='1'; t.style.transform='translateY(0)'; });
+        setTimeout(() => { t.style.opacity='0'; t.style.transform='translateY(8px)'; setTimeout(()=>t.remove(),200); }, 3000);
+      } else {
+        msg.style.color = '#ef4444'; msg.textContent = result.error; msg.style.display = 'block';
+        setTimeout(()=>{msg.style.display='none';}, 2500);
+      }
       // Update button highlights
       modModal.querySelectorAll('.compat-btn').forEach(b => {
         const on = b.dataset.compat === compat && compat !== '';

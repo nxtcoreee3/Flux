@@ -274,9 +274,12 @@ function createCard(game) {
   const compat = stats.compatibility || '';
   const avgRating = stats.ratingCount ? (stats.ratingTotal / stats.ratingCount).toFixed(1) : null;
 
-  const compatBadge = compat === 'ipad' ? '<span class="compat-badge">📱 iPad</span>'
-    : compat === 'pc' ? '<span class="compat-badge">🖥️ PC</span>'
-    : compat === 'both' ? '<span class="compat-badge">✅ iPad & PC</span>'
+  const compatBadge = compat === 'ipad'
+    ? '<span class="compat-badge" title="📱 Touchscreen compatible — works great on iPad and touch devices">📱 iPad</span>'
+    : compat === 'pc'
+    ? '<span class="compat-badge" title="🖥️ Requires a keyboard — best played on PC or laptop">🖥️ PC Only</span>'
+    : compat === 'both'
+    ? '<span class="compat-badge" title="✅ Works on both — touchscreen friendly and also works with a keyboard">✅ iPad & PC</span>'
     : '';
 
   const ratingHTML = avgRating
