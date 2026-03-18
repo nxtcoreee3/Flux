@@ -19,8 +19,8 @@
       margin: 24px auto;
       padding: 0 16px;
       gap: 0;
-      height: calc(100vh - 140px);
-      min-height: 500px;
+      height: calc(100svh - 140px);
+      min-height: 400px;
     }
 
     /* Sidebar */
@@ -181,11 +181,28 @@
     }
     .msg-send-btn:hover { opacity: 0.85; }
 
-    @media (max-width: 640px) {
-      #messages-root { height: calc(100vh - 120px); padding: 0; margin: 0; gap: 0; }
-      .convo-sidebar { width: 100%; border-radius: 0; border: none; border-bottom: 1px solid var(--glass-border); display: none; }
-      .convo-sidebar.mobile-show { display: flex; }
-      #chat-panel { border-radius: 0; border: none; border-left: none; }
+    @media (max-width: 768px) {
+      #messages-root {
+        height: calc(100svh - 120px);
+        padding: 0;
+        margin: 0;
+        flex-direction: column;
+        border-radius: 0;
+      }
+      .convo-sidebar {
+        width: 100%;
+        height: 260px;
+        min-height: 260px;
+        border-radius: 0;
+        border: none;
+        border-bottom: 1px solid var(--glass-border);
+      }
+      #chat-panel {
+        border-radius: 0;
+        border: none;
+        flex: 1;
+        min-height: 0;
+      }
     }
   </style>
 </head>

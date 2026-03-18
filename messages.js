@@ -3,7 +3,8 @@
 import {
   getProfile, getProfileByUsername, renderBadges,
   initAuthUI, initServerStatus, initBroadcast,
-  initChaos, initJumpscare, initPresence, initCookieConsent
+  initChaos, initJumpscare, initPresence, initCookieConsent,
+  initDarkMode, initChatLock
 } from './firebase-auth.js';
 
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -41,6 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (yearEl) yearEl.textContent = new Date().getFullYear();
 
   initCookieConsent();
+  initDarkMode();
   initPresence();
   initServerStatus();
   initBroadcast();
@@ -54,6 +56,32 @@ document.addEventListener('DOMContentLoaded', () => {
     _currentProfile = await getProfile(user.uid);
     if (!_currentProfile) { showSignInPrompt(); return; }
     initMessagesUI();
+
+    // Enforce DM lock
+    initChatLock('dm',
+      () => {
+        const input = document.getElementById('msg-input');
+        const send = document.getElementById('msg-send');
+        if (input) { input.disabled = true; input.placeholder = '🔒 Messages locked by an admin'; }
+        if (send) send.disabled = true;
+        // Show banner
+        let banner = document.getElementById('dm-lock-banner');
+        if (!banner) {
+          banner = document.createElement('div');
+          banner.id = 'dm-lock-banner';
+          banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#ef4444;color:white;padding:10px 16px;text-align:center;font-size:13px;font-weight:700;';
+          banner.textContent = '🔒 Direct messages have been locked by an admin.';
+          document.body.prepend(banner);
+        }
+      },
+      () => {
+        const input = document.getElementById('msg-input');
+        const send = document.getElementById('msg-send');
+        if (input) { input.disabled = false; input.placeholder = 'Message...'; }
+        if (send) send.disabled = false;
+        document.getElementById('dm-lock-banner')?.remove();
+      }
+    );
 
     const params = new URLSearchParams(location.search);
     const openWith = params.get('with');
@@ -333,6 +361,25 @@ async function sendMessage() {
   const input = document.getElementById('msg-input');
   const text = input?.value.trim();
   if (!text || !_activeConvoId || !_currentProfile) return;
+
+  // Check if DMs are locked
+  try {
+    const lockSnap = await getDoc(doc(db, 'stats', 'chatlock'));
+    if (lockSnap.exists() && lockSnap.data().dmLocked) {
+      input.value = '';
+      const list = document.getElementById('messages-list');
+      if (list) {
+        const notice = document.createElement('div');
+        notice.style.cssText = 'text-align:center;padding:8px;color:#ef4444;font-size:12px;font-weight:600;';
+        notice.textContent = '🔒 Direct messages are currently locked by an admin.';
+        list.appendChild(notice);
+        list.scrollTop = list.scrollHeight;
+        setTimeout(() => notice.remove(), 3000);
+      }
+      return;
+    }
+  } catch {}
+
   input.value = '';
   input.disabled = true;
 
