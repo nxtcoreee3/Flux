@@ -867,13 +867,15 @@ function getTimeAgo(isoString) {
 
 /* ===================== AUTO TEXT CONTRAST ===================== */
 export function getContrastColor(hexColor) {
-  const hex = hexColor.replace('#', '');
-  const r = parseInt(hex.substr(0,2), 16);
-  const g = parseInt(hex.substr(2,2), 16);
-  const b = parseInt(hex.substr(4,2), 16);
-  // Perceived luminance formula
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.5 ? '#111827' : '#ffffff';
+  try {
+    const hex = (hexColor || '#3a7dff').replace('#', '');
+    if (hex.length < 6) return '#ffffff';
+    const r = parseInt(hex.substr(0,2), 16);
+    const g = parseInt(hex.substr(2,2), 16);
+    const b = parseInt(hex.substr(4,2), 16);
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminance > 0.5 ? '#111827' : '#ffffff';
+  } catch { return '#ffffff'; }
 }
 
 
