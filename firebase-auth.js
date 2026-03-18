@@ -259,6 +259,94 @@ export async function fetchGameFirstSeen(gameId) {
   } catch { return null; }
 }
 
+export async function fetchAllGameStats() {
+  try {
+    const { collection: col, getDocs: gd } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const snap = await gd(col(db, 'gamestats'));
+    const result = {};
+    snap.docs.forEach(d => { result[d.id] = d.data(); });
+    return result;
+  } catch { return {}; }
+}
+
+export async function setGameCompatibility(gameId, gameTitle, compatibility) {
+  const user = auth.currentUser;
+  if (!user || user.uid !== OWNER_UID) return { ok: false, error: 'Owner only.' };
+  try {
+    await setDoc(doc(db, 'gamestats', gameId), { compatibility, title: gameTitle }, { merge: true });
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+export async function rateGame(gameId, gameTitle, rating) {
+  const user = auth.currentUser;
+  if (!user || user.isAnonymous) return { ok: false, error: 'Sign in to rate.' };
+  if (rating < 1 || rating > 5) return { ok: false, error: 'Rating must be 1-5.' };
+  try {
+    const { runTransaction } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const gameRef = doc(db, 'gamestats', gameId);
+    const userRatingRef = doc(db, 'gamestats', gameId, 'ratings', user.uid);
+
+    await runTransaction(db, async (tx) => {
+      const gameSnap = await tx.get(gameRef);
+      const prevRatingSnap = await tx.get(userRatingRef);
+
+      const prevRating = prevRatingSnap.exists() ? prevRatingSnap.data().rating : null;
+      const currentTotal = gameSnap.exists() ? (gameSnap.data().ratingTotal || 0) : 0;
+      const currentCount = gameSnap.exists() ? (gameSnap.data().ratingCount || 0) : 0;
+
+      const newTotal = currentTotal - (prevRating || 0) + rating;
+      const newCount = prevRating ? currentCount : currentCount + 1;
+
+      tx.set(gameRef, { ratingTotal: newTotal, ratingCount: newCount, title: gameTitle }, { merge: true });
+      tx.set(userRatingRef, { rating, uid: user.uid, ratedAt: new Date().toISOString() });
+    });
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+export async function getUserRating(gameId) {
+  const user = auth.currentUser;
+  if (!user || user.isAnonymous) return null;
+  try {
+    const snap = await getDoc(doc(db, 'gamestats', gameId, 'ratings', user.uid));
+    return snap.exists() ? snap.data().rating : null;
+  } catch { return null; }
+}
+
+export async function reportGame(gameId, gameTitle, reason) {
+  const user = auth.currentUser;
+  if (!user || user.isAnonymous) return { ok: false, error: 'Sign in to report.' };
+  try {
+    const { addDoc, collection: col } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await addDoc(col(db, 'gamereports'), {
+      gameId, gameTitle, reason,
+      reportedBy: user.uid,
+      reportedAt: new Date().toISOString(),
+      status: 'open',
+    });
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+export async function fetchGameReports() {
+  const user = auth.currentUser;
+  if (!user || user.uid !== OWNER_UID) return [];
+  try {
+    const { collection: col, query: q, where: w, getDocs: gd } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const snap = await gd(q(col(db, 'gamereports'), w('status', '==', 'open')));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch { return []; }
+}
+
+export async function dismissGameReport(reportId) {
+  const user = auth.currentUser;
+  if (!user || user.uid !== OWNER_UID) return;
+  try {
+    await updateDoc(doc(db, 'gamereports', reportId), { status: 'dismissed' });
+  } catch {}
+}
+
 /* ===================== CURRENTLY PLAYING ===================== */
 export async function setCurrentlyPlaying(gameId, gameTitle) {
   const user = auth.currentUser;
@@ -1147,7 +1235,25 @@ export function initAuthUI(onUserChange) {
 
       <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
 
-      <!-- ── GIFT POINTS ── -->
+      <!-- ── GAME MANAGEMENT ── -->
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🎮 Game Labels</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px;">
+        <select id="mod-game-select" style="padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;color:#111827;background:#fff;outline:none;cursor:pointer;">
+          <option value="">Select a game...</option>
+        </select>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button class="compat-btn" data-compat="ipad" style="flex:1;padding:7px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:12px;font-weight:700;color:#6b7280;">📱 iPad</button>
+          <button class="compat-btn" data-compat="pc" style="flex:1;padding:7px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:12px;font-weight:700;color:#6b7280;">🖥️ PC</button>
+          <button class="compat-btn" data-compat="both" style="flex:1;padding:7px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:12px;font-weight:700;color:#6b7280;">✅ Both</button>
+          <button class="compat-btn" data-compat="" style="flex:1;padding:7px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:12px;font-weight:700;color:#6b7280;">✕ Clear</button>
+        </div>
+        <div id="mod-game-reports-wrap" style="display:none;">
+          <div style="font-size:11px;color:#ef4444;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">⚠️ Open Reports</div>
+          <div id="mod-game-reports-list"></div>
+        </div>
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
       <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🎁 Gift Points</div>
       <div style="display:flex;flex-direction:column;gap:8px;">
         <input id="mod-gift-username" type="text" placeholder="Username..." maxlength="20"
@@ -1289,6 +1395,29 @@ export function initAuthUI(onUserChange) {
     setTimeout(() => { msg.style.display='none'; }, 3000);
   });
 
+  // Game compatibility buttons
+  modModal.querySelectorAll('.compat-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const select = document.getElementById('mod-game-select');
+      const gameId = select.value;
+      const gameTitle = select.options[select.selectedIndex]?.text || '';
+      if (!gameId) { msg.style.color='#ef4444'; msg.textContent='Select a game first.'; msg.style.display='block'; setTimeout(()=>{msg.style.display='none';},2000); return; }
+      const compat = btn.dataset.compat;
+      const result = await setGameCompatibility(gameId, gameTitle, compat);
+      msg.style.color = result.ok ? '#22c55e' : '#ef4444';
+      msg.textContent = result.ok ? `✓ ${gameTitle} labelled as ${compat || 'none'}` : result.error;
+      msg.style.display = 'block';
+      setTimeout(()=>{msg.style.display='none';}, 2500);
+      // Update button highlights
+      modModal.querySelectorAll('.compat-btn').forEach(b => {
+        const on = b.dataset.compat === compat && compat !== '';
+        b.style.background = on ? '#111827' : '#fff';
+        b.style.color = on ? '#fff' : '#6b7280';
+        b.style.borderColor = on ? '#111827' : '#e5e7eb';
+      });
+    });
+  });
+
   // Admin abuse buttons — toggle on/off
   const _activeEffects = new Set();
   modModal.querySelectorAll('.abuse-btn').forEach(btn => {
@@ -1350,6 +1479,57 @@ export function initAuthUI(onUserChange) {
         btn.style.color = on ? '#fff' : '#111827';
         btn.style.borderColor = on ? '#111827' : '#e5e7eb';
       });
+    } catch {}
+
+    // Populate game select from window._FLUX_GAMES
+    const gameSelect = document.getElementById('mod-game-select');
+    if (gameSelect && window._FLUX_GAMES) {
+      gameSelect.innerHTML = '<option value="">Select a game...</option>';
+      window._FLUX_GAMES.forEach(g => {
+        const opt = document.createElement('option');
+        opt.value = g.id; opt.textContent = g.title;
+        gameSelect.appendChild(opt);
+      });
+      // Load current compat on select change
+      gameSelect.addEventListener('change', async () => {
+        const id = gameSelect.value;
+        if (!id) return;
+        const { fetchAllGameStats } = await import('./firebase-auth.js').catch(()=>({}));
+        const snap = await getDoc(doc(db, 'gamestats', id));
+        const compat = snap.exists() ? snap.data().compatibility || '' : '';
+        modModal.querySelectorAll('.compat-btn').forEach(b => {
+          const on = b.dataset.compat === compat && compat !== '';
+          b.style.background = on ? '#111827' : '#fff';
+          b.style.color = on ? '#fff' : '#6b7280';
+          b.style.borderColor = on ? '#111827' : '#e5e7eb';
+        });
+      });
+    }
+
+    // Load open game reports
+    try {
+      const reports = await fetchGameReports();
+      const wrap = document.getElementById('mod-game-reports-wrap');
+      const list = document.getElementById('mod-game-reports-list');
+      if (wrap && list) {
+        if (reports.length) {
+          wrap.style.display = 'block';
+          list.innerHTML = '';
+          reports.forEach(r => {
+            const item = document.createElement('div');
+            item.style.cssText = 'padding:8px;background:#fff5f5;border-radius:8px;margin-bottom:6px;font-size:12px;border:1px solid rgba(239,68,68,0.2);';
+            item.innerHTML = `<strong>${r.gameTitle}</strong>: ${r.reason} <button data-id="${r.id}" style="float:right;background:none;border:none;color:#22c55e;font-weight:700;cursor:pointer;font-size:12px;">✓ Dismiss</button>`;
+            item.querySelector('button').addEventListener('click', async (e) => {
+              await dismissGameReport(e.currentTarget.dataset.id);
+              item.remove();
+              if (!list.children.length) wrap.style.display = 'none';
+            });
+            list.appendChild(item);
+          });
+        } else {
+          wrap.style.display = 'none';
+        }
+      }
     } catch {}
     // Sync chat lock state
     try {

@@ -3,7 +3,7 @@
    favorites (cloud+local), dark mode, toasts, recently played, new badge, stats button
 */
 
-import { initAuthUI, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, setCurrentlyPlaying, clearCurrentlyPlaying } from './firebase-auth.js';
+import { initAuthUI, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, fetchAllGameStats, setCurrentlyPlaying, clearCurrentlyPlaying, rateGame, getUserRating, reportGame } from './firebase-auth.js';
 
 const GAMES = [
   {
@@ -101,9 +101,11 @@ const GAMES = [
 
 // expose game count globally for stats button
 window._FLUX_GAME_COUNT = GAMES.length;
+window._FLUX_GAMES = GAMES;
 
 // Hot game and new game tracking
 let _hotGameId = null;
+let _allGameStats = {}; // gameId -> { compatibility, ratingTotal, ratingCount, firstSeen }
 const _newGameCache = {}; // gameId -> firstSeen timestamp
 const NEW_GAME_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -268,6 +270,18 @@ function createCard(game) {
 
   const isHot = _hotGameId === game.id;
   const isNew = _newGameCache[game.id] && (Date.now() - new Date(_newGameCache[game.id]).getTime() < NEW_GAME_TTL);
+  const stats = _allGameStats[game.id] || {};
+  const compat = stats.compatibility || '';
+  const avgRating = stats.ratingCount ? (stats.ratingTotal / stats.ratingCount).toFixed(1) : null;
+
+  const compatBadge = compat === 'ipad' ? '<span class="compat-badge">📱 iPad</span>'
+    : compat === 'pc' ? '<span class="compat-badge">🖥️ PC</span>'
+    : compat === 'both' ? '<span class="compat-badge">✅ iPad & PC</span>'
+    : '';
+
+  const ratingHTML = avgRating
+    ? `<span style="font-size:11px;color:#f59e0b;font-weight:700;">★ ${avgRating} <span style="color:var(--muted);font-weight:400;">(${stats.ratingCount})</span></span>`
+    : '';
 
   div.innerHTML = `
     ${isHot ? '<span class="hot-badge">🔥 HOT</span>' : ''}
@@ -276,10 +290,16 @@ function createCard(game) {
     <div class="card-body">
       <h3 class="title">${game.title}</h3>
       <div class="meta">${game.desc || ''}</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap;">
+        ${compatBadge}
+        ${ratingHTML}
+      </div>
     </div>
     <div class="card-foot">
       <div style="display:flex;gap:8px;align-items:center">
         <button class="favorite" title="Toggle favourite" aria-pressed="${isFav(game.id)}">${isFav(game.id) ? '★' : '☆'}</button>
+        <button class="rate-btn" title="Rate game" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--muted);">☆ Rate</button>
+        <button class="report-btn" title="Report game" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--muted);">⚑</button>
       </div>
       <div style="display:flex;gap:8px;align-items:center">
         <button class="open-btn" data-url="${game.url}" aria-label="Open in new tab">Open</button>
@@ -298,6 +318,12 @@ function createCard(game) {
   });
   favBtn.classList.toggle('active', isFav(game.id));
 
+  // Rating
+  div.querySelector('.rate-btn').addEventListener('click', () => showRatingModal(game));
+
+  // Report
+  div.querySelector('.report-btn').addEventListener('click', () => showReportModal(game));
+
   div.querySelector('.open-btn').addEventListener('click', (e) => {
     window.open(e.currentTarget.dataset.url, '_blank', 'noopener');
   });
@@ -306,7 +332,6 @@ function createCard(game) {
     addRecent(game.id);
     renderRecentSection();
     trackGamePlay(game.id, game.title).then(() => {
-      // Update hot game badge after tracking
       fetchHotGame().then(hot => {
         if (hot && hot.id !== _hotGameId) { _hotGameId = hot.id; applyFilters(); }
       });
@@ -316,6 +341,102 @@ function createCard(game) {
   });
 
   return div;
+}
+
+function showRatingModal(game) {
+  const existing = document.getElementById('rating-modal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'rating-modal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:500;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);';
+
+  const userRating = _allGameStats[game.id]?.userRating || 0;
+  modal.innerHTML = `
+    <div style="background:var(--panel);border-radius:20px;padding:28px;width:100%;max-width:340px;box-shadow:0 30px 80px rgba(0,0,0,0.2);text-align:center;position:relative;">
+      <button id="rating-close" style="position:absolute;top:12px;right:12px;background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted);">✕</button>
+      <div style="font-size:32px;margin-bottom:8px;">⭐</div>
+      <h3 style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:var(--text);margin:0 0 6px;">${game.title}</h3>
+      <p style="font-size:13px;color:var(--muted);margin:0 0 16px;">How would you rate this game?</p>
+      <div id="star-row" style="display:flex;justify-content:center;gap:8px;margin-bottom:16px;">
+        ${[1,2,3,4,5].map(s => `<button class="star-btn" data-star="${s}" style="background:none;border:none;font-size:32px;cursor:pointer;transition:transform 0.1s;color:${s <= userRating ? '#f59e0b' : '#d1d5db'};">★</button>`).join('')}
+      </div>
+      <p id="rating-msg" style="font-size:12px;color:var(--muted);margin:0;min-height:18px;"></p>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  document.getElementById('rating-close').addEventListener('click', () => modal.remove());
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+
+  const stars = modal.querySelectorAll('.star-btn');
+  stars.forEach(btn => {
+    btn.addEventListener('mouseenter', () => {
+      const val = parseInt(btn.dataset.star);
+      stars.forEach(s => s.style.color = parseInt(s.dataset.star) <= val ? '#f59e0b' : '#d1d5db');
+    });
+    btn.addEventListener('mouseleave', () => {
+      const cur = parseInt(modal.querySelector('.star-btn[data-active]')?.dataset.star || 0);
+      stars.forEach(s => s.style.color = parseInt(s.dataset.star) <= cur ? '#f59e0b' : '#d1d5db');
+    });
+    btn.addEventListener('click', async () => {
+      const rating = parseInt(btn.dataset.star);
+      stars.forEach(s => { s.removeAttribute('data-active'); });
+      btn.setAttribute('data-active', '1');
+      stars.forEach(s => s.style.color = parseInt(s.dataset.star) <= rating ? '#f59e0b' : '#d1d5db');
+      const result = await rateGame(game.id, game.title, rating);
+      const msgEl = document.getElementById('rating-msg');
+      if (result.ok) {
+        msgEl.style.color = '#22c55e';
+        msgEl.textContent = '✓ Rating saved!';
+        // Update local cache
+        if (!_allGameStats[game.id]) _allGameStats[game.id] = {};
+        _allGameStats[game.id].userRating = rating;
+        setTimeout(() => modal.remove(), 1000);
+      } else {
+        msgEl.style.color = '#ef4444';
+        msgEl.textContent = result.error;
+      }
+    });
+  });
+}
+
+function showReportModal(game) {
+  const existing = document.getElementById('report-modal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'report-modal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:500;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);';
+  modal.innerHTML = `
+    <div style="background:var(--panel);border-radius:20px;padding:28px;width:100%;max-width:340px;box-shadow:0 30px 80px rgba(0,0,0,0.2);position:relative;">
+      <button id="report-close" style="position:absolute;top:12px;right:12px;background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted);">✕</button>
+      <h3 style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:var(--text);margin:0 0 6px;">Report ${game.title}</h3>
+      <p style="font-size:13px;color:var(--muted);margin:0 0 14px;">What's wrong with this game?</p>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+        ${['Game is broken / won\'t load','Game crashes my browser','Content is inappropriate','Other'].map(r =>
+          `<button class="report-reason-btn" data-reason="${r}" style="padding:10px 14px;text-align:left;border:1px solid var(--glass-border);border-radius:10px;background:var(--bg);color:var(--text);font-size:13px;cursor:pointer;transition:border-color 0.15s;">${r}</button>`
+        ).join('')}
+      </div>
+      <p id="report-msg" style="font-size:12px;text-align:center;margin:0;min-height:18px;"></p>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  document.getElementById('report-close').addEventListener('click', () => modal.remove());
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+
+  modal.querySelectorAll('.report-reason-btn').forEach(btn => {
+    btn.addEventListener('mouseenter', () => btn.style.borderColor = 'var(--accent)');
+    btn.addEventListener('mouseleave', () => btn.style.borderColor = 'var(--glass-border)');
+    btn.addEventListener('click', async () => {
+      const result = await reportGame(game.id, game.title, btn.dataset.reason);
+      const msgEl = document.getElementById('report-msg');
+      msgEl.style.color = result.ok ? '#22c55e' : '#ef4444';
+      msgEl.textContent = result.ok ? '✓ Report sent to admins. Thanks!' : result.error;
+      if (result.ok) setTimeout(() => modal.remove(), 1500);
+    });
+  });
 }
 
 /* ===================== RENDER ===================== */
@@ -393,10 +514,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // Load favs from cloud then render games so stars are correct from the start
   loadCloudFavs().then(async cloud => {
     if (cloud !== null) { _favsCache = cloud; saveLocalFavs(cloud); }
-    // Load hot game + new game data before rendering
-    await loadHotGame();
-    // Pre-fetch firstSeen for all games
-    await Promise.all(GAMES.map(g => fetchGameFirstSeen(g.id).then(fs => { _newGameCache[g.id] = fs; })));
+    // Load all game stats (hot, new, compatibility, ratings) before rendering
+    _allGameStats = await fetchAllGameStats();
+    const hotGame = await fetchHotGame();
+    if (hotGame) _hotGameId = hotGame.id;
+    // Populate newGameCache from allGameStats
+    GAMES.forEach(g => { _newGameCache[g.id] = _allGameStats[g.id]?.firstSeen || null; });
     if (document.getElementById('game-grid') || document.getElementById('games-grid')) {
       renderGames(GAMES);
     }
