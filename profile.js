@@ -249,7 +249,6 @@ function renderProfile(profile, { isOwn, isAdmin, isFollowing, canSeeContent, cu
     ).join('');
   }
 
-  const cardStyle = theme.cardStyle || 'default';
   const cardStyleMap = {
     default: '',
     rounded: 'border-radius:32px !important;',
