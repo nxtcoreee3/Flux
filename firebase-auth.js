@@ -1398,8 +1398,13 @@ export function initAuthUI(onUserChange) {
       </div>
 
       <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">📱 Mobile Device Requests</div>
+      <div id="mod-device-requests-wrap">
+        <div id="mod-device-requests-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+        <div id="mod-device-requests-empty" style="font-size:12px;color:#9ca3af;text-align:center;padding:8px 0;">No pending requests</div>
+      </div>
 
-      <!-- ── GAME MANAGEMENT ── -->
+      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
       <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🎮 Game Labels</div>
       <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px;">
         <select id="mod-game-select" style="padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;color:#111827;background:#fff;outline:none;cursor:pointer;">
@@ -1676,6 +1681,54 @@ export function initAuthUI(onUserChange) {
         });
       });
     }
+
+    // Load device requests
+    try {
+      const { getDocs, collection: col, query, where, orderBy, updateDoc, doc: docRef } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const reqQ = query(col(db, 'deviceRequests'), where('status', '==', 'pending'), orderBy('submittedAt', 'desc'));
+      const reqSnap = await getDocs(reqQ);
+      const list = document.getElementById('mod-device-requests-list');
+      const empty = document.getElementById('mod-device-requests-empty');
+      if (list) {
+        list.innerHTML = '';
+        if (reqSnap.empty) {
+          if (empty) empty.style.display = 'block';
+        } else {
+          if (empty) empty.style.display = 'none';
+          reqSnap.forEach(d => {
+            const r = d.data();
+            const item = document.createElement('div');
+            item.style.cssText = 'padding:10px;background:#f0f9ff;border-radius:8px;font-size:12px;border:1px solid rgba(59,130,246,0.2);';
+            item.innerHTML = `
+              <div style="font-weight:700;color:#111827;margin-bottom:2px;">📱 ${r.deviceModel}</div>
+              <div style="color:#6b7280;margin-bottom:6px;font-size:11px;">${r.screenW}×${r.screenH} · ${r.platform || 'unknown platform'}</div>
+              <div style="display:flex;gap:6px;">
+                <button data-id="${d.id}" data-model="${r.deviceModel}" class="dev-blacklist-btn" style="flex:1;padding:5px 8px;background:#22c55e;color:white;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:11px;">✓ Blacklist Model</button>
+                <button data-id="${d.id}" class="dev-ignore-btn" style="flex:1;padding:5px 8px;background:#f3f4f6;color:#6b7280;border:1px solid #e5e7eb;border-radius:7px;font-weight:700;cursor:pointer;font-size:11px;">✕ Ignore</button>
+              </div>
+            `;
+            item.querySelector('.dev-blacklist-btn').addEventListener('click', async (e) => {
+              const id = e.currentTarget.dataset.id;
+              const model = e.currentTarget.dataset.model;
+              try {
+                // Store blacklisted model in Firestore
+                await updateDoc(docRef(db, 'deviceRequests', id), { status: 'blacklisted' });
+                const { setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+                await setDoc(docRef(db, 'mobileBlacklist', model.replace(/\s+/g, '_')), { model, blacklistedAt: new Date().toISOString() });
+              } catch {}
+              item.remove();
+              if (!list.children.length && empty) empty.style.display = 'block';
+            });
+            item.querySelector('.dev-ignore-btn').addEventListener('click', async (e) => {
+              try { await updateDoc(docRef(db, 'deviceRequests', e.currentTarget.dataset.id), { status: 'ignored' }); } catch {}
+              item.remove();
+              if (!list.children.length && empty) empty.style.display = 'block';
+            });
+            list.appendChild(item);
+          });
+        }
+      }
+    } catch {}
 
     // Load open game reports
     try {

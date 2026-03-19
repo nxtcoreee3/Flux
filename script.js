@@ -482,6 +482,7 @@ document.addEventListener('DOMContentLoaded', () => {
   trackDailyVisitor();
   injectBuildNumber();
   showSocialBanner();
+  initMobileWarning();
 
   if (document.getElementById('quick-search')) {
     document.getElementById('quick-search').addEventListener('input', debounce(applyFilters, 120));
@@ -513,6 +514,99 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
+
+/* ===================== MOBILE WARNING ===================== */
+function initMobileWarning() {
+  const isMobile = /Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(navigator.userAgent)
+    && ('ontouchstart' in window || navigator.maxTouchPoints > 1);
+  if (!isMobile) return;
+
+  const deviceModel = (() => {
+    const ua = navigator.userAgent;
+    if (/iPhone/.test(ua)) return 'iPhone';
+    if (/iPad/.test(ua)) return 'iPad';
+    const m = ua.match(/\(Linux;.*?;\s*(.*?)\s*Build/);
+    if (m) return m[1];
+    return ua.match(/\(([^)]+)\)/)?.[1] || 'Unknown Mobile';
+  })();
+
+  const skipKey = 'flux_mobile_skip';
+  if (localStorage.getItem(skipKey) === '1') return;
+
+  // Check Firestore blacklist before showing
+  const showWarning = () => {
+    const overlay = document.createElement('div');
+    overlay.id = 'mobile-warn-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:99995;background:rgba(0,0,0,0.7);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;';
+    overlay.innerHTML = `
+      <div style="background:var(--panel,#fff);border-radius:20px;padding:28px 24px;max-width:400px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,0.3);text-align:center;font-family:inherit;">
+        <div style="font-size:44px;margin-bottom:12px;">📱</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--text,#111827);margin-bottom:8px;letter-spacing:0.5px;">Not Optimized for Mobile</div>
+        <p style="font-size:14px;color:var(--muted,#6b7280);line-height:1.6;margin:0 0 24px;">Flux is designed for desktop browsers. Some features and games may not work correctly on your device.</p>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <button id="mobile-warn-continue" style="padding:13px 20px;background:var(--accent,#3a7dff);color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">Continue Anyway</button>
+          <button id="mobile-warn-notmobile" style="padding:13px 20px;background:var(--bg,#f3f4f6);color:var(--text,#111827);border:1px solid var(--glass-border,rgba(0,0,0,0.1));border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">I'm Not on a Mobile Device</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    // "Continue anyway" — ask about sending device info
+    document.getElementById('mobile-warn-continue').addEventListener('click', () => {
+      overlay.innerHTML = `
+        <div style="background:var(--panel,#fff);border-radius:20px;padding:28px 24px;max-width:400px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,0.3);text-align:center;font-family:inherit;">
+          <div style="font-size:36px;margin-bottom:12px;">📊</div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--text,#111827);margin-bottom:8px;">Help Us Improve</div>
+          <p style="font-size:13px;color:var(--muted,#6b7280);line-height:1.6;margin:0 0 6px;">Would you like to send your device info to the developers? This helps us identify which devices to officially support.</p>
+          <p style="font-size:12px;color:var(--muted,#6b7280);margin:0 0 20px;">Device: <strong style="color:var(--text,#111827);">${deviceModel}</strong></p>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <button id="mobile-warn-send" style="padding:12px 20px;background:#22c55e;color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">✓ Yes, Send Info</button>
+            <button id="mobile-warn-nosend" style="padding:12px 20px;background:var(--bg,#f3f4f6);color:var(--text,#111827);border:1px solid var(--glass-border,rgba(0,0,0,0.1));border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">No Thanks</button>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('mobile-warn-send').addEventListener('click', async () => {
+        overlay.remove();
+        try {
+          const { getFirestore, collection: col, addDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+          const { getApp } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js');
+          const firestore = getFirestore(getApp());
+          await addDoc(col(firestore, 'deviceRequests'), {
+            deviceModel,
+            userAgent: navigator.userAgent,
+            platform: navigator.platform || '',
+            screenW: screen.width,
+            screenH: screen.height,
+            submittedAt: serverTimestamp(),
+            status: 'pending'
+          });
+        } catch (err) { console.warn('Device report failed:', err); }
+      });
+
+      document.getElementById('mobile-warn-nosend').addEventListener('click', () => { overlay.remove(); });
+    });
+
+    // "Not on mobile" — suppress popup permanently for this browser
+    document.getElementById('mobile-warn-notmobile').addEventListener('click', () => {
+      localStorage.setItem(skipKey, '1');
+      overlay.remove();
+    });
+  };
+
+  // Check Firestore blacklist for this device model
+  (async () => {
+    try {
+      const { getFirestore, doc: docRef, getDoc } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const { getApp } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js');
+      const firestore = getFirestore(getApp());
+      const key = deviceModel.replace(/\s+/g, '_');
+      const snap = await getDoc(docRef(firestore, 'mobileBlacklist', key));
+      if (snap.exists()) return; // blacklisted — don't show
+    } catch {}
+    showWarning();
+  })();
+}
 
 function showSocialBanner() {
   // Don't show on social page itself
@@ -603,19 +697,37 @@ function openFullscreen(url, title) {
     <div id="fs-bar" style="position:absolute;top:0;left:0;right:0;z-index:2;display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(to bottom,rgba(0,0,0,0.75),transparent);transition:opacity 0.3s;">
       <button id="fs-exit" style="background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.2);color:white;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;cursor:pointer;backdrop-filter:blur(4px);">✕ Exit</button>
       <span style="font-size:13px;font-weight:600;color:rgba(255,255,255,0.85);flex:1;">${title}</span>
-      <button id="fs-newtab" style="background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.2);color:white;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;backdrop-filter:blur(4px);">↗ New Tab</button>
+      <button id="fs-newtab" style="display:none;background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.2);color:white;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;backdrop-filter:blur(4px);">↗ Open in New Tab</button>
     </div>
-    <iframe src="${url}" style="flex:1;border:0;width:100%;height:100%;" allow="autoplay; fullscreen" sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
+    <iframe id="fs-iframe" src="${url}" style="flex:1;border:0;width:100%;height:100%;" allow="autoplay; fullscreen" sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
+    <div id="fs-embed-warn" style="display:none;position:absolute;inset:0;z-index:3;display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;background:rgba(0,0,0,0.85);">
+      <span style="font-size:32px;">🚫</span>
+      <span style="color:white;font-size:15px;font-weight:600;">This game can't be embedded.</span>
+      <button id="fs-fallback-btn" style="background:#3a7dff;color:white;border:none;border-radius:10px;padding:10px 22px;font-size:14px;font-weight:700;cursor:pointer;">↗ Open in New Tab</button>
+    </div>
   `;
   document.body.appendChild(fs);
   const bar = fs.querySelector('#fs-bar');
+  const fsIframe = fs.querySelector('#fs-iframe');
+  const fsWarn = fs.querySelector('#fs-embed-warn');
+  const fsNewTab = fs.querySelector('#fs-newtab');
   let barTimer;
   const showBar = () => { bar.style.opacity = '1'; clearTimeout(barTimer); barTimer = setTimeout(() => { bar.style.opacity = '0'; }, 3000); };
   showBar();
   fs.addEventListener('mousemove', showBar);
   fs.addEventListener('touchstart', showBar, { passive: true });
   fs.querySelector('#fs-exit').addEventListener('click', () => fs.remove());
-  fs.querySelector('#fs-newtab').addEventListener('click', () => window.open(url, '_blank', 'noopener'));
+  fsNewTab.addEventListener('click', () => window.open(url, '_blank', 'noopener'));
+  fs.querySelector('#fs-fallback-btn').addEventListener('click', () => window.open(url, '_blank', 'noopener'));
+  // Detect embed failure
+  let fsLoaded = false;
+  fsIframe.addEventListener('load', () => { fsLoaded = true; }, { once: true });
+  setTimeout(() => {
+    if (!fsLoaded) {
+      fsWarn.style.display = 'flex';
+      fsNewTab.style.display = '';
+    }
+  }, 2200);
   const escHandler = (e) => { if (e.key === 'Escape') { fs.remove(); window.removeEventListener('keydown', escHandler); } };
   window.addEventListener('keydown', escHandler);
 }
@@ -636,7 +748,7 @@ function openPlayModal(url, title) {
 
   if (modalTitle) modalTitle.textContent = title;
   modal.setAttribute('aria-hidden', 'false');
-  if (openTabBtn) openTabBtn.onclick = () => window.open(url, '_blank', 'noopener');
+  if (openTabBtn) { openTabBtn.style.display = 'none'; openTabBtn.onclick = () => window.open(url, '_blank', 'noopener'); }
 
   // Add fullscreen button if not already present
   let fsBtn = tools?.querySelector('.fs-btn');
@@ -663,6 +775,7 @@ function openPlayModal(url, title) {
       if (!loaded) {
         embedWarning?.classList.remove('hidden');
         if (fsBtn) fsBtn.style.display = 'none'; // hide if embedding blocked
+        if (openTabBtn) openTabBtn.style.display = ''; // show new tab only now
         const fb = embedWarning?.querySelector('a');
         if (fb) { fb.href=url; fb.onclick=()=>{ window.open(url,'_blank','noopener'); return true; }; }
       }
