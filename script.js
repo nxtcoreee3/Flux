@@ -1,53 +1,45 @@
 /* script.js — Flux
    Features: game rendering, play modal, search/sort,
-   favorites (cloud+local), dark mode, toasts, recently played,
-   auto NEW badge (last 3 days, max 3), stats button, game progress disclaimer
+   favorites (cloud+local), dark mode, toasts, recently played, new badge, stats button
 */
 
-import { initAuthUI, loadCloudFavs, saveCloudFavs, initPresence, initStatsButton } from './firebase-auth.js';
+import { initAuthUI, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, fetchAllGameStats, setCurrentlyPlaying, clearCurrentlyPlaying, rateGame, getUserRating, reportGame } from './firebase-auth.js';
 
-/* ===================== GAMES ===================== */
-// addedAt: timestamp in ms when the game was added to Flux
 const GAMES = [
   {
     id: 'drive-mad',
     title: 'Drive Mad',
     thumb: 'assets/Drive-Mad.png',
     url: 'https://nxtcoreee3.github.io/Drive-Mad/',
-    desc: 'High speed driving challenge',
-    addedAt: 1704067200000 // Jan 1 2024
+    desc: 'High speed driving challenge'
   },
   {
     id: 'stickman-hook',
     title: 'Stickman Hook',
     thumb: 'assets/Stickman-Hook.png',
     url: 'https://nxtcoreee3.github.io/Stickman-Hook/',
-    desc: 'Swing through levels with perfect timing',
-    addedAt: 1704067200000
+    desc: 'Swing through levels with perfect timing'
   },
   {
     id: 'geometry-dash-lite',
     title: 'Geometry Dash Lite',
     thumb: 'assets/Geometry-Dash-Lite.png',
     url: 'https://nxtcoreee3.github.io/Geometry-Dash-Lite/',
-    desc: 'Rhythm-based platformer — lite',
-    addedAt: 1704067200000
+    desc: 'Rhythm-based platformer — lite'
   },
   {
     id: 'paper-io',
     title: 'Paper.io',
     thumb: 'assets/Paper-io.png',
     url: 'https://nxtcoreee3.github.io/Paper-io/',
-    desc: 'Conquer territory and outmaneuver rivals',
-    addedAt: 1704067200000
+    desc: 'Conquer territory and outmaneuver rivals'
   },
   {
     id: 'cookie-clicker',
     title: 'Cookie Clicker',
     thumb: 'assets/Cookie-Clicker.png',
     url: 'https://nxtcoreee3.github.io/Cookie-Clicker/',
-    desc: 'Click cookies, build an empire',
-    addedAt: 1704067200000
+    desc: 'Click cookies, build an empire'
   },
   {
     id: 'monkey-mart',
@@ -55,29 +47,84 @@ const GAMES = [
     thumb: 'assets/Monkey-Mart.png',
     url: 'https://nxtcoreee3.github.io/Monkey-Mart/',
     desc: 'Run your own monkey supermarket',
-    addedAt: Date.now() // added now — will show NEW for 3 days
+  },
+  {
+    id: 'drift-boss',
+    title: 'Drift Boss',
+    thumb: 'assets/drift-boss.png',
+    url: 'https://nxtcoreee3.github.io/Drift-Boss/',
+    desc: 'Drift around tight corners and stay on the track as long as possible.'
+  },
+  {
+    id: 'polytrack',
+    title: 'Polytrack',
+    thumb: 'assets/polytrack.png',
+    url: 'https://nxtcoreee3.github.io/Polytrack/',
+    desc: 'Drive and race against your older records.'
+  },
+  {
+    id: 'crazy-motorcycle',
+    title: 'Crazy Motorcycle',
+    thumb: 'assets/crazy-motorcycle.png',
+    url: 'https://nxtcoreee3.github.io/Crazy-Motorcycle/',
+    desc: 'Ride through obstacle-filled tracks, jump gaps, and reach the finish line.'
+  },
+  {
+    id: 'crazy-cars',
+    title: 'Crazy Cars',
+    thumb: 'assets/crazy-cars.png',
+    url: 'https://nxtcoreee3.github.io/Crazy-Cars/',
+    desc: 'Race at high speed while dodging traffic and obstacles.'
+  },
+  {
+    id: 'table-tennis-world-tour',
+    title: 'Table Tennis World Tour',
+    thumb: 'assets/table-tennis-world-tour.png',
+    url: 'https://nxtcoreee3.github.io/Table-Tennis-World-Tour/',
+    desc: 'Play fast‑paced table tennis matches against players worldwide.'
+  },
+  {
+    id: 'moto-x3m',
+    title: 'Moto X3M',
+    thumb: 'assets/moto-x3m.png',
+    url: 'https://nxtcoreee3.github.io/Moto-X3M/',
+    desc: 'Race through crazy bike levels, do stunts, and beat the clock.'
+  },
+  {
+    id: '8-ball-classic',
+    title: '8 Ball Classic',
+    thumb: 'assets/8-ball-classic.png',
+    url: 'https://nxtcoreee3.github.io/8-Ball-Classic/',
+    desc: 'Play classic 8-ball pool against friends or the AI in a fun, simple game.'
   }
 ];
 
-/* ===================== AUTO NEW BADGE ===================== */
-const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
-const MAX_NEW_BADGES = 3;
-
-function computeNewBadges() {
-  const now = Date.now();
-  // find games added in last 3 days, sorted newest first
-  const recent = GAMES
-    .filter(g => g.addedAt && (now - g.addedAt) <= THREE_DAYS_MS)
-    .sort((a, b) => b.addedAt - a.addedAt)
-    .slice(0, MAX_NEW_BADGES)
-    .map(g => g.id);
-  return new Set(recent);
-}
-
-const NEW_GAME_IDS = computeNewBadges();
-
 // expose game count globally for stats button
 window._FLUX_GAME_COUNT = GAMES.length;
+window._FLUX_GAMES = GAMES;
+
+// Hot game and new game tracking
+let _hotGameId = null;
+let _allGameStats = {}; // gameId -> { compatibility, ratingTotal, ratingCount, firstSeen }
+const _newGameCache = {}; // gameId -> firstSeen timestamp
+const NEW_GAME_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+async function loadHotGame() {
+  const hot = await fetchHotGame();
+  if (hot) {
+    _hotGameId = hot.id;
+    applyFilters(); // re-render with badge
+  }
+}
+
+async function isNewGame(gameId) {
+  if (_newGameCache[gameId] !== undefined) {
+    return _newGameCache[gameId] && (Date.now() - new Date(_newGameCache[gameId]).getTime() < NEW_GAME_TTL);
+  }
+  const firstSeen = await fetchGameFirstSeen(gameId);
+  _newGameCache[gameId] = firstSeen;
+  return firstSeen && (Date.now() - new Date(firstSeen).getTime() < NEW_GAME_TTL);
+}
 
 /* --- Utilities --- */
 const quickSearch = document.getElementById('quick-search') || document.getElementById('games-search');
@@ -100,28 +147,6 @@ document.addEventListener('click', (e) => {
   const el = document.getElementById(id);
   if (el) el.textContent = new Date().getFullYear();
 });
-
-/* ===================== BUILD NUMBER ===================== */
-async function injectBuildNumber() {
-  try {
-    const res = await fetch('https://api.github.com/repos/nxtcoreee3/Flux/commits/main', {
-      headers: { 'Accept': 'application/vnd.github.v3+json' }
-    });
-    if (!res.ok) return;
-    const data = await res.json();
-    const sha = data.sha?.slice(0, 7);
-    if (!sha) return;
-
-    document.querySelectorAll('.copyright').forEach(el => {
-      if (el.querySelector('.build-number')) return;
-      const span = document.createElement('span');
-      span.className = 'build-number';
-      span.style.cssText = 'display:block;font-size:11px;color:var(--muted);margin-top:4px;opacity:0.7;letter-spacing:0.3px;';
-      span.innerHTML = `Build: <a href="https://github.com/nxtcoreee3/Flux/commit/${data.sha}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;font-family:monospace;" title="${(data.commit?.message || '').replace(/"/g, '')}">${sha}</a>`;
-      el.appendChild(span);
-    });
-  } catch { /* silently fail if offline or rate limited */ }
-}
 
 /* ===================== DARK MODE ===================== */
 const DARK_KEY = 'flux_dark';
@@ -189,6 +214,7 @@ function addRecent(id) {
   let recent = loadRecent();
   recent = [id, ...recent.filter(r => r !== id)].slice(0, MAX_RECENT);
   localStorage.setItem(RECENT_KEY, JSON.stringify(recent));
+  syncProfileRecents(recent);
 }
 
 function renderRecentSection() {
@@ -229,6 +255,7 @@ async function toggleFav(id) {
   else _favsCache.splice(_favsCache.indexOf(id), 1);
   saveLocalFavs(_favsCache);
   await saveCloudFavs(_favsCache);
+  await syncProfileFavs(_favsCache);
   const countEl = document.getElementById('profile-fav-count');
   if (countEl) countEl.textContent = `${_favsCache.length} favourited game${_favsCache.length !== 1 ? 's' : ''}`;
   const game = GAMES.find(g => g.id === id);
@@ -237,24 +264,44 @@ async function toggleFav(id) {
 
 /* ===================== CARD ===================== */
 function createCard(game) {
-  const isNew = NEW_GAME_IDS.has(game.id);
   const div = document.createElement('article');
   div.className = 'card';
   div.setAttribute('data-id', game.id);
 
+  const isHot = _hotGameId === game.id;
+  const isNew = _newGameCache[game.id] && (Date.now() - new Date(_newGameCache[game.id]).getTime() < NEW_GAME_TTL);
+  const stats = _allGameStats[game.id] || {};
+  const compat = stats.compatibility || '';
+  const avgRating = stats.ratingCount ? (stats.ratingTotal / stats.ratingCount).toFixed(1) : null;
+
+  const compatBadge = compat === 'ipad' ? '<span class="compat-badge">📱 iPad</span>'
+    : compat === 'pc' ? '<span class="compat-badge">🖥️ PC</span>'
+    : compat === 'both' ? '<span class="compat-badge">✅ iPad & PC</span>'
+    : '';
+
+  const ratingHTML = avgRating
+    ? `<span style="font-size:11px;color:#f59e0b;font-weight:700;">★ ${avgRating} <span style="color:var(--muted);font-weight:400;">(${stats.ratingCount})</span></span>`
+    : '';
+
   div.innerHTML = `
-    ${isNew ? '<span class="new-badge">NEW</span>' : ''}
+    ${isHot ? '<span class="hot-badge">🔥 HOT</span>' : ''}
+    ${isNew && !isHot ? '<span class="new-badge">NEW</span>' : ''}
     <img class="thumb" src="${game.thumb}" alt="${game.title} thumbnail" loading="lazy">
     <div class="card-body">
       <h3 class="title">${game.title}</h3>
       <div class="meta">${game.desc || ''}</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap;">
+        ${compatBadge}
+        ${ratingHTML}
+      </div>
     </div>
     <div class="card-foot">
       <div style="display:flex;gap:8px;align-items:center">
         <button class="favorite" title="Toggle favourite" aria-pressed="${isFav(game.id)}">${isFav(game.id) ? '★' : '☆'}</button>
+        <button class="rate-btn" title="Rate game" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--muted);">☆ Rate</button>
+        <button class="report-btn" title="Report game" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--muted);">⚑</button>
       </div>
       <div style="display:flex;gap:8px;align-items:center">
-        <button class="open-btn" data-url="${game.url}" aria-label="Open in new tab">Open</button>
         <button class="play-btn" data-url="${game.url}" data-title="${game.title}">Play</button>
       </div>
     </div>
@@ -270,17 +317,121 @@ function createCard(game) {
   });
   favBtn.classList.toggle('active', isFav(game.id));
 
-  div.querySelector('.open-btn').addEventListener('click', (e) => {
-    window.open(e.currentTarget.dataset.url, '_blank', 'noopener');
-  });
+  // Rating
+  div.querySelector('.rate-btn').addEventListener('click', () => showRatingModal(game));
+
+  // Report
+  div.querySelector('.report-btn').addEventListener('click', () => showReportModal(game));
 
   div.querySelector('.play-btn').addEventListener('click', (e) => {
     addRecent(game.id);
     renderRecentSection();
+    trackGamePlay(game.id, game.title).then(() => {
+      fetchHotGame().then(hot => {
+        if (hot && hot.id !== _hotGameId) { _hotGameId = hot.id; applyFilters(); }
+      });
+    });
+    setCurrentlyPlaying(game.id, game.title);
     openPlayModal(e.currentTarget.dataset.url, e.currentTarget.dataset.title);
   });
 
   return div;
+}
+
+function showRatingModal(game) {
+  const existing = document.getElementById('rating-modal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'rating-modal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:500;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);';
+
+  const userRating = _allGameStats[game.id]?.userRating || 0;
+  modal.innerHTML = `
+    <div style="background:var(--panel);border-radius:20px;padding:28px;width:100%;max-width:340px;box-shadow:0 30px 80px rgba(0,0,0,0.2);text-align:center;position:relative;">
+      <button id="rating-close" style="position:absolute;top:12px;right:12px;background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted);">✕</button>
+      <div style="font-size:32px;margin-bottom:8px;">⭐</div>
+      <h3 style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:var(--text);margin:0 0 6px;">${game.title}</h3>
+      <p style="font-size:13px;color:var(--muted);margin:0 0 16px;">How would you rate this game?</p>
+      <div id="star-row" style="display:flex;justify-content:center;gap:8px;margin-bottom:16px;">
+        ${[1,2,3,4,5].map(s => `<button class="star-btn" data-star="${s}" style="background:none;border:none;font-size:32px;cursor:pointer;transition:transform 0.1s;color:${s <= userRating ? '#f59e0b' : '#d1d5db'};">★</button>`).join('')}
+      </div>
+      <p id="rating-msg" style="font-size:12px;color:var(--muted);margin:0;min-height:18px;"></p>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  document.getElementById('rating-close').addEventListener('click', () => modal.remove());
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+
+  const stars = modal.querySelectorAll('.star-btn');
+  stars.forEach(btn => {
+    btn.addEventListener('mouseenter', () => {
+      const val = parseInt(btn.dataset.star);
+      stars.forEach(s => s.style.color = parseInt(s.dataset.star) <= val ? '#f59e0b' : '#d1d5db');
+    });
+    btn.addEventListener('mouseleave', () => {
+      const cur = parseInt(modal.querySelector('.star-btn[data-active]')?.dataset.star || 0);
+      stars.forEach(s => s.style.color = parseInt(s.dataset.star) <= cur ? '#f59e0b' : '#d1d5db');
+    });
+    btn.addEventListener('click', async () => {
+      const rating = parseInt(btn.dataset.star);
+      stars.forEach(s => { s.removeAttribute('data-active'); });
+      btn.setAttribute('data-active', '1');
+      stars.forEach(s => s.style.color = parseInt(s.dataset.star) <= rating ? '#f59e0b' : '#d1d5db');
+      const result = await rateGame(game.id, game.title, rating);
+      const msgEl = document.getElementById('rating-msg');
+      if (result.ok) {
+        msgEl.style.color = '#22c55e';
+        msgEl.textContent = '✓ Rating saved!';
+        // Update local cache
+        if (!_allGameStats[game.id]) _allGameStats[game.id] = {};
+        _allGameStats[game.id].userRating = rating;
+        setTimeout(() => modal.remove(), 1000);
+      } else {
+        msgEl.style.color = '#ef4444';
+        msgEl.textContent = result.error;
+      }
+    });
+  });
+}
+
+function showReportModal(game) {
+  const existing = document.getElementById('report-modal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'report-modal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:500;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);';
+  modal.innerHTML = `
+    <div style="background:var(--panel);border-radius:20px;padding:28px;width:100%;max-width:340px;box-shadow:0 30px 80px rgba(0,0,0,0.2);position:relative;">
+      <button id="report-close" style="position:absolute;top:12px;right:12px;background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted);">✕</button>
+      <h3 style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:var(--text);margin:0 0 6px;">Report ${game.title}</h3>
+      <p style="font-size:13px;color:var(--muted);margin:0 0 14px;">What's wrong with this game?</p>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+        ${['Game is broken / won\'t load','Game crashes my browser','Content is inappropriate','Other'].map(r =>
+          `<button class="report-reason-btn" data-reason="${r}" style="padding:10px 14px;text-align:left;border:1px solid var(--glass-border);border-radius:10px;background:var(--bg);color:var(--text);font-size:13px;cursor:pointer;transition:border-color 0.15s;">${r}</button>`
+        ).join('')}
+      </div>
+      <p id="report-msg" style="font-size:12px;text-align:center;margin:0;min-height:18px;"></p>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  document.getElementById('report-close').addEventListener('click', () => modal.remove());
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+
+  modal.querySelectorAll('.report-reason-btn').forEach(btn => {
+    btn.addEventListener('mouseenter', () => btn.style.borderColor = 'var(--accent)');
+    btn.addEventListener('mouseleave', () => btn.style.borderColor = 'var(--glass-border)');
+    btn.addEventListener('click', async () => {
+      const result = await reportGame(game.id, game.title, btn.dataset.reason);
+      const msgEl = document.getElementById('report-msg');
+      msgEl.style.color = result.ok ? '#22c55e' : '#ef4444';
+      msgEl.textContent = result.ok ? '✓ Report sent to admins. Thanks!' : result.error;
+      if (result.ok) setTimeout(() => modal.remove(), 1500);
+    });
+  });
 }
 
 /* ===================== RENDER ===================== */
@@ -328,23 +479,159 @@ function debounce(fn, wait=120) {
 
 /* ===================== INIT ===================== */
 document.addEventListener('DOMContentLoaded', () => {
+  initCookieConsent();
   initDarkMode();
   initStatsButton();
   initPresence();
+  initServerStatus();
+  initBroadcast();
+  initChaos();
+  initJumpscare();
+  trackDailyVisitor();
   injectBuildNumber();
+  showSocialBanner();
 
-  if (document.getElementById('game-grid') || document.getElementById('games-grid')) {
-    renderGames(GAMES);
-  }
   if (document.getElementById('quick-search')) {
     document.getElementById('quick-search').addEventListener('input', debounce(applyFilters, 120));
   }
 
   initAuthUI(async (user) => {
     await refreshFavsCache();
-    if (user && !user.isAnonymous) showToast(`Welcome back! 👋`, 'success');
+    if (user && !user.isAnonymous) {
+      trackLoginStreak();
+      trackTimeOnSite();
+      if (!sessionStorage.getItem('flux_welcomed')) {
+        showToast(`Welcome back! 👋`, 'success');
+        sessionStorage.setItem('flux_welcomed', '1');
+      }
+    }
+  });
+
+  // Load favs from cloud then render games so stars are correct from the start
+  loadCloudFavs().then(async cloud => {
+    if (cloud !== null) { _favsCache = cloud; saveLocalFavs(cloud); }
+    // Load all game stats (hot, new, compatibility, ratings) before rendering
+    _allGameStats = await fetchAllGameStats();
+    const hotGame = await fetchHotGame();
+    if (hotGame) _hotGameId = hotGame.id;
+    // Populate newGameCache from allGameStats
+    GAMES.forEach(g => { _newGameCache[g.id] = _allGameStats[g.id]?.firstSeen || null; });
+    if (document.getElementById('game-grid') || document.getElementById('games-grid')) {
+      renderGames(GAMES);
+    }
   });
 });
+
+function showSocialBanner() {
+  // Don't show on social page itself
+  if (window.location.pathname.includes('social.html')) return;
+
+  const banner = document.createElement('div');
+  banner.id = 'social-beta-banner';
+  banner.style.cssText = `
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+    z-index:9000;display:flex;align-items:center;gap:12px;
+    background:var(--panel, #fff);
+    border:1px solid var(--glass-border, rgba(0,0,0,0.08));
+    border-radius:16px;padding:12px 16px;
+    box-shadow:0 12px 40px rgba(0,0,0,0.15);
+    max-width:420px;width:calc(100vw - 48px);
+    animation:banner-slide-up 0.4s cubic-bezier(0.34,1.56,0.64,1) both;
+  `;
+  banner.innerHTML = `
+    <style>
+      @keyframes banner-slide-up { from{opacity:0;transform:translateX(-50%) translateY(20px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
+      @keyframes beta-pulse-banner { 0%,100%{transform:scale(1);opacity:0.4} 50%{transform:scale(1.4);opacity:0} }
+      #social-beta-banner .bp::before { content:''; position:absolute; inset:-2px; border-radius:20px; background:linear-gradient(135deg,#f59e0b,#ef4444); opacity:0.4; animation:beta-pulse-banner 2s ease-in-out infinite; z-index:-1; }
+    </style>
+    <span style="font-size:24px;flex-shrink:0;">💬</span>
+    <div style="flex:1;min-width:0;">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">
+        <span style="font-size:14px;font-weight:700;color:var(--text,#111827);">Chat with other players!</span>
+        <span class="bp" style="display:inline-flex;align-items:center;background:linear-gradient(135deg,#f59e0b,#ef4444);color:#fff;font-size:9px;font-weight:800;padding:2px 7px;border-radius:20px;letter-spacing:0.8px;text-transform:uppercase;position:relative;">Beta</span>
+      </div>
+      <div style="font-size:12px;color:var(--muted,#6b7280);">Profiles, follows & global chat — now live.</div>
+    </div>
+    <a href="social.html" style="padding:8px 14px;background:var(--accent,#3a7dff);color:white;border-radius:10px;font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap;flex-shrink:0;">Try it →</a>
+    <button id="social-banner-close" style="background:none;border:none;color:var(--muted,#9ca3af);cursor:pointer;font-size:18px;padding:0 0 0 4px;flex-shrink:0;line-height:1;">✕</button>
+  `;
+  document.body.appendChild(banner);
+
+  document.getElementById('social-banner-close').addEventListener('click', () => {
+    banner.style.opacity = '0';
+    banner.style.transform = 'translateX(-50%) translateY(20px)';
+    banner.style.transition = 'all 0.25s ease';
+    setTimeout(() => banner.remove(), 250);
+  });
+
+  // Auto-dismiss after 8s
+  setTimeout(() => {
+    if (document.getElementById('social-beta-banner')) {
+      document.getElementById('social-banner-close')?.click();
+    }
+  }, 8000);
+}
+
+/* ===================== BUILD NUMBER ===================== */
+async function injectBuildNumber() {
+  try {
+    const res = await fetch('https://api.github.com/repos/nxtcoreee3/Flux/commits/main', {
+      headers: { 'Accept': 'application/vnd.github.v3+json' }
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const sha = data.sha?.slice(0, 7);
+    if (!sha) return;
+    // Store for later injection into profile dropdown
+    window._fluxBuildSHA = sha;
+    window._fluxBuildURL = `https://github.com/nxtcoreee3/Flux/commit/${data.sha}`;
+    window._fluxBuildMsg = (data.commit?.message || '').replace(/"/g, '').split('\n')[0];
+    // Inject into dropdown if already open or when it opens
+    const tryInject = () => {
+      const dd = document.getElementById('profile-dropdown');
+      if (!dd || dd.querySelector('.build-sha-item')) return;
+      const item = document.createElement('div');
+      item.className = 'build-sha-item';
+      item.style.cssText = 'padding:10px 16px;border-top:1px solid var(--glass-border,rgba(0,0,0,0.06));font-size:11px;color:var(--muted,#6b7280);display:flex;align-items:center;gap:6px;';
+      item.innerHTML = `<span>🔨</span> Build: <a href="${window._fluxBuildURL}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;font-family:monospace;font-weight:700;" title="${window._fluxBuildMsg}">${sha}</a>`;
+      dd.appendChild(item);
+    };
+    tryInject();
+    const obs = new MutationObserver(tryInject);
+    obs.observe(document.body, { childList: true, subtree: true });
+    setTimeout(() => obs.disconnect(), 30000);
+  } catch {}
+}
+
+/* ===================== FULLSCREEN ===================== */
+function openFullscreen(url, title) {
+  document.getElementById('flux-fullscreen')?.remove();
+  const fs = document.createElement('div');
+  fs.id = 'flux-fullscreen';
+  fs.style.cssText = 'position:fixed;inset:0;z-index:9998;background:#000;display:flex;flex-direction:column;';
+  fs.innerHTML = `
+    <div id="fs-bar" style="position:absolute;top:0;left:0;right:0;z-index:2;display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(to bottom,rgba(0,0,0,0.75),transparent);transition:opacity 0.3s;">
+      <button id="fs-exit" style="background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.2);color:white;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;cursor:pointer;backdrop-filter:blur(4px);">✕ Exit</button>
+      <span style="font-size:13px;font-weight:600;color:rgba(255,255,255,0.85);flex:1;">${title}</span>
+      <button id="fs-newtab" style="background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.2);color:white;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;backdrop-filter:blur(4px);">↗ New Tab</button>
+    </div>
+    <iframe src="${url}" style="flex:1;border:0;width:100%;height:100%;" allow="autoplay; fullscreen" sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
+  `;
+  document.body.appendChild(fs);
+
+  // Auto-hide bar, show on interaction
+  const bar = fs.querySelector('#fs-bar');
+  let barTimer;
+  const showBar = () => { bar.style.opacity='1'; clearTimeout(barTimer); barTimer = setTimeout(() => { bar.style.opacity='0'; }, 3000); };
+  showBar();
+  fs.addEventListener('mousemove', showBar);
+  fs.addEventListener('touchstart', showBar);
+
+  fs.querySelector('#fs-exit').addEventListener('click', () => fs.remove());
+  fs.querySelector('#fs-newtab').addEventListener('click', () => window.open(url, '_blank', 'noopener'));
+  const escHandler = (e) => { if (e.key === 'Escape') { fs.remove(); window.removeEventListener('keydown', escHandler); } };
+  window.addEventListener('keydown', escHandler);
+}
 
 /* ===================== PLAY MODAL ===================== */
 const MODAL_ID = 'play-modal';
@@ -358,34 +645,38 @@ function openPlayModal(url, title) {
   const openTabBtn = modal.querySelector('[id^="open-tab"]') || modal.querySelector('.tool-btn');
   const closeBtn = modal.querySelector('[id^="close-modal"]') || modal.querySelector('.tool-btn[aria-label="Close"]');
   const embedWarning = modal.querySelector('.embed-warning');
+  const tools = modal.querySelector('.modal-tools');
 
   if (modalTitle) modalTitle.textContent = title;
   modal.setAttribute('aria-hidden', 'false');
   if (openTabBtn) openTabBtn.onclick = () => window.open(url, '_blank', 'noopener');
 
-  // inject disclaimer if not already there
-  let disclaimer = modal.querySelector('.progress-disclaimer');
-  if (!disclaimer) {
-    disclaimer = document.createElement('div');
-    disclaimer.className = 'progress-disclaimer';
-    disclaimer.style.cssText = 'padding:6px 12px;background:rgba(245,158,11,0.1);border-top:1px solid rgba(245,158,11,0.2);font-size:11px;color:#92400e;text-align:center;flex-shrink:0;';
-    disclaimer.textContent = '⚠️ Game progress may not be saved — this depends on the individual game.';
-    modal.querySelector('.modal-body')?.before(disclaimer);
+  // Add/update fullscreen button
+  let fsBtn = tools?.querySelector('.fs-btn');
+  if (tools && !fsBtn) {
+    fsBtn = document.createElement('button');
+    fsBtn.className = 'tool-btn fs-btn';
+    fsBtn.textContent = '⛶ Fullscreen';
+    tools.insertBefore(fsBtn, tools.firstChild);
   }
+  if (fsBtn) fsBtn.onclick = () => { closeModal(); openFullscreen(url, title); };
 
-  const closeModal = () => { modal.setAttribute('aria-hidden','true'); if(iframe) iframe.src='about:blank'; };
+  const closeModal = () => { modal.setAttribute('aria-hidden','true'); if(iframe) iframe.src='about:blank'; clearCurrentlyPlaying(); };
   if (closeBtn) closeBtn.onclick = closeModal;
   modal.querySelectorAll('[data-close]').forEach(el => el.onclick = closeModal);
   window.addEventListener('keydown', function escClose(e) { if(e.key==='Escape'){ closeModal(); window.removeEventListener('keydown',escClose); } });
 
   if (iframe) {
     embedWarning?.classList.add('hidden');
+    if (fsBtn) fsBtn.style.display = '';
     iframe.src = url;
     let loaded = false;
     iframe.addEventListener('load', () => { loaded=true; embedWarning?.classList.add('hidden'); }, { once:true });
     setTimeout(() => {
       if (!loaded) {
         embedWarning?.classList.remove('hidden');
+        // Embedding failed — hide fullscreen button since it won't work either
+        if (fsBtn) fsBtn.style.display = 'none';
         const fb = embedWarning?.querySelector('a');
         if (fb) { fb.href=url; fb.onclick=()=>{ window.open(url,'_blank','noopener'); return true; }; }
       }
