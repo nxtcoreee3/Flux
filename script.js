@@ -802,6 +802,328 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+/* ===================== TUTORIAL ===================== */
+(function() {
+  const TUTORIAL_KEY = 'flux_tutorial_done';
+  const TUTORIAL_OFFERED_KEY = 'flux_tutorial_offered';
+
+  const STEPS = [
+    {
+      target: () => document.querySelector('.nav-list'),
+      title: 'Navigation',
+      body: 'Use the nav bar to jump between Home, Games, Social, Messages and more. On mobile it scrolls sideways.',
+      position: 'bottom',
+      page: 'any',
+    },
+    {
+      target: () => document.getElementById('game-grid')?.querySelector('.card') || document.getElementById('games-grid')?.querySelector('.card'),
+      title: 'Game Cards',
+      body: 'Each card shows a game thumbnail, description, compatibility badge and rating. Hover to see more details.',
+      position: 'right',
+      page: 'any',
+    },
+    {
+      target: () => document.querySelector('.play-btn'),
+      title: 'Play a Game',
+      body: 'Hit Play to launch the game in a popup. Use ⛶ Fullscreen to go full-screen. If embedding fails, you\'ll get a link to open it in a new tab.',
+      position: 'top',
+      page: 'any',
+    },
+    {
+      target: () => document.querySelector('.favorite'),
+      title: 'Favourites ★',
+      body: 'Click the star on any card to add it to your Favourites. Favourites sync across all your devices when signed in.',
+      position: 'top',
+      page: 'any',
+    },
+    {
+      target: () => document.getElementById('quick-search') || document.getElementById('games-search'),
+      title: 'Search Games',
+      body: 'Type here to instantly filter games by name or description. Works in real time.',
+      position: 'bottom',
+      page: 'any',
+    },
+    {
+      target: () => document.querySelector('#sort-select'),
+      title: 'Sort Games',
+      body: 'Sort games by Featured order, A→Z alphabetical, or Recently Added.',
+      position: 'bottom',
+      page: 'games',
+    },
+    {
+      target: () => document.querySelector('.nav .right-actions, .right-actions'),
+      title: 'Your Profile',
+      body: 'Click your name/avatar up here to open the profile menu — access favourites, dark mode, social, messages, and more.',
+      position: 'bottom',
+      page: 'any',
+    },
+    {
+      target: () => document.querySelector('[id^="visitor-count"]')?.parentElement,
+      title: 'Live Stats 👁️',
+      body: 'The eye icon in the nav shows how many players are online right now, plus peak users and total visits.',
+      position: 'top',
+      page: 'any',
+    },
+    {
+      target: null,
+      title: 'You\'re all set! 🎉',
+      body: 'That\'s the tour! Jump into Games to start playing, or visit Social to chat with other players.',
+      position: 'center',
+      page: 'any',
+    },
+  ];
+
+  function getVisibleSteps() {
+    return STEPS.filter(s => {
+      if (s.page === 'games' && !window.location.pathname.includes('games')) return false;
+      return true;
+    });
+  }
+
+  let _currentStep = 0;
+  let _steps = [];
+  let _overlay = null;
+  let _spotlight = null;
+  let _tooltip = null;
+  let _resizeObs = null;
+
+  function cleanup() {
+    _overlay?.remove(); _overlay = null;
+    _spotlight?.remove(); _spotlight = null;
+    _tooltip?.remove(); _tooltip = null;
+    if (_resizeObs) { _resizeObs.disconnect(); _resizeObs = null; }
+    document.removeEventListener('keydown', _keyHandler);
+  }
+
+  function _keyHandler(e) {
+    if (e.key === 'ArrowRight' || e.key === 'Enter') advance(1);
+    else if (e.key === 'ArrowLeft') advance(-1);
+    else if (e.key === 'Escape') endTutorial();
+  }
+
+  function endTutorial() {
+    cleanup();
+    localStorage.setItem(TUTORIAL_KEY, '1');
+  }
+
+  function positionTooltip(targetEl, pos, tooltipEl) {
+    if (!targetEl || pos === 'center') {
+      tooltipEl.style.top = '50%';
+      tooltipEl.style.left = '50%';
+      tooltipEl.style.transform = 'translate(-50%, -50%)';
+      tooltipEl.style.position = 'fixed';
+      return;
+    }
+    const rect = targetEl.getBoundingClientRect();
+    const tw = tooltipEl.offsetWidth || 300;
+    const th = tooltipEl.offsetHeight || 150;
+    const gap = 16;
+    let top, left;
+    tooltipEl.style.transform = '';
+    tooltipEl.style.position = 'fixed';
+
+    if (pos === 'bottom') {
+      top = rect.bottom + gap;
+      left = rect.left + rect.width / 2 - tw / 2;
+    } else if (pos === 'top') {
+      top = rect.top - th - gap;
+      left = rect.left + rect.width / 2 - tw / 2;
+    } else if (pos === 'right') {
+      top = rect.top + rect.height / 2 - th / 2;
+      left = rect.right + gap;
+    } else {
+      top = rect.bottom + gap;
+      left = rect.left + rect.width / 2 - tw / 2;
+    }
+    // Clamp to viewport
+    left = Math.max(12, Math.min(left, window.innerWidth - tw - 12));
+    top = Math.max(12, Math.min(top, window.innerHeight - th - 12));
+    tooltipEl.style.top = top + 'px';
+    tooltipEl.style.left = left + 'px';
+  }
+
+  function spotlightEl(el) {
+    if (!el || !_spotlight) { if (_spotlight) _spotlight.style.cssText = 'display:none'; return; }
+    const rect = el.getBoundingClientRect();
+    const pad = 8;
+    _spotlight.style.cssText = `
+      position:fixed;
+      top:${rect.top - pad}px;
+      left:${rect.left - pad}px;
+      width:${rect.width + pad*2}px;
+      height:${rect.height + pad*2}px;
+      border-radius:12px;
+      box-shadow:0 0 0 9999px rgba(0,0,0,0.55);
+      z-index:99996;
+      pointer-events:none;
+      transition:all 0.3s cubic-bezier(0.4,0,0.2,1);
+      border:2px solid rgba(58,125,255,0.8);
+    `;
+  }
+
+  function renderStep(idx) {
+    const step = _steps[idx];
+    if (!step) { endTutorial(); return; }
+    const targetEl = step.target ? step.target() : null;
+
+    // Scroll target into view
+    if (targetEl) targetEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+
+    // Spotlight
+    setTimeout(() => {
+      spotlightEl(targetEl);
+
+      // Arrow direction
+      const arrowMap = { bottom: '↑', top: '↓', right: '←', left: '→', center: '' };
+      const arrow = step.position !== 'center' && targetEl ? arrowMap[step.position] || '' : '';
+
+      _tooltip.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;">
+          <div style="font-size:11px;font-weight:700;color:var(--accent,#3a7dff);letter-spacing:0.5px;text-transform:uppercase;">Step ${idx + 1} of ${_steps.length}</div>
+          <button id="tut-close" style="background:none;border:none;color:var(--muted,#6b7280);font-size:16px;cursor:pointer;line-height:1;padding:0;flex-shrink:0;" title="Close tutorial">✕</button>
+        </div>
+        ${arrow ? `<div style="font-size:28px;text-align:center;margin-bottom:6px;color:var(--accent,#3a7dff);">${arrow}</div>` : ''}
+        <div style="font-weight:700;font-size:16px;color:var(--text,#111827);margin-bottom:8px;">${step.title}</div>
+        <div style="font-size:13px;color:var(--muted,#6b7280);line-height:1.6;margin-bottom:18px;">${step.body}</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          ${idx > 0 ? `<button id="tut-back" style="padding:8px 16px;border:1px solid var(--glass-border,rgba(0,0,0,0.1));border-radius:10px;background:none;font-size:13px;font-weight:600;cursor:pointer;color:var(--text,#111827);">← Back</button>` : '<span style="flex:1"></span>'}
+          <div style="flex:1;display:flex;gap:4px;align-items:center;justify-content:center;">
+            ${_steps.map((_, i) => `<span style="width:${i===idx?'18':'6'}px;height:6px;border-radius:3px;background:${i===idx?'var(--accent,#3a7dff)':'var(--glass-border,rgba(0,0,0,0.12))'};transition:all 0.2s;display:inline-block;"></span>`).join('')}
+          </div>
+          <button id="tut-next" style="padding:8px 18px;background:var(--accent,#3a7dff);color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">
+            ${idx === _steps.length - 1 ? '🎉 Done' : 'Next →'}
+          </button>
+        </div>
+      `;
+
+      positionTooltip(targetEl, step.position, _tooltip);
+
+      document.getElementById('tut-next').addEventListener('click', () => advance(1));
+      document.getElementById('tut-back')?.addEventListener('click', () => advance(-1));
+      document.getElementById('tut-close').addEventListener('click', endTutorial);
+    }, targetEl ? 320 : 0);
+  }
+
+  function advance(dir) {
+    _currentStep = Math.max(0, Math.min(_currentStep + dir, _steps.length - 1));
+    if (dir > 0 && _currentStep >= _steps.length) { endTutorial(); return; }
+    renderStep(_currentStep);
+    if (_currentStep === _steps.length - 1 && dir > 0) {
+      // On last step, clicking Next again ends
+      setTimeout(() => {
+        const nextBtn = document.getElementById('tut-next');
+        if (nextBtn) nextBtn.addEventListener('click', endTutorial, { once: true });
+      }, 50);
+    }
+  }
+
+  function launchTutorial() {
+    cleanup();
+    _steps = getVisibleSteps();
+    _currentStep = 0;
+
+    // Dim overlay (click-through)
+    _overlay = document.createElement('div');
+    _overlay.id = 'flux-tutorial-overlay';
+    _overlay.style.cssText = 'position:fixed;inset:0;z-index:99995;pointer-events:none;';
+    document.body.appendChild(_overlay);
+
+    // Spotlight ring
+    _spotlight = document.createElement('div');
+    _spotlight.id = 'flux-tutorial-spotlight';
+    document.body.appendChild(_spotlight);
+
+    // Tooltip card
+    _tooltip = document.createElement('div');
+    _tooltip.id = 'flux-tutorial-tooltip';
+    _tooltip.style.cssText = `
+      position:fixed;z-index:99997;
+      background:var(--panel,#fff);
+      border:1px solid var(--glass-border,rgba(0,0,0,0.08));
+      border-radius:16px;padding:18px 18px 16px;
+      width:300px;max-width:calc(100vw - 24px);
+      box-shadow:0 20px 60px rgba(0,0,0,0.2);
+      font-family:inherit;
+      pointer-events:all;
+      transition:top 0.3s cubic-bezier(0.4,0,0.2,1), left 0.3s cubic-bezier(0.4,0,0.2,1);
+    `;
+    document.body.appendChild(_tooltip);
+
+    document.addEventListener('keydown', _keyHandler);
+
+    // Reposition on resize
+    _resizeObs = new ResizeObserver(() => {
+      const step = _steps[_currentStep];
+      if (!step) return;
+      const el = step.target ? step.target() : null;
+      spotlightEl(el);
+      positionTooltip(el, step.position, _tooltip);
+    });
+    _resizeObs.observe(document.body);
+
+    renderStep(0);
+  }
+
+  // Offer prompt for existing users
+  function showTutorialOffer() {
+    const offer = document.createElement('div');
+    offer.id = 'flux-tutorial-offer';
+    offer.style.cssText = `
+      position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+      z-index:9001;display:flex;align-items:center;gap:14px;
+      background:var(--panel,#fff);border:1px solid var(--glass-border,rgba(0,0,0,0.08));
+      border-radius:16px;padding:14px 18px;
+      box-shadow:0 12px 40px rgba(0,0,0,0.15);
+      max-width:440px;width:calc(100vw - 48px);
+      animation:tut-offer-up 0.4s cubic-bezier(0.34,1.56,0.64,1) both;
+      font-family:inherit;
+    `;
+    offer.innerHTML = `
+      <style>@keyframes tut-offer-up { from{opacity:0;transform:translateX(-50%) translateY(20px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }</style>
+      <span style="font-size:28px;flex-shrink:0;">🎓</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:14px;font-weight:700;color:var(--text,#111827);margin-bottom:2px;">Want a quick tour?</div>
+        <div style="font-size:12px;color:var(--muted,#6b7280);">Learn how to get the most out of Flux in 60 seconds.</div>
+      </div>
+      <button id="tut-offer-yes" style="padding:8px 14px;background:var(--accent,#3a7dff);color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;font-family:inherit;">Show me →</button>
+      <button id="tut-offer-no" style="background:none;border:none;color:var(--muted,#9ca3af);cursor:pointer;font-size:18px;padding:0 0 0 4px;flex-shrink:0;line-height:1;">✕</button>
+    `;
+    document.body.appendChild(offer);
+
+    const dismiss = () => {
+      offer.style.opacity = '0';
+      offer.style.transform = 'translateX(-50%) translateY(16px)';
+      offer.style.transition = 'all 0.2s ease';
+      setTimeout(() => offer.remove(), 220);
+      localStorage.setItem(TUTORIAL_OFFERED_KEY, '1');
+    };
+
+    document.getElementById('tut-offer-yes').addEventListener('click', () => { dismiss(); setTimeout(launchTutorial, 300); });
+    document.getElementById('tut-offer-no').addEventListener('click', dismiss);
+    setTimeout(dismiss, 12000);
+  }
+
+  // Public API
+  window.startFluxTutorial = function({ force = false, isNew = false } = {}) {
+    // Only run on pages that have game content
+    const hasContent = document.getElementById('game-grid') || document.getElementById('games-grid');
+    if (!hasContent && !force) return;
+
+    if (force) { launchTutorial(); return; }
+
+    if (localStorage.getItem(TUTORIAL_KEY)) return; // already completed
+
+    if (isNew) {
+      // Brand new user — start tutorial automatically
+      launchTutorial();
+    } else {
+      // Existing user — offer once
+      if (localStorage.getItem(TUTORIAL_OFFERED_KEY)) return;
+      showTutorialOffer();
+    }
+  };
+})();
+
 /* ===================== FLOATING TOOLTIP ===================== */
 (function() {
   const tip = document.createElement('div');

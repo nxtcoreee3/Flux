@@ -1180,6 +1180,9 @@ export function initAuthUI(onUserChange) {
       <a href="info.html" style="display:flex;align-items:center;gap:10px;padding:12px 16px;font-size:13px;color:#111827;text-decoration:none;border-bottom:1px solid rgba(0,0,0,0.06);">
         <span>🔒</span> Privacy Policy
       </a>
+      <button id="tutorial-btn" style="width:100%;padding:12px 16px;background:none;border:none;border-bottom:1px solid rgba(0,0,0,0.06);text-align:left;cursor:pointer;font-size:13px;color:#111827;display:flex;align-items:center;gap:10px;">
+        <span>🎓</span> Tutorial
+      </button>
       <button id="sign-out-btn" style="width:100%;padding:12px 16px;background:none;border:none;text-align:left;cursor:pointer;font-size:13px;color:#ef4444;display:flex;align-items:center;gap:10px;">
         <span>🚪</span> Sign Out
       </button>
@@ -1261,6 +1264,12 @@ export function initAuthUI(onUserChange) {
   document.getElementById('sign-out-btn').addEventListener('click', async () => {
     await logOut();
     document.getElementById('profile-dropdown').style.display = 'none';
+  });
+
+  document.getElementById('tutorial-btn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.getElementById('profile-dropdown').style.display = 'none';
+    if (typeof window.startFluxTutorial === 'function') window.startFluxTutorial({ force: true });
   });
 
   document.getElementById('dropdown-dark-toggle').addEventListener('click', (e) => {
@@ -1806,6 +1815,8 @@ export function initAuthUI(onUserChange) {
         if (!profile) {
           initProfileSetup((p) => {
             if (p && name) name.textContent = p.displayName || p.username;
+            // New user — auto-start tutorial after a brief delay
+            setTimeout(() => { if (typeof window.startFluxTutorial === 'function') window.startFluxTutorial({ isNew: true }); }, 800);
           });
         } else {
           if (name) name.textContent = profile.displayName || profile.username || user.displayName || user.email;
@@ -1815,6 +1826,8 @@ export function initAuthUI(onUserChange) {
           if (user.photoURL && user.photoURL !== profile.avatarURL) {
             updateDoc(doc(db, 'profiles', user.uid), { avatarURL: user.photoURL }).catch(() => {});
           }
+          // Existing user — offer tutorial once if not seen
+          setTimeout(() => { if (typeof window.startFluxTutorial === 'function') window.startFluxTutorial({ isNew: false }); }, 1200);
         }
         // Init notifications for signed-in users
         initNotifications();
