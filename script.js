@@ -96,7 +96,14 @@ const GAMES = [
     thumb: 'assets/8-ball-classic.png',
     url: 'https://nxtcoreee3.github.io/8-Ball-Classic/',
     desc: 'Play classic 8-ball pool against friends or the AI in a fun, simple game.'
-  }
+  },
+{
+  id: 'angry-birds',
+  title: 'Angry Birds',
+  thumb: 'assets/angry-birds.png',
+  url: 'https://nxtcoreee3.github.io/Angry-Birds/',
+  desc: 'Launch birds with a slingshot to destroy structures and defeat the pigs.'
+}
 ];
 
 // expose game count globally for stats button
