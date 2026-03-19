@@ -110,8 +110,15 @@ const GAMES = [
   thumb: 'assets/slowroads.png',
   url: 'https://nxtcoreee3.github.io/slowroads/',
   desc: 'Drive endlessly through relaxing scenic roads with no pressure or goals.'
+},
+{
+  id: 'fruit-ninja',
+  title: 'Fruit Ninja',
+  thumb: 'assets/fruit-ninja.png',
+  url: 'https://nxtcoreee3.github.io/Fruit-Ninja/',
+  desc: 'Slice flying fruits, build combos, and avoid bombs to get a high score.'
 }
-   ];
+];
 
 // expose game count globally for stats button
 window._FLUX_GAME_COUNT = GAMES.length;
