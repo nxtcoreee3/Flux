@@ -15,7 +15,7 @@
   <style>
     .hot-badge { position:absolute;top:8px;left:8px;background:linear-gradient(135deg,#ef4444,#f59e0b);color:white;font-size:10px;font-weight:800;padding:3px 8px;border-radius:20px;letter-spacing:0.5px;z-index:2;box-shadow:0 2px 8px rgba(239,68,68,0.4); }
     .new-badge { position:absolute;top:8px;left:8px;background:linear-gradient(135deg,#22c55e,#16a34a);color:white;font-size:10px;font-weight:800;padding:3px 8px;border-radius:20px;letter-spacing:0.5px;z-index:2; }
-    .compat-badge { display:inline-flex;align-items:center;background:rgba(58,125,255,0.1);color:var(--accent);font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;border:1px solid rgba(58,125,255,0.2); }
+    .compat-badge { display:inline-flex;align-items:center;background:rgba(58,125,255,0.1);color:var(--accent);font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;border:1px solid rgba(58,125,255,0.2);cursor:help;position:relative;z-index:10; }
   </style>
 </head>
 <body>
@@ -27,14 +27,14 @@
 
     <nav class="nav">
       <button class="nav-toggle" aria-controls="main-nav" aria-expanded="false">☰</button>
-      <ul id="main-nav" class="nav-list" style="overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;flex-wrap:nowrap;">
-        <li style="white-space:nowrap;"><a href="index.html" class="active">Home</a></li>
-        <li style="white-space:nowrap;"><a href="games.html">Games</a></li>
-        <li style="white-space:nowrap;"><a href="social.html">Social</a></li>
-        <li style="white-space:nowrap;"><a href="messages.html">Messages</a></li>
-        <li style="white-space:nowrap;"><a href="info.html">Info</a></li>
-        <li style="white-space:nowrap;"><a href="credits.html">Credits</a></li>
-        <li style="white-space:nowrap;"><a href="donate.html" class="accent">Donate</a></li>
+      <ul id="main-nav" class="nav-list">
+        <li><a href="index.html" class="active">Home</a></li>
+        <li><a href="games.html">Games</a></li>
+        <li><a href="social.html">Social</a></li>
+        <li><a href="messages.html">Messages</a></li>
+        <li><a href="info.html">Info</a></li>
+        <li><a href="credits.html">Credits</a></li>
+        <li><a href="donate.html" class="accent">Donate</a></li>
       </ul>
     </nav>
 

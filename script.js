@@ -162,17 +162,6 @@ function initDarkMode() {
   const saved = localStorage.getItem(DARK_KEY);
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   applyDark(saved !== null ? saved === '1' : prefersDark);
-
-  const rightActions = document.querySelector('.right-actions');
-  if (!rightActions) return;
-  const btn = document.createElement('button');
-  btn.id = 'dark-toggle';
-  btn.className = 'icon-btn';
-  btn.title = 'Toggle dark mode';
-  btn.style.cursor = 'pointer';
-  btn.textContent = document.documentElement.classList.contains('dark') ? '☀️' : '🌙';
-  btn.addEventListener('click', () => applyDark(!document.documentElement.classList.contains('dark')));
-  rightActions.prepend(btn);
 }
 
 /* ===================== TOASTS ===================== */
@@ -274,9 +263,12 @@ function createCard(game) {
   const compat = stats.compatibility || '';
   const avgRating = stats.ratingCount ? (stats.ratingTotal / stats.ratingCount).toFixed(1) : null;
 
-  const compatBadge = compat === 'ipad' ? '<span class="compat-badge">📱 iPad</span>'
-    : compat === 'pc' ? '<span class="compat-badge">🖥️ PC</span>'
-    : compat === 'both' ? '<span class="compat-badge">✅ iPad & PC</span>'
+  const compatBadge = compat === 'ipad'
+    ? '<span class="compat-badge" data-tip="📱 Touchscreen compatible — works great on iPad and touch devices">📱 iPad</span>'
+    : compat === 'pc'
+    ? '<span class="compat-badge" data-tip="🖥️ Requires a keyboard — best played on PC or laptop">🖥️ PC Only</span>'
+    : compat === 'both'
+    ? '<span class="compat-badge" data-tip="✅ Works on both — touchscreen friendly and also works with a keyboard">✅ iPad & PC</span>'
     : '';
 
   const ratingHTML = avgRating
@@ -302,6 +294,7 @@ function createCard(game) {
         <button class="report-btn" title="Report game" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--muted);">⚑</button>
       </div>
       <div style="display:flex;gap:8px;align-items:center">
+        <button class="open-btn" data-url="${game.url}" aria-label="Open in new tab">Open</button>
         <button class="play-btn" data-url="${game.url}" data-title="${game.title}">Play</button>
       </div>
     </div>
@@ -322,6 +315,10 @@ function createCard(game) {
 
   // Report
   div.querySelector('.report-btn').addEventListener('click', () => showReportModal(game));
+
+  div.querySelector('.open-btn').addEventListener('click', (e) => {
+    window.open(e.currentTarget.dataset.url, '_blank', 'noopener');
+  });
 
   div.querySelector('.play-btn').addEventListener('click', (e) => {
     addRecent(game.id);
@@ -488,7 +485,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initChaos();
   initJumpscare();
   trackDailyVisitor();
-  injectBuildNumber();
   showSocialBanner();
 
   if (document.getElementById('quick-search')) {
@@ -572,67 +568,6 @@ function showSocialBanner() {
   }, 8000);
 }
 
-/* ===================== BUILD NUMBER ===================== */
-async function injectBuildNumber() {
-  try {
-    const res = await fetch('https://api.github.com/repos/nxtcoreee3/Flux/commits/main', {
-      headers: { 'Accept': 'application/vnd.github.v3+json' }
-    });
-    if (!res.ok) return;
-    const data = await res.json();
-    const sha = data.sha?.slice(0, 7);
-    if (!sha) return;
-    // Store for later injection into profile dropdown
-    window._fluxBuildSHA = sha;
-    window._fluxBuildURL = `https://github.com/nxtcoreee3/Flux/commit/${data.sha}`;
-    window._fluxBuildMsg = (data.commit?.message || '').replace(/"/g, '').split('\n')[0];
-    // Inject into dropdown if already open or when it opens
-    const tryInject = () => {
-      const dd = document.getElementById('profile-dropdown');
-      if (!dd || dd.querySelector('.build-sha-item')) return;
-      const item = document.createElement('div');
-      item.className = 'build-sha-item';
-      item.style.cssText = 'padding:10px 16px;border-top:1px solid var(--glass-border,rgba(0,0,0,0.06));font-size:11px;color:var(--muted,#6b7280);display:flex;align-items:center;gap:6px;';
-      item.innerHTML = `<span>🔨</span> Build: <a href="${window._fluxBuildURL}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;font-family:monospace;font-weight:700;" title="${window._fluxBuildMsg}">${sha}</a>`;
-      dd.appendChild(item);
-    };
-    tryInject();
-    const obs = new MutationObserver(tryInject);
-    obs.observe(document.body, { childList: true, subtree: true });
-    setTimeout(() => obs.disconnect(), 30000);
-  } catch {}
-}
-
-/* ===================== FULLSCREEN ===================== */
-function openFullscreen(url, title) {
-  document.getElementById('flux-fullscreen')?.remove();
-  const fs = document.createElement('div');
-  fs.id = 'flux-fullscreen';
-  fs.style.cssText = 'position:fixed;inset:0;z-index:9998;background:#000;display:flex;flex-direction:column;';
-  fs.innerHTML = `
-    <div id="fs-bar" style="position:absolute;top:0;left:0;right:0;z-index:2;display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(to bottom,rgba(0,0,0,0.75),transparent);transition:opacity 0.3s;">
-      <button id="fs-exit" style="background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.2);color:white;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;cursor:pointer;backdrop-filter:blur(4px);">✕ Exit</button>
-      <span style="font-size:13px;font-weight:600;color:rgba(255,255,255,0.85);flex:1;">${title}</span>
-      <button id="fs-newtab" style="background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.2);color:white;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;backdrop-filter:blur(4px);">↗ New Tab</button>
-    </div>
-    <iframe src="${url}" style="flex:1;border:0;width:100%;height:100%;" allow="autoplay; fullscreen" sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
-  `;
-  document.body.appendChild(fs);
-
-  // Auto-hide bar, show on interaction
-  const bar = fs.querySelector('#fs-bar');
-  let barTimer;
-  const showBar = () => { bar.style.opacity='1'; clearTimeout(barTimer); barTimer = setTimeout(() => { bar.style.opacity='0'; }, 3000); };
-  showBar();
-  fs.addEventListener('mousemove', showBar);
-  fs.addEventListener('touchstart', showBar);
-
-  fs.querySelector('#fs-exit').addEventListener('click', () => fs.remove());
-  fs.querySelector('#fs-newtab').addEventListener('click', () => window.open(url, '_blank', 'noopener'));
-  const escHandler = (e) => { if (e.key === 'Escape') { fs.remove(); window.removeEventListener('keydown', escHandler); } };
-  window.addEventListener('keydown', escHandler);
-}
-
 /* ===================== PLAY MODAL ===================== */
 const MODAL_ID = 'play-modal';
 
@@ -645,21 +580,10 @@ function openPlayModal(url, title) {
   const openTabBtn = modal.querySelector('[id^="open-tab"]') || modal.querySelector('.tool-btn');
   const closeBtn = modal.querySelector('[id^="close-modal"]') || modal.querySelector('.tool-btn[aria-label="Close"]');
   const embedWarning = modal.querySelector('.embed-warning');
-  const tools = modal.querySelector('.modal-tools');
 
   if (modalTitle) modalTitle.textContent = title;
   modal.setAttribute('aria-hidden', 'false');
   if (openTabBtn) openTabBtn.onclick = () => window.open(url, '_blank', 'noopener');
-
-  // Add/update fullscreen button
-  let fsBtn = tools?.querySelector('.fs-btn');
-  if (tools && !fsBtn) {
-    fsBtn = document.createElement('button');
-    fsBtn.className = 'tool-btn fs-btn';
-    fsBtn.textContent = '⛶ Fullscreen';
-    tools.insertBefore(fsBtn, tools.firstChild);
-  }
-  if (fsBtn) fsBtn.onclick = () => { closeModal(); openFullscreen(url, title); };
 
   const closeModal = () => { modal.setAttribute('aria-hidden','true'); if(iframe) iframe.src='about:blank'; clearCurrentlyPlaying(); };
   if (closeBtn) closeBtn.onclick = closeModal;
@@ -668,15 +592,12 @@ function openPlayModal(url, title) {
 
   if (iframe) {
     embedWarning?.classList.add('hidden');
-    if (fsBtn) fsBtn.style.display = '';
     iframe.src = url;
     let loaded = false;
     iframe.addEventListener('load', () => { loaded=true; embedWarning?.classList.add('hidden'); }, { once:true });
     setTimeout(() => {
       if (!loaded) {
         embedWarning?.classList.remove('hidden');
-        // Embedding failed — hide fullscreen button since it won't work either
-        if (fsBtn) fsBtn.style.display = 'none';
         const fb = embedWarning?.querySelector('a');
         if (fb) { fb.href=url; fb.onclick=()=>{ window.open(url,'_blank','noopener'); return true; }; }
       }
@@ -702,3 +623,34 @@ document.addEventListener('keydown', (e) => {
     });
   }
 });
+
+/* ===================== FLOATING TOOLTIP ===================== */
+(function() {
+  const tip = document.createElement('div');
+  tip.id = 'flux-tooltip';
+  tip.style.cssText = 'position:fixed;z-index:99999;background:#111827;color:#fff;font-size:12px;font-weight:500;padding:7px 11px;border-radius:9px;pointer-events:none;box-shadow:0 4px 16px rgba(0,0,0,0.3);white-space:nowrap;opacity:0;transition:opacity 0.15s ease;max-width:260px;white-space:normal;line-height:1.4;';
+  document.body.appendChild(tip);
+
+  document.addEventListener('mouseover', (e) => {
+    const badge = e.target.closest('.compat-badge');
+    if (!badge) return;
+    const text = badge.dataset.tip;
+    if (!text) return;
+    tip.textContent = text;
+    tip.style.opacity = '1';
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    const badge = e.target.closest('.compat-badge');
+    if (!badge) { tip.style.opacity = '0'; return; }
+    const x = e.clientX;
+    const y = e.clientY;
+    tip.style.left = (x - tip.offsetWidth / 2) + 'px';
+    tip.style.top = (y - tip.offsetHeight - 10) + 'px';
+  });
+
+  document.addEventListener('mouseout', (e) => {
+    if (!e.target.closest('.compat-badge')) return;
+    tip.style.opacity = '0';
+  });
+})();
