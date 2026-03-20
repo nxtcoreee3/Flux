@@ -96,6 +96,41 @@ const GAMES = [
     thumb: 'assets/8-ball-classic.png',
     url: 'https://nxtcoreee3.github.io/8-Ball-Classic/',
     desc: 'Play classic 8-ball pool against friends or the AI in a fun, simple game.'
+  },
+  {
+    id: 'angry-birds',
+    title: 'Angry Birds',
+    thumb: 'assets/angry-birds.png',
+    url: 'https://nxtcoreee3.github.io/Angry-Birds/',
+    desc: 'Launch birds with a slingshot to destroy structures and defeat the pigs.'
+  },
+  {
+    id: 'slowroads',
+    title: 'slowroads',
+    thumb: 'assets/slowroads.png',
+    url: 'https://nxtcoreee3.github.io/slowroads/',
+    desc: 'Drive endlessly through relaxing scenic roads with no pressure or goals.'
+  },
+  {
+    id: 'fruit-ninja',
+    title: 'Fruit Ninja',
+    thumb: 'assets/fruit-ninja.png',
+    url: 'https://nxtcoreee3.github.io/Fruit-Ninja/',
+    desc: 'Slice flying fruits, build combos, and avoid bombs to get a high score.'
+  },
+  {
+    id: '5-nights-at-epsteins',
+    title: '5 Nights At Epsteins',
+    thumb: 'assets/5-nights-at-epsteins.png',
+    url: 'https://nxtcoreee3.github.io/5-Nights-At-Epsteins/',
+    desc: 'Survive five nights using cameras, strategy, and quick reactions to avoid danger.'
+  },
+  {
+    id: 'eaglercraft',
+    title: 'Eaglercraft',
+    thumb: 'assets/eaglercraft.png',
+    url: 'https://eaglercraft.app/web/',
+    desc: 'Play a browser-based Minecraft-style game with survival, building, and multiplayer. (Hosted by EaglercraftX)'
   }
 ];
 
