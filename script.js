@@ -117,6 +117,13 @@ const GAMES = [
   thumb: 'assets/fruit-ninja.png',
   url: 'https://nxtcoreee3.github.io/Fruit-Ninja/',
   desc: 'Slice flying fruits, build combos, and avoid bombs to get a high score.'
+},
+{
+  id: '5-nights-at-epsteins',
+  title: '5 Nights At Epsteins',
+  thumb: 'assets/5-nights-at-epsteins.png',
+  url: 'https://nxtcoreee3.github.io/5-Nights-At-Epsteins/',
+  desc: 'Survive five nights using cameras, strategy, and quick reactions to avoid danger.'
 }
 ];
 
