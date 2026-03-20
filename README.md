@@ -7,42 +7,6 @@ The project is designed to be minimal and easy to expand, allowing new games to 
 
 ⸻
 
-# Available Games
-
-Flux currently includes the following games:
-	
-	•	Drive Mad
-	
-	•	Stickman Hook
-	
-	•	Geometry Dash Lite
-
-	•	Cookie Clicker
-
-	•	Monkey Mart
-
-	•	Polytrack
-
-	•	Drift Boss
-
-	•	8 Ball Classic
-
-	•	Moto X3M3
-
-	•	Table Tennis World Tour
-	
-	•	8 Ball Classic
-	
-	•	Angry Birds
-	
-	•	slowroads
-	
-	•	Fruit Ninja
-	
-	Each game can be launched directly from the website.
-
-⸻
-
 # How Flux Works
 
 Flux itself does not host the games directly.
