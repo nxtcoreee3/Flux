@@ -124,6 +124,13 @@ const GAMES = [
   thumb: 'assets/5-nights-at-epsteins.png',
   url: 'https://nxtcoreee3.github.io/5-Nights-At-Epsteins/',
   desc: 'Survive five nights using cameras, strategy, and quick reactions to avoid danger.'
+},
+{
+  id: 'eaglercraft',
+  title: 'Eaglercraft',
+  thumb: 'assets/eaglercraft.png',
+  url: 'https://eaglercraft.app/web/',
+  desc: 'Play a browser-based Minecraft-style game with survival, building, and multiplayer. (Provided by EaglercraftX)'
 }
 ];
 
