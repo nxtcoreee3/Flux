@@ -130,7 +130,7 @@ const GAMES = [
   title: 'Eaglercraft',
   thumb: 'assets/eaglercraft.png',
   url: 'https://eaglercraft.app/web/',
-  desc: 'Play a browser-based Minecraft-style game with survival, building, and multiplayer. (Provided by EaglercraftX)'
+  desc: 'Play a browser-based Minecraft-style game with survival, building, and multiplayer. (Hosted by EaglercraftX)'
 }
 ];
 
