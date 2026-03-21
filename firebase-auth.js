@@ -2358,17 +2358,6 @@ export function initJumpscare() {
   });
 }
 
-/* ===================== FIRESTORE HEALTH CHECK ===================== */
-export async function checkFirestoreHealth() {
-  try {
-    const start = Date.now();
-    await getDoc(doc(db, 'stats', 'health_ping'));
-    return { ok: true, ms: Date.now() - start };
-  } catch (err) {
-    return { ok: false, error: err.message };
-  }
-}
-
 /* ===================== GAME DETAIL & AI DESCRIPTION ===================== */
 export async function fetchGameDetail(gameId) {
   try {
