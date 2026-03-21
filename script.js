@@ -3,7 +3,7 @@
    favorites (cloud+local), dark mode, toasts, recently played, new badge, stats button
 */
 
-import { initAuthUI, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, fetchAllGameStats, setCurrentlyPlaying, clearCurrentlyPlaying, rateGame, getUserRating, reportGame, checkFirestoreHealth } from './firebase-auth.js';
+import { initAuthUI, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, fetchAllGameStats, setCurrentlyPlaying, clearCurrentlyPlaying, rateGame, getUserRating, reportGame, checkFirestoreHealth, fetchGameDetail, getAiGameDescription, getGameReviews, submitReview, addReviewComment, likeReview, deleteReview, fetchGamePricing, getUnlockedGames, unlockGame, SPIN_SEGMENTS, getLastSpin, spinWheel, giftPointsToUser } from './firebase-auth.js';
 
 const GAMES = [
   {
@@ -96,41 +96,6 @@ const GAMES = [
     thumb: 'assets/8-ball-classic.png',
     url: 'https://nxtcoreee3.github.io/8-Ball-Classic/',
     desc: 'Play classic 8-ball pool against friends or the AI in a fun, simple game.'
-  },
-  {
-    id: 'angry-birds',
-    title: 'Angry Birds',
-    thumb: 'assets/angry-birds.png',
-    url: 'https://nxtcoreee3.github.io/Angry-Birds/',
-    desc: 'Launch birds with a slingshot to destroy structures and defeat the pigs.'
-  },
-  {
-    id: 'slowroads',
-    title: 'slowroads',
-    thumb: 'assets/slowroads.png',
-    url: 'https://nxtcoreee3.github.io/slowroads/',
-    desc: 'Drive endlessly through relaxing scenic roads with no pressure or goals.'
-  },
-  {
-    id: 'fruit-ninja',
-    title: 'Fruit Ninja',
-    thumb: 'assets/fruit-ninja.png',
-    url: 'https://nxtcoreee3.github.io/Fruit-Ninja/',
-    desc: 'Slice flying fruits, build combos, and avoid bombs to get a high score.'
-  },
-  {
-    id: '5-nights-at-epsteins',
-    title: '5 Nights At Epsteins',
-    thumb: 'assets/5-nights-at-epsteins.png',
-    url: 'https://nxtcoreee3.github.io/5-Nights-At-Epsteins/',
-    desc: 'Survive five nights using cameras, strategy, and quick reactions to avoid danger.'
-  },
-  {
-    id: 'eaglercraft',
-    title: 'Eaglercraft',
-    thumb: 'assets/eaglercraft.png',
-    url: 'https://eaglercraft.app/web/',
-    desc: 'Play a browser-based Minecraft-style game with survival, building, and multiplayer. (Hosted by EaglercraftX)'
   }
 ];
 
@@ -143,6 +108,11 @@ let _hotGameId = null;
 let _allGameStats = {}; // gameId -> { compatibility, ratingTotal, ratingCount, firstSeen }
 const _newGameCache = {}; // gameId -> firstSeen timestamp
 const NEW_GAME_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+// Unlock + pricing cache
+let _unlockedGames = []; // game IDs unlocked by current user
+let _gamePricing = {}; // gameId -> { price, discount, discountExpiry }
+window._fluxGamePricing = _gamePricing;
 
 async function loadHotGame() {
   const hot = await fetchHotGame();
@@ -291,12 +261,20 @@ function createCard(game) {
   const div = document.createElement('article');
   div.className = 'card';
   div.setAttribute('data-id', game.id);
+  div.style.cssText = 'position:relative;cursor:pointer;';
 
   const isHot = _hotGameId === game.id;
   const isNew = _newGameCache[game.id] && (Date.now() - new Date(_newGameCache[game.id]).getTime() < NEW_GAME_TTL);
   const stats = _allGameStats[game.id] || {};
   const compat = stats.compatibility || '';
   const avgRating = stats.ratingCount ? (stats.ratingTotal / stats.ratingCount).toFixed(1) : null;
+
+  // Pricing
+  const pricing = _gamePricing[game.id] || { price: 0, discount: 0 };
+  const isExpired = pricing.discountExpiry && new Date(pricing.discountExpiry) < new Date();
+  const activeDiscount = !isExpired && pricing.discount > 0 ? pricing.discount : 0;
+  const finalPrice = activeDiscount > 0 ? Math.round(pricing.price * (1 - activeDiscount / 100)) : (pricing.price || 0);
+  const isLocked = finalPrice > 0 && !_unlockedGames.includes(game.id);
 
   const compatBadge = compat === 'ipad'
     ? '<span class="compat-badge" data-tip="📱 Touchscreen compatible — works great on iPad and touch devices">📱 iPad</span>'
@@ -310,11 +288,26 @@ function createCard(game) {
     ? `<span style="font-size:11px;color:#f59e0b;font-weight:700;">★ ${avgRating} <span style="color:var(--muted);font-weight:400;">(${stats.ratingCount})</span></span>`
     : '';
 
+  const saleBadge = activeDiscount > 0
+    ? `<span style="position:absolute;top:8px;right:8px;background:linear-gradient(135deg,#ef4444,#f97316);color:white;font-size:10px;font-weight:800;padding:3px 8px;border-radius:20px;z-index:2;display:inline-block;width:fit-content;">🏷️ ${activeDiscount}% OFF</span>`
+    : '';
+
+  const lockOverlay = isLocked
+    ? `<div class="card-lock-overlay" style="position:absolute;inset:0;z-index:5;background:rgba(0,0,0,0.55);border-radius:inherit;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;backdrop-filter:blur(2px);">
+        <span style="font-size:28px;">🔒</span>
+        <span style="color:white;font-size:13px;font-weight:700;">${finalPrice} pts</span>
+        ${activeDiscount > 0 ? `<span style="color:rgba(255,255,255,0.6);font-size:11px;text-decoration:line-through;">${pricing.price} pts</span>` : ''}
+        <span style="color:rgba(255,255,255,0.7);font-size:11px;">Click to unlock</span>
+      </div>`
+    : '';
+
   div.innerHTML = `
     ${isHot ? '<span class="hot-badge">🔥 HOT</span>' : ''}
     ${isNew && !isHot ? '<span class="new-badge">✨ NEW</span>' : ''}
+    ${saleBadge}
+    ${lockOverlay}
     <img class="thumb" src="${game.thumb}" alt="${game.title} thumbnail" loading="lazy">
-    <div class="card-body">
+    <div class="card-body" style="cursor:pointer;">
       <h3 class="title">${game.title}</h3>
       <div class="meta">${game.desc || ''}</div>
       <div style="display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap;">
@@ -329,13 +322,14 @@ function createCard(game) {
         <button class="report-btn" title="Report game" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--muted);">⚑</button>
       </div>
       <div style="display:flex;gap:8px;align-items:center">
-        <button class="play-btn" data-url="${game.url}" data-title="${game.title}">Play</button>
+        <button class="play-btn" data-url="${game.url}" data-title="${game.title}">${isLocked ? `🔒 ${finalPrice} pts` : 'Play'}</button>
       </div>
     </div>
   `;
 
   const favBtn = div.querySelector('.favorite');
-  favBtn.addEventListener('click', async () => {
+  favBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
     await toggleFav(game.id);
     favBtn.textContent = isFav(game.id) ? '★' : '☆';
     favBtn.classList.toggle('active', isFav(game.id));
@@ -345,12 +339,29 @@ function createCard(game) {
   favBtn.classList.toggle('active', isFav(game.id));
 
   // Rating
-  div.querySelector('.rate-btn').addEventListener('click', () => showRatingModal(game));
+  div.querySelector('.rate-btn').addEventListener('click', (e) => { e.stopPropagation(); showRatingModal(game); });
 
   // Report
-  div.querySelector('.report-btn').addEventListener('click', () => showReportModal(game));
+  div.querySelector('.report-btn').addEventListener('click', (e) => { e.stopPropagation(); showReportModal(game); });
+
+  // Click card body → open detail view
+  div.querySelector('.card-body').addEventListener('click', (e) => {
+    e.stopPropagation();
+    openGameDetail(game);
+  });
+
+  // Click lock overlay → unlock modal
+  div.querySelector('.card-lock-overlay')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    showUnlockModal(game, finalPrice, activeDiscount, pricing.price);
+  });
 
   div.querySelector('.play-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (isLocked) {
+      showUnlockModal(game, finalPrice, activeDiscount, pricing.price);
+      return;
+    }
     addRecent(game.id);
     renderRecentSection();
     trackGamePlay(game.id, game.title).then(() => {
@@ -508,7 +519,6 @@ function debounce(fn, wait=120) {
 document.addEventListener('DOMContentLoaded', () => {
   initCookieConsent();
   initDarkMode();
-  initFirestoreHealthCheck();
   initStatsButton();
   initPresence();
   initServerStatus();
@@ -525,6 +535,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   initAuthUI(async (user) => {
+    window._currentUserUid = user?.uid || null;
     await refreshFavsCache();
     if (user && !user.isAnonymous) {
       trackLoginStreak();
@@ -536,32 +547,34 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Render games immediately from local data so grid always shows
+  // Render games immediately so grid always shows even if Firebase is slow
   if (document.getElementById('game-grid') || document.getElementById('games-grid')) {
     renderGames(GAMES);
   }
 
-  // Then load cloud favs + Firebase stats in the background and re-render with full data
+  // Load cloud data in background and re-render with full info
   loadCloudFavs().then(async cloud => {
     if (cloud !== null) { _favsCache = cloud; saveLocalFavs(cloud); }
     try {
-      const [stats, hotGame] = await Promise.all([
+      const [stats, hotGame, pricing, unlocked] = await Promise.all([
         fetchAllGameStats(),
-        fetchHotGame()
+        fetchHotGame(),
+        fetchGamePricing(),
+        getUnlockedGames(),
       ]);
       _allGameStats = stats || {};
       if (hotGame) _hotGameId = hotGame.id;
       GAMES.forEach(g => { _newGameCache[g.id] = _allGameStats[g.id]?.firstSeen || null; });
+      Object.assign(_gamePricing, pricing || {});
+      window._fluxGamePricing = _gamePricing;
+      _unlockedGames = unlocked || [];
     } catch {
-      // Firebase down — games already rendered, just skip stats enhancement
+      // Firebase down — games already rendered, skip stats enhancement
     }
-    // Re-render with full data (ratings, compat badges, hot/new badges, correct fav stars)
     if (document.getElementById('game-grid') || document.getElementById('games-grid')) {
       renderGames(GAMES);
     }
-  }).catch(() => {
-    // loadCloudFavs itself failed — games already showing, nothing more to do
-  });
+  }).catch(() => {});
 });
 
 /* ===================== MOBILE WARNING ===================== */
@@ -657,116 +670,6 @@ function initMobileWarning() {
   })();
 }
 
-/* ===================== FIRESTORE HEALTH CHECK ===================== */
-async function initFirestoreHealthCheck() {
-  const TIMEOUT_MS = 8000;
-
-  const timeoutPromise = new Promise(resolve => setTimeout(() => resolve({ ok: false, error: 'timeout' }), TIMEOUT_MS));
-  const result = await Promise.race([checkFirestoreHealth(), timeoutPromise]);
-
-  if (result.ok) return; // all good, nothing to show
-
-  showFirestoreDownBanner(result.error === 'timeout');
-
-  // Recheck every 30s — remove banner if it comes back
-  const interval = setInterval(async () => {
-    const recheck = await Promise.race([checkFirestoreHealth(), new Promise(r => setTimeout(() => r({ ok: false }), 6000))]);
-    if (recheck.ok) {
-      document.getElementById('firestore-down-banner')?.remove();
-      clearInterval(interval);
-      showToast('🟢 Live features are back online!', 'success');
-    }
-  }, 30000);
-}
-
-function showFirestoreDownBanner(isTimeout) {
-  if (document.getElementById('firestore-down-banner')) return;
-
-  const banner = document.createElement('div');
-  banner.id = 'firestore-down-banner';
-  banner.style.cssText = `
-    position:fixed;top:0;left:0;right:0;z-index:99990;
-    background:linear-gradient(135deg,#f59e0b,#ef4444);
-    color:white;padding:10px 16px;
-    display:flex;align-items:center;justify-content:space-between;gap:12px;
-    font-size:13px;font-weight:600;flex-wrap:wrap;
-    box-shadow:0 4px 20px rgba(239,68,68,0.3);
-    font-family:inherit;
-  `;
-  banner.innerHTML = `
-    <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
-      <span style="font-size:16px;flex-shrink:0;">⚠️</span>
-      <span style="opacity:0.95;">
-        ${isTimeout
-          ? 'Firebase is responding slowly — live features (social, ratings, favourites) may be unavailable.'
-          : 'Firebase appears to be down — live features (social, ratings, favourites) are unavailable.'}
-        Games still work.
-      </span>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
-      <button id="firestore-info-btn" style="padding:5px 12px;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);border-radius:8px;color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;backdrop-filter:blur(4px);">Learn more</button>
-      <button id="firestore-banner-close" style="background:none;border:none;color:rgba(255,255,255,0.8);cursor:pointer;font-size:18px;padding:0 4px;line-height:1;">✕</button>
-    </div>
-  `;
-  document.body.prepend(banner);
-
-  document.getElementById('firestore-banner-close').addEventListener('click', () => banner.remove());
-  document.getElementById('firestore-info-btn').addEventListener('click', showFirestoreInfoModal);
-}
-
-function showFirestoreInfoModal() {
-  document.getElementById('firestore-info-modal')?.remove();
-
-  const modal = document.createElement('div');
-  modal.id = 'firestore-info-modal';
-  modal.style.cssText = 'position:fixed;inset:0;z-index:99992;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.55);backdrop-filter:blur(6px);padding:20px;box-sizing:border-box;font-family:inherit;';
-  modal.innerHTML = `
-    <div style="background:var(--panel,#fff);border-radius:20px;padding:28px 26px;max-width:480px;width:100%;box-shadow:0 30px 80px rgba(0,0,0,0.25);position:relative;">
-      <button id="firestore-info-close" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted,#6b7280);line-height:1;">✕</button>
-
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;">
-        <span style="font-size:36px;">🔥</span>
-        <div>
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:var(--text,#111827);letter-spacing:0.5px;">About Flux's Backend</div>
-          <div style="font-size:12px;color:var(--muted,#6b7280);margin-top:2px;">Why some features might be unavailable</div>
-        </div>
-      </div>
-
-      <div style="display:flex;flex-direction:column;gap:14px;font-size:13px;color:var(--text,#111827);line-height:1.65;">
-
-        <div style="background:var(--bg,#f9fafb);border-radius:12px;padding:14px 16px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));">
-          <div style="font-weight:700;margin-bottom:4px;">⚙️ What powers Flux?</div>
-          <div style="color:var(--muted,#6b7280);">Flux uses <strong style="color:var(--text,#111827);">Google Firebase</strong> — specifically Firestore and Firebase Auth — to power live features like profiles, favourites, ratings, global chat, and the social system. These run on Google's servers, not ours.</div>
-        </div>
-
-        <div style="background:var(--bg,#f9fafb);border-radius:12px;padding:14px 16px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));">
-          <div style="font-weight:700;margin-bottom:4px;">🚫 What happens when Firebase goes down?</div>
-          <div style="color:var(--muted,#6b7280);">When Firebase has an outage or slowdown, live features stop working — social, chat, ratings, favourites, and login. <strong style="color:var(--text,#111827);">Games themselves still work</strong> since they're hosted separately and don't need Firebase to run.</div>
-        </div>
-
-        <div style="background:var(--bg,#f9fafb);border-radius:12px;padding:14px 16px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));">
-          <div style="font-weight:700;margin-bottom:4px;">🤷 Can Flux fix it?</div>
-          <div style="color:var(--muted,#6b7280);">No — Firebase outages and slowdowns are entirely on Google's end. We have no control over their server uptime, response times, or regional availability. All we can do is wait for them to resolve it.</div>
-        </div>
-
-        <div style="background:rgba(58,125,255,0.06);border-radius:12px;padding:14px 16px;border:1px solid rgba(58,125,255,0.15);">
-          <div style="font-weight:700;margin-bottom:4px;color:var(--accent,#3a7dff);">📊 Check Firebase status</div>
-          <div style="color:var(--muted,#6b7280);">You can check if Firebase is having a global incident at <a href="https://status.firebase.google.com" target="_blank" rel="noopener" style="color:var(--accent,#3a7dff);font-weight:600;">status.firebase.google.com</a>. Flux will automatically detect when Firebase is back and restore live features — no refresh needed.</div>
-        </div>
-
-      </div>
-
-      <button id="firestore-info-ok" style="margin-top:20px;width:100%;padding:12px;background:var(--accent,#3a7dff);color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">Got it</button>
-    </div>
-  `;
-  document.body.appendChild(modal);
-
-  const close = () => modal.remove();
-  document.getElementById('firestore-info-close').addEventListener('click', close);
-  document.getElementById('firestore-info-ok').addEventListener('click', close);
-  modal.addEventListener('click', e => { if (e.target === modal) close(); });
-}
-
 function showSocialBanner() {
   // Don't show on social page itself
   if (window.location.pathname.includes('social.html')) return;
@@ -856,54 +759,37 @@ function openFullscreen(url, title) {
     <div id="fs-bar" style="position:absolute;top:0;left:0;right:0;z-index:2;display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(to bottom,rgba(0,0,0,0.75),transparent);transition:opacity 0.3s;">
       <button id="fs-exit" style="background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.2);color:white;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;cursor:pointer;backdrop-filter:blur(4px);">✕ Exit</button>
       <span style="font-size:13px;font-weight:600;color:rgba(255,255,255,0.85);flex:1;">${title}</span>
+      <button id="fs-newtab" style="display:none;background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.2);color:white;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;backdrop-filter:blur(4px);">↗ Open in New Tab</button>
     </div>
     <iframe id="fs-iframe" src="${url}" style="flex:1;border:0;width:100%;height:100%;" allow="autoplay; fullscreen" sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
-    <div id="fs-embed-warn" style="display:none;position:absolute;inset:0;z-index:3;align-items:center;justify-content:center;flex-direction:column;gap:14px;background:rgba(0,0,0,0.88);text-align:center;padding:24px;">
-      <span style="font-size:40px;">⚠️</span>
-      <span style="color:white;font-size:16px;font-weight:700;">This game might not support embedding</span>
-      <span style="color:rgba(255,255,255,0.6);font-size:13px;max-width:320px;line-height:1.5;">It's still loading — some games take a moment to boot up. You can wait, try anyway, or open it in a new tab.</span>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:4px;">
-        <button id="fs-try-anyway" style="padding:10px 20px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;backdrop-filter:blur(4px);">⟳ Try Anyway</button>
-        <button id="fs-fallback-btn" style="padding:10px 20px;background:#3a7dff;color:white;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">↗ Open in New Tab</button>
-      </div>
+    <div id="fs-embed-warn" style="display:none;position:absolute;inset:0;z-index:3;display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;background:rgba(0,0,0,0.85);">
+      <span style="font-size:32px;">🚫</span>
+      <span style="color:white;font-size:15px;font-weight:600;">This game can't be embedded.</span>
+      <button id="fs-fallback-btn" style="background:#3a7dff;color:white;border:none;border-radius:10px;padding:10px 22px;font-size:14px;font-weight:700;cursor:pointer;">↗ Open in New Tab</button>
     </div>
   `;
   document.body.appendChild(fs);
   const bar = fs.querySelector('#fs-bar');
   const fsIframe = fs.querySelector('#fs-iframe');
   const fsWarn = fs.querySelector('#fs-embed-warn');
+  const fsNewTab = fs.querySelector('#fs-newtab');
   let barTimer;
   const showBar = () => { bar.style.opacity = '1'; clearTimeout(barTimer); barTimer = setTimeout(() => { bar.style.opacity = '0'; }, 3000); };
   showBar();
   fs.addEventListener('mousemove', showBar);
   fs.addEventListener('touchstart', showBar, { passive: true });
   fs.querySelector('#fs-exit').addEventListener('click', () => fs.remove());
+  fsNewTab.addEventListener('click', () => window.open(url, '_blank', 'noopener'));
   fs.querySelector('#fs-fallback-btn').addEventListener('click', () => window.open(url, '_blank', 'noopener'));
-
-  // "Try Anyway" — dismiss warning, keep iframe running
-  fs.querySelector('#fs-try-anyway').addEventListener('click', () => {
-    fsWarn.style.display = 'none';
-  });
-
+  // Detect embed failure
   let fsLoaded = false;
-  let warnShown = false;
-  const embedTimer = setTimeout(() => {
+  fsIframe.addEventListener('load', () => { fsLoaded = true; }, { once: true });
+  setTimeout(() => {
     if (!fsLoaded) {
       fsWarn.style.display = 'flex';
-      warnShown = true;
+      fsNewTab.style.display = '';
     }
-  }, 12000);
-
-  // If game loads after warning appeared — dismiss it and we're good
-  fsIframe.addEventListener('load', () => {
-    fsLoaded = true;
-    clearTimeout(embedTimer);
-    if (warnShown) {
-      fsWarn.style.display = 'none';
-      warnShown = false;
-    }
-  }, { once: true });
-
+  }, 2200);
   const escHandler = (e) => { if (e.key === 'Escape') { fs.remove(); window.removeEventListener('keydown', escHandler); } };
   window.addEventListener('keydown', escHandler);
 }
@@ -944,49 +830,18 @@ function openPlayModal(url, title) {
   if (iframe) {
     embedWarning?.classList.add('hidden');
     if (fsBtn) fsBtn.style.display = '';
-    if (openTabBtn) openTabBtn.style.display = 'none';
     iframe.src = url;
-
-    // Build "Try Anyway" button inside embedWarning if not already there
-    if (embedWarning && !embedWarning.querySelector('.try-anyway-btn')) {
-      const tryBtn = document.createElement('button');
-      tryBtn.className = 'try-anyway-btn';
-      tryBtn.textContent = '⟳ Try Anyway';
-      tryBtn.style.cssText = 'margin-left:10px;padding:4px 12px;background:var(--accent,#3a7dff);color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;';
-      tryBtn.addEventListener('click', () => {
-        embedWarning.classList.add('hidden');
-        if (fsBtn) { fsBtn.style.display = ''; }
-        if (openTabBtn) openTabBtn.style.display = 'none';
-      });
-      embedWarning.appendChild(tryBtn);
-    }
-
     let loaded = false;
-    let warnShown = false;
-
-    const embedTimer = setTimeout(() => {
+    iframe.addEventListener('load', () => { loaded=true; embedWarning?.classList.add('hidden'); }, { once:true });
+    setTimeout(() => {
       if (!loaded) {
         embedWarning?.classList.remove('hidden');
-        warnShown = true;
-        if (fsBtn) fsBtn.style.display = 'none';
-        if (openTabBtn) openTabBtn.style.display = '';
+        if (fsBtn) fsBtn.style.display = 'none'; // hide if embedding blocked
+        if (openTabBtn) openTabBtn.style.display = ''; // show new tab only now
         const fb = embedWarning?.querySelector('a');
-        if (fb) { fb.href = url; fb.onclick = () => { window.open(url, '_blank', 'noopener'); return true; }; }
+        if (fb) { fb.href=url; fb.onclick=()=>{ window.open(url,'_blank','noopener'); return true; }; }
       }
-    }, 12000);
-
-    iframe.addEventListener('load', () => {
-      loaded = true;
-      clearTimeout(embedTimer);
-      // If warning was already showing, dismiss it and restore fullscreen button
-      if (warnShown) {
-        embedWarning?.classList.add('hidden');
-        if (openTabBtn) openTabBtn.style.display = 'none';
-        if (fsBtn) { fsBtn.style.display = ''; }
-        warnShown = false;
-      }
-    }, { once: true });
-
+    }, 2200);
   } else {
     window.open(url, '_blank', 'noopener');
   }
@@ -1009,327 +864,593 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-/* ===================== TUTORIAL ===================== */
-(function() {
-  const TUTORIAL_KEY = 'flux_tutorial_done';
-  const TUTORIAL_OFFERED_KEY = 'flux_tutorial_offered';
+/* ===================== GAME DETAIL ===================== */
+async function openGameDetail(game) {
+  document.getElementById('flux-game-detail')?.remove();
 
-  const STEPS = [
-    {
-      target: () => document.querySelector('.nav-list'),
-      title: 'Navigation',
-      body: 'Use the nav bar to jump between Home, Games, Social, Messages and more. On mobile it scrolls sideways.',
-      position: 'bottom',
-      page: 'any',
-    },
-    {
-      target: () => document.getElementById('game-grid')?.querySelector('.card') || document.getElementById('games-grid')?.querySelector('.card'),
-      title: 'Game Cards',
-      body: 'Each card shows a game thumbnail, description, compatibility badge and rating. Hover to see more details.',
-      position: 'right',
-      page: 'any',
-    },
-    {
-      target: () => document.querySelector('.play-btn'),
-      title: 'Play a Game',
-      body: 'Hit Play to launch the game in a popup. Use ⛶ Fullscreen to go full-screen. If embedding fails, you\'ll get a link to open it in a new tab.',
-      position: 'top',
-      page: 'any',
-    },
-    {
-      target: () => document.querySelector('.favorite'),
-      title: 'Favourites ★',
-      body: 'Click the star on any card to add it to your Favourites. Favourites sync across all your devices when signed in.',
-      position: 'top',
-      page: 'any',
-    },
-    {
-      target: () => document.getElementById('quick-search') || document.getElementById('games-search'),
-      title: 'Search Games',
-      body: 'Type here to instantly filter games by name or description. Works in real time.',
-      position: 'bottom',
-      page: 'any',
-    },
-    {
-      target: () => document.querySelector('#sort-select'),
-      title: 'Sort Games',
-      body: 'Sort games by Featured order, A→Z alphabetical, or Recently Added.',
-      position: 'bottom',
-      page: 'games',
-    },
-    {
-      target: () => document.querySelector('.nav .right-actions, .right-actions'),
-      title: 'Your Profile',
-      body: 'Click your name/avatar up here to open the profile menu — access favourites, dark mode, social, messages, and more.',
-      position: 'bottom',
-      page: 'any',
-    },
-    {
-      target: () => document.querySelector('[id^="visitor-count"]')?.parentElement,
-      title: 'Live Stats 👁️',
-      body: 'The eye icon in the nav shows how many players are online right now, plus peak users and total visits.',
-      position: 'top',
-      page: 'any',
-    },
-    {
-      target: null,
-      title: 'You\'re all set! 🎉',
-      body: 'That\'s the tour! Jump into Games to start playing, or visit Social to chat with other players.',
-      position: 'center',
-      page: 'any',
-    },
+  const overlay = document.createElement('div');
+  overlay.id = 'flux-game-detail';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.6);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;font-family:inherit;';
+
+  const pricing = _gamePricing[game.id] || { price: 0, discount: 0 };
+  const isExpired = pricing.discountExpiry && new Date(pricing.discountExpiry) < new Date();
+  const activeDiscount = !isExpired && pricing.discount > 0 ? pricing.discount : 0;
+  const finalPrice = activeDiscount > 0 ? Math.round(pricing.price * (1 - activeDiscount / 100)) : (pricing.price || 0);
+  const isLocked = finalPrice > 0 && !_unlockedGames.includes(game.id);
+  const stats = _allGameStats[game.id] || {};
+  const avgRating = stats.ratingCount ? (stats.ratingTotal / stats.ratingCount).toFixed(1) : null;
+
+  overlay.innerHTML = `
+    <div style="background:var(--panel,#fff);border-radius:24px;width:100%;max-width:700px;max-height:90vh;overflow-y:auto;box-shadow:0 30px 80px rgba(0,0,0,0.3);position:relative;display:flex;flex-direction:column;">
+      <!-- Hero -->
+      <div style="position:relative;border-radius:24px 24px 0 0;overflow:hidden;height:200px;flex-shrink:0;">
+        <img src="${game.thumb}" alt="${game.title}" style="width:100%;height:100%;object-fit:cover;">
+        <div style="position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,0.1),rgba(0,0,0,0.7));"></div>
+        <button id="gd-close" style="position:absolute;top:14px;right:14px;background:rgba(0,0,0,0.5);border:none;color:white;border-radius:50%;width:36px;height:36px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);">✕</button>
+        <div style="position:absolute;bottom:16px;left:20px;right:20px;">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:32px;color:white;line-height:1;">${game.title}</div>
+        </div>
+      </div>
+
+      <div style="padding:20px 24px;display:flex;flex-direction:column;gap:18px;">
+
+        <!-- Stats row -->
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          ${avgRating ? `<div style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg,#f9fafb);border-radius:10px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));">
+            <span style="font-size:16px;">⭐</span><div><div style="font-size:16px;font-weight:700;color:#f59e0b;">${avgRating}</div><div style="font-size:10px;color:var(--muted,#6b7280);">${stats.ratingCount} ratings</div></div>
+          </div>` : ''}
+          ${stats.plays ? `<div style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg,#f9fafb);border-radius:10px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));">
+            <span style="font-size:16px;">🎮</span><div><div style="font-size:16px;font-weight:700;color:var(--text,#111);">${stats.plays?.toLocaleString()}</div><div style="font-size:10px;color:var(--muted,#6b7280);">total plays</div></div>
+          </div>` : ''}
+          <div style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg,#f9fafb);border-radius:10px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));">
+            <span style="font-size:16px;">💎</span><div><div style="font-size:16px;font-weight:700;color:var(--text,#111);">${finalPrice > 0 ? finalPrice + ' pts' : 'Free'}</div><div style="font-size:10px;color:var(--muted,#6b7280);">${isLocked ? 'to unlock' : 'unlocked'}</div></div>
+          </div>
+          ${stats.firstSeen ? `<div style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg,#f9fafb);border-radius:10px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));">
+            <span style="font-size:16px;">📅</span><div><div style="font-size:12px;font-weight:700;color:var(--text,#111);">${new Date(stats.firstSeen).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}</div><div style="font-size:10px;color:var(--muted,#6b7280);">added</div></div>
+          </div>` : ''}
+        </div>
+
+        <!-- AI Description -->
+        <div>
+          <div style="font-size:11px;font-weight:700;color:var(--muted,#6b7280);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">About this game</div>
+          <div id="gd-ai-desc" style="font-size:14px;color:var(--text,#111);line-height:1.7;background:var(--bg,#f9fafb);border-radius:12px;padding:14px 16px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));">${game.desc} <span style="color:var(--muted,#9ca3af);font-size:12px;">✨ Loading detailed description...</span></div>
+        </div>
+
+        <!-- Action buttons -->
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          ${isLocked
+            ? `<button id="gd-unlock-btn" style="flex:1;min-width:140px;padding:12px 20px;background:linear-gradient(135deg,#f59e0b,#ef4444);color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;">🔒 Unlock for ${finalPrice} pts</button>`
+            : `<button id="gd-play-btn" style="flex:1;min-width:140px;padding:12px 20px;background:var(--accent,#3a7dff);color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;">▶ Play Now</button>`
+          }
+          <button id="gd-fav-btn" style="padding:12px 20px;border:1px solid var(--glass-border,rgba(0,0,0,0.1));border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;background:var(--bg,#f9fafb);color:var(--text,#111);">${isFav(game.id) ? '★ Favourited' : '☆ Favourite'}</button>
+        </div>
+
+        <!-- Reviews -->
+        <div>
+          <div style="font-size:11px;font-weight:700;color:var(--muted,#6b7280);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;">Reviews</div>
+          <!-- Write review -->
+          <div id="gd-review-form" style="background:var(--bg,#f9fafb);border-radius:12px;padding:14px 16px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));margin-bottom:12px;">
+            <div style="font-size:13px;font-weight:600;color:var(--text,#111);margin-bottom:10px;">Leave a Review</div>
+            <div id="gd-star-row" style="display:flex;gap:6px;margin-bottom:10px;">
+              ${[1,2,3,4,5].map(s => `<button class="gd-star" data-star="${s}" style="background:none;border:none;font-size:26px;cursor:pointer;color:#d1d5db;transition:color 0.1s;padding:0;">★</button>`).join('')}
+            </div>
+            <textarea id="gd-review-text" placeholder="Share your thoughts... (optional)" maxlength="500" rows="2"
+              style="width:100%;padding:9px 12px;border:1px solid var(--glass-border,rgba(0,0,0,0.1));border-radius:10px;font-size:13px;font-family:inherit;resize:none;box-sizing:border-box;outline:none;background:var(--panel,#fff);color:var(--text,#111);"></textarea>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">
+              <span id="gd-review-msg" style="font-size:12px;color:var(--muted,#6b7280);"></span>
+              <button id="gd-submit-review" style="padding:7px 16px;background:var(--accent,#3a7dff);color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">Submit</button>
+            </div>
+          </div>
+          <!-- Reviews list -->
+          <div id="gd-reviews-list" style="display:flex;flex-direction:column;gap:12px;">
+            <div style="text-align:center;color:var(--muted,#6b7280);font-size:13px;padding:16px;">Loading reviews...</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  const close = () => overlay.remove();
+  document.getElementById('gd-close').addEventListener('click', close);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  const escH = e => { if (e.key === 'Escape') { close(); window.removeEventListener('keydown', escH); } };
+  window.addEventListener('keydown', escH);
+
+  // Play / unlock buttons
+  document.getElementById('gd-play-btn')?.addEventListener('click', () => {
+    close();
+    addRecent(game.id); renderRecentSection();
+    trackGamePlay(game.id, game.title);
+    setCurrentlyPlaying(game.id, game.title);
+    openPlayModal(game.url, game.title);
+  });
+  document.getElementById('gd-unlock-btn')?.addEventListener('click', () => {
+    close();
+    showUnlockModal(game, finalPrice, activeDiscount, pricing.price);
+  });
+
+  // Fav button
+  const favBtn = document.getElementById('gd-fav-btn');
+  favBtn.addEventListener('click', async () => {
+    await toggleFav(game.id);
+    favBtn.textContent = isFav(game.id) ? '★ Favourited' : '☆ Favourite';
+    renderFavouritesSection();
+  });
+
+  // Star rating in review form
+  let selectedRating = 0;
+  const stars = overlay.querySelectorAll('.gd-star');
+  stars.forEach(btn => {
+    btn.addEventListener('mouseenter', () => {
+      const v = parseInt(btn.dataset.star);
+      stars.forEach(s => s.style.color = parseInt(s.dataset.star) <= v ? '#f59e0b' : '#d1d5db');
+    });
+    btn.addEventListener('mouseleave', () => {
+      stars.forEach(s => s.style.color = parseInt(s.dataset.star) <= selectedRating ? '#f59e0b' : '#d1d5db');
+    });
+    btn.addEventListener('click', () => {
+      selectedRating = parseInt(btn.dataset.star);
+      stars.forEach(s => s.style.color = parseInt(s.dataset.star) <= selectedRating ? '#f59e0b' : '#d1d5db');
+    });
+  });
+
+  // Submit review
+  document.getElementById('gd-submit-review').addEventListener('click', async () => {
+    const msg = document.getElementById('gd-review-msg');
+    const comment = document.getElementById('gd-review-text').value.trim();
+    if (!selectedRating) { msg.style.color = '#ef4444'; msg.textContent = 'Select a star rating first.'; return; }
+    msg.style.color = '#9ca3af'; msg.textContent = 'Saving...';
+    const result = await submitReview(game.id, game.title, selectedRating, comment);
+    if (result.ok) {
+      msg.style.color = '#22c55e'; msg.textContent = '✓ Review saved!';
+      document.getElementById('gd-review-text').value = '';
+      selectedRating = 0;
+      stars.forEach(s => s.style.color = '#d1d5db');
+      loadDetailReviews(game.id);
+    } else {
+      msg.style.color = '#ef4444'; msg.textContent = result.error;
+    }
+  });
+
+  // Load AI description async
+  getAiGameDescription(game).then(desc => {
+    const el = document.getElementById('gd-ai-desc');
+    if (el) el.innerHTML = desc;
+  });
+
+  // Load reviews
+  loadDetailReviews(game.id);
+}
+
+async function loadDetailReviews(gameId) {
+  const list = document.getElementById('gd-reviews-list');
+  if (!list) return;
+  const reviews = await getGameReviews(gameId);
+  if (!reviews.length) {
+    list.innerHTML = '<div style="text-align:center;color:var(--muted,#6b7280);font-size:13px;padding:16px;">No reviews yet. Be the first!</div>';
+    return;
+  }
+  list.innerHTML = '';
+  reviews.forEach(r => {
+    const item = document.createElement('div');
+    item.style.cssText = 'background:var(--bg,#f9fafb);border-radius:12px;padding:14px 16px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));';
+    const stars = '★'.repeat(r.rating) + '☆'.repeat(5 - r.rating);
+    const timeAgo = (() => {
+      const d = Date.now() - new Date(r.createdAt).getTime();
+      const m = Math.floor(d/60000); if (m < 60) return `${m}m ago`;
+      const h = Math.floor(m/60); if (h < 24) return `${h}h ago`;
+      return `${Math.floor(h/24)}d ago`;
+    })();
+    const isCurrentUser = r.uid === (window._currentUserUid || '');
+    const isAdmin = window._currentUserUid === 'zEy6TO5ligf2um4rssIZs9C9X7f2';
+
+    item.innerHTML = `
+      <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:8px;">
+        ${r.avatarURL
+          ? `<img src="${r.avatarURL}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;border:1px solid var(--glass-border,rgba(0,0,0,0.1));">`
+          : `<div style="width:32px;height:32px;border-radius:50%;background:var(--accent,#3a7dff);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:13px;flex-shrink:0;">${(r.displayName||'?')[0].toUpperCase()}</div>`}
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span style="font-size:13px;font-weight:700;color:var(--text,#111);">@${r.username}</span>
+            <span style="font-size:13px;color:#f59e0b;letter-spacing:1px;">${stars}</span>
+            <span style="font-size:11px;color:var(--muted,#6b7280);">${timeAgo}</span>
+          </div>
+          ${r.comment ? `<div style="font-size:13px;color:var(--text,#111);margin-top:4px;line-height:1.5;">${r.comment}</div>` : ''}
+        </div>
+        ${(isCurrentUser || isAdmin) ? `<button class="gd-del-review" data-id="${r.id}" style="background:none;border:none;color:var(--muted,#9ca3af);cursor:pointer;font-size:13px;padding:0 4px;flex-shrink:0;" title="Delete">🗑</button>` : ''}
+      </div>
+      <div style="display:flex;align-items:center;gap:14px;padding-top:8px;border-top:1px solid var(--glass-border,rgba(0,0,0,0.06));">
+        <button class="gd-like-btn" data-id="${r.id}" data-liked="${(r.likes||[]).includes(window._currentUserUid||'')}" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--muted,#6b7280);display:flex;align-items:center;gap:4px;padding:0;">
+          ${(r.likes||[]).includes(window._currentUserUid||'') ? '❤️' : '🤍'} ${r.likes?.length || 0}
+        </button>
+        <button class="gd-reply-toggle" data-id="${r.id}" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--muted,#6b7280);padding:0;">
+          💬 ${r.comments?.length || 0} ${r.comments?.length === 1 ? 'reply' : 'replies'}
+        </button>
+      </div>
+      <!-- Comments -->
+      <div class="gd-comments-area" data-review="${r.id}" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--glass-border,rgba(0,0,0,0.06));">
+        <div class="gd-comments-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;">
+          ${(r.comments||[]).map(c => `
+            <div style="display:flex;gap:8px;align-items:flex-start;">
+              <div style="width:24px;height:24px;border-radius:50%;background:var(--accent,#3a7dff);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:10px;flex-shrink:0;">${(c.displayName||'?')[0].toUpperCase()}</div>
+              <div style="flex:1;background:var(--panel,#fff);border-radius:8px;padding:7px 10px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));">
+                <span style="font-size:12px;font-weight:700;color:var(--text,#111);">@${c.username}</span>
+                <span style="font-size:12px;color:var(--text,#111);margin-left:6px;">${c.comment}</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+        <div style="display:flex;gap:8px;">
+          <input class="gd-comment-input" data-review="${r.id}" type="text" placeholder="Add a reply..." maxlength="300"
+            style="flex:1;padding:7px 10px;border:1px solid var(--glass-border,rgba(0,0,0,0.1));border-radius:8px;font-size:12px;font-family:inherit;outline:none;background:var(--panel,#fff);color:var(--text,#111);">
+          <button class="gd-comment-submit" data-review="${r.id}" style="padding:7px 12px;background:var(--accent,#3a7dff);color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">Reply</button>
+        </div>
+      </div>
+    `;
+    list.appendChild(item);
+
+    // Like
+    item.querySelector('.gd-like-btn').addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      const result = await likeReview(gameId, btn.dataset.id);
+      if (result.ok) {
+        const liked = result.liked;
+        const count = parseInt(btn.textContent.match(/\d+/)?.[0] || 0) + (liked ? 1 : -1);
+        btn.innerHTML = `${liked ? '❤️' : '🤍'} ${Math.max(0, count)}`;
+        btn.dataset.liked = liked;
+      }
+    });
+
+    // Toggle comments
+    item.querySelector('.gd-reply-toggle').addEventListener('click', () => {
+      const area = item.querySelector('.gd-comments-area');
+      area.style.display = area.style.display === 'none' ? 'block' : 'none';
+    });
+
+    // Submit comment
+    item.querySelector('.gd-comment-submit').addEventListener('click', async () => {
+      const input = item.querySelector('.gd-comment-input');
+      const comment = input.value.trim();
+      if (!comment) return;
+      const result = await addReviewComment(gameId, r.id, comment);
+      if (result.ok) {
+        input.value = '';
+        const commentsList = item.querySelector('.gd-comments-list');
+        const newComment = document.createElement('div');
+        newComment.style.cssText = 'display:flex;gap:8px;align-items:flex-start;';
+        newComment.innerHTML = `
+          <div style="width:24px;height:24px;border-radius:50%;background:var(--accent,#3a7dff);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:10px;flex-shrink:0;">Y</div>
+          <div style="flex:1;background:var(--panel,#fff);border-radius:8px;padding:7px 10px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));">
+            <span style="font-size:12px;font-weight:700;color:var(--text,#111);">You</span>
+            <span style="font-size:12px;color:var(--text,#111);margin-left:6px;">${comment}</span>
+          </div>
+        `;
+        commentsList.appendChild(newComment);
+      }
+    });
+
+    // Delete review
+    item.querySelector('.gd-del-review')?.addEventListener('click', async (e) => {
+      if (!confirm('Delete this review?')) return;
+      await deleteReview(gameId, e.currentTarget.dataset.id);
+      item.remove();
+      if (!list.children.length) loadDetailReviews(gameId);
+    });
+  });
+}
+
+/* ===================== UNLOCK MODAL ===================== */
+async function showUnlockModal(game, finalPrice, discount, originalPrice) {
+  document.getElementById('flux-unlock-modal')?.remove();
+  const modal = document.createElement('div');
+  modal.id = 'flux-unlock-modal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:9100;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(6px);padding:20px;box-sizing:border-box;font-family:inherit;';
+
+  // Get user's current points
+  let userPoints = 0;
+  try {
+    const { getDoc, doc: firestoreDoc, getFirestore } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const { getApp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+    const db = getFirestore(getApp());
+    const { getAuth } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+    const user = getAuth(getApp()).currentUser;
+    if (user) {
+      const snap = await getDoc(firestoreDoc(db, 'profiles', user.uid));
+      userPoints = snap.exists() ? (snap.data().points || 0) : 0;
+    }
+  } catch {}
+
+  const canAfford = userPoints >= finalPrice;
+
+  modal.innerHTML = `
+    <div style="background:var(--panel,#fff);border-radius:20px;padding:28px 24px;max-width:380px;width:100%;box-shadow:0 30px 80px rgba(0,0,0,0.25);text-align:center;">
+      <div style="font-size:44px;margin-bottom:12px;">🔒</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--text,#111);margin-bottom:6px;">${game.title}</div>
+      ${discount > 0 ? `<div style="margin-bottom:6px;"><span style="text-decoration:line-through;color:var(--muted,#9ca3af);font-size:14px;">${originalPrice} pts</span> <span style="background:linear-gradient(135deg,#ef4444,#f97316);color:white;font-size:11px;font-weight:800;padding:2px 8px;border-radius:20px;">${discount}% OFF</span></div>` : ''}
+      <div style="font-size:28px;font-weight:800;color:var(--accent,#3a7dff);margin-bottom:8px;">${finalPrice} pts</div>
+      <div style="font-size:13px;color:var(--muted,#6b7280);margin-bottom:20px;">Your balance: <strong style="color:${canAfford ? '#22c55e' : '#ef4444'}">${userPoints} pts</strong></div>
+      ${canAfford
+        ? `<button id="unlock-confirm-btn" style="width:100%;padding:13px;background:var(--accent,#3a7dff);color:white;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px;">🔓 Unlock for ${finalPrice} pts</button>`
+        : `<button id="earn-more-btn" style="width:100%;padding:13px;background:linear-gradient(135deg,#f59e0b,#ef4444);color:white;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px;">💡 How to earn more points</button>`
+      }
+      <button id="unlock-cancel-btn" style="width:100%;padding:11px;background:none;border:1px solid var(--glass-border,rgba(0,0,0,0.1));border-radius:12px;font-size:14px;cursor:pointer;color:var(--text,#111);">Cancel</button>
+      <p id="unlock-msg" style="font-size:12px;margin:10px 0 0;display:none;"></p>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  const close = () => modal.remove();
+  document.getElementById('unlock-cancel-btn').addEventListener('click', close);
+  modal.addEventListener('click', e => { if (e.target === modal) close(); });
+
+  document.getElementById('unlock-confirm-btn')?.addEventListener('click', async () => {
+    const btn = document.getElementById('unlock-confirm-btn');
+    btn.textContent = 'Unlocking...'; btn.disabled = true;
+    const result = await unlockGame(game.id, finalPrice);
+    const msg = document.getElementById('unlock-msg');
+    msg.style.display = 'block';
+    if (result.ok) {
+      _unlockedGames.push(game.id);
+      msg.style.color = '#22c55e';
+      msg.textContent = `✓ Unlocked! New balance: ${result.newBalance} pts`;
+      setTimeout(() => { close(); renderGames(GAMES); }, 1500);
+    } else {
+      msg.style.color = '#ef4444'; msg.textContent = result.error;
+      btn.textContent = `🔓 Unlock for ${finalPrice} pts`; btn.disabled = false;
+    }
+  });
+
+  document.getElementById('earn-more-btn')?.addEventListener('click', () => { close(); showEarnPointsModal(game, finalPrice); });
+}
+
+/* ===================== EARN POINTS MODAL ===================== */
+function showEarnPointsModal(game, requiredPts) {
+  document.getElementById('flux-earn-modal')?.remove();
+  const modal = document.createElement('div');
+  modal.id = 'flux-earn-modal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:9100;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(6px);padding:20px;box-sizing:border-box;font-family:inherit;';
+
+  const ways = [
+    { icon: '🔐', label: 'Daily login', pts: '+10 pts', desc: 'Log in every day to earn base points' },
+    { icon: '🔥', label: 'Login streak', pts: '+2 pts/day', desc: 'Extra points for consecutive daily logins (up to +50)' },
+    { icon: '⏱️', label: 'Time on site', pts: '+1 pt/5 min', desc: 'Earn points just for browsing Flux' },
+    { icon: '🎰', label: 'Spin the wheel', pts: 'Up to 500 pts', desc: 'Spin the hourly wheel in your profile menu' },
+    { icon: '🎁', label: 'Receive a gift', pts: 'Varies', desc: 'Another player can gift you their points' },
   ];
 
-  function getVisibleSteps() {
-    return STEPS.filter(s => {
-      if (s.page === 'games' && !window.location.pathname.includes('games')) return false;
-      return true;
-    });
+  modal.innerHTML = `
+    <div style="background:var(--panel,#fff);border-radius:20px;padding:28px 24px;max-width:420px;width:100%;box-shadow:0 30px 80px rgba(0,0,0,0.25);">
+      <div style="text-align:center;margin-bottom:20px;">
+        <div style="font-size:40px;margin-bottom:8px;">💡</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--text,#111);">How to Earn Points</div>
+        ${game ? `<div style="font-size:13px;color:var(--muted,#6b7280);margin-top:4px;">You need <strong style="color:var(--accent,#3a7dff)">${requiredPts} pts</strong> to unlock <strong>${game.title}</strong></div>` : ''}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;">
+        ${ways.map(w => `
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--bg,#f9fafb);border-radius:12px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));">
+            <span style="font-size:22px;flex-shrink:0;">${w.icon}</span>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:13px;font-weight:700;color:var(--text,#111);">${w.label}</div>
+              <div style="font-size:11px;color:var(--muted,#6b7280);">${w.desc}</div>
+            </div>
+            <span style="font-size:12px;font-weight:700;color:#22c55e;white-space:nowrap;">${w.pts}</span>
+          </div>
+        `).join('')}
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button id="earn-spin-btn" style="flex:1;padding:12px;background:linear-gradient(135deg,#8b5cf6,#ec4899);color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;">🎰 Spin Now</button>
+        <button id="earn-close-btn" style="flex:1;padding:12px;background:var(--bg,#f9fafb);border:1px solid var(--glass-border,rgba(0,0,0,0.1));border-radius:12px;font-size:14px;cursor:pointer;color:var(--text,#111);">Close</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  const close = () => modal.remove();
+  document.getElementById('earn-close-btn').addEventListener('click', close);
+  modal.addEventListener('click', e => { if (e.target === modal) close(); });
+  document.getElementById('earn-spin-btn').addEventListener('click', () => { close(); window.openSpinWheel?.(); });
+}
+
+/* ===================== SPIN WHEEL ===================== */
+window.openSpinWheel = async function() {
+  document.getElementById('flux-spin-modal')?.remove();
+
+  const lastSpin = await getLastSpin();
+  const now = Date.now();
+  const cooldownMs = lastSpin ? Math.max(0, new Date(lastSpin).getTime() + 3600000 - now) : 0;
+
+  const modal = document.createElement('div');
+  modal.id = 'flux-spin-modal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:9100;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.65);backdrop-filter:blur(8px);padding:20px;box-sizing:border-box;font-family:inherit;';
+
+  const segments = SPIN_SEGMENTS;
+  const totalWeight = segments.reduce((s, seg) => s + seg.weight, 0);
+
+  // Build SVG wheel
+  const size = 260;
+  const cx = size / 2, cy = size / 2, r = size / 2 - 4;
+  let svgSlices = '';
+  let angle = -Math.PI / 2;
+  segments.forEach((seg, i) => {
+    const sweep = (seg.weight / totalWeight) * 2 * Math.PI;
+    const x1 = cx + r * Math.cos(angle), y1 = cy + r * Math.sin(angle);
+    const x2 = cx + r * Math.cos(angle + sweep), y2 = cy + r * Math.sin(angle + sweep);
+    const large = sweep > Math.PI ? 1 : 0;
+    const midAngle = angle + sweep / 2;
+    const tx = cx + (r * 0.65) * Math.cos(midAngle), ty = cy + (r * 0.65) * Math.sin(midAngle);
+    svgSlices += `<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large},1 ${x2},${y2} Z" fill="${seg.color}" stroke="white" stroke-width="1.5"/>`;
+    svgSlices += `<text x="${tx}" y="${ty}" text-anchor="middle" dominant-baseline="middle" fill="white" font-size="10" font-weight="700" font-family="DM Sans,sans-serif" transform="rotate(${(midAngle * 180 / Math.PI)},${tx},${ty})">${seg.label}</text>`;
+    angle += sweep;
+  });
+
+  const onCooldown = cooldownMs > 0;
+  const minsLeft = Math.floor(cooldownMs / 60000);
+  const secsLeft = Math.floor((cooldownMs % 60000) / 1000);
+
+  modal.innerHTML = `
+    <div style="background:var(--panel,#fff);border-radius:24px;padding:28px 24px;max-width:360px;width:100%;box-shadow:0 30px 80px rgba(0,0,0,0.3);text-align:center;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:var(--text,#111);margin-bottom:4px;">🎰 Spin Wheel</div>
+      <div style="font-size:12px;color:var(--muted,#6b7280);margin-bottom:16px;">Spin once per hour to win points!</div>
+
+      <!-- Wheel -->
+      <div style="position:relative;display:inline-block;margin-bottom:16px;">
+        <svg id="spin-wheel-svg" width="${size}" height="${size}" style="transition:transform 4s cubic-bezier(0.17,0.67,0.12,0.99);">
+          ${svgSlices}
+        </svg>
+        <!-- Pointer -->
+        <div style="position:absolute;top:-8px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:10px solid transparent;border-right:10px solid transparent;border-top:22px solid #111827;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3));"></div>
+      </div>
+
+      <div id="spin-result" style="min-height:44px;display:flex;align-items:center;justify-content:center;margin-bottom:16px;font-size:20px;font-weight:700;color:var(--text,#111);"></div>
+
+      ${onCooldown
+        ? `<div style="padding:12px;background:rgba(239,68,68,0.08);border-radius:12px;border:1px solid rgba(239,68,68,0.15);margin-bottom:14px;">
+            <div style="font-size:13px;color:#ef4444;font-weight:700;">⏱ Next spin in</div>
+            <div id="spin-countdown" style="font-size:22px;font-weight:800;color:#ef4444;">${minsLeft}m ${secsLeft}s</div>
+          </div>`
+        : ''
+      }
+
+      <button id="spin-btn" ${onCooldown ? 'disabled' : ''} style="width:100%;padding:13px;background:${onCooldown ? '#d1d5db' : 'linear-gradient(135deg,#8b5cf6,#ec4899)'};color:white;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:${onCooldown ? 'not-allowed' : 'pointer'};margin-bottom:10px;">
+        ${onCooldown ? '⏳ On Cooldown' : '🎰 Spin!'}
+      </button>
+      <button id="spin-close-btn" style="width:100%;padding:11px;background:none;border:1px solid var(--glass-border,rgba(0,0,0,0.1));border-radius:12px;font-size:14px;cursor:pointer;color:var(--text,#111);">Close</button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  const close = () => modal.remove();
+  document.getElementById('spin-close-btn').addEventListener('click', close);
+  modal.addEventListener('click', e => { if (e.target === modal) close(); });
+
+  // Countdown timer
+  if (onCooldown) {
+    const countdownEl = document.getElementById('spin-countdown');
+    const tick = setInterval(() => {
+      const rem = Math.max(0, new Date(lastSpin).getTime() + 3600000 - Date.now());
+      if (rem <= 0) { clearInterval(tick); countdownEl.textContent = 'Ready!'; return; }
+      const m = Math.floor(rem/60000); const s = Math.floor((rem%60000)/1000);
+      countdownEl.textContent = `${m}m ${s}s`;
+    }, 1000);
+    modal.addEventListener('remove', () => clearInterval(tick));
   }
 
-  let _currentStep = 0;
-  let _steps = [];
-  let _overlay = null;
-  let _spotlight = null;
-  let _tooltip = null;
-  let _resizeObs = null;
+  // Spin button
+  document.getElementById('spin-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('spin-btn');
+    const resultEl = document.getElementById('spin-result');
+    btn.disabled = true; btn.textContent = 'Spinning...';
 
-  function cleanup() {
-    _overlay?.remove(); _overlay = null;
-    _spotlight?.remove(); _spotlight = null;
-    _tooltip?.remove(); _tooltip = null;
-    if (_resizeObs) { _resizeObs.disconnect(); _resizeObs = null; }
-    document.removeEventListener('keydown', _keyHandler);
-  }
-
-  function _keyHandler(e) {
-    if (e.key === 'ArrowRight' || e.key === 'Enter') advance(1);
-    else if (e.key === 'ArrowLeft') advance(-1);
-    else if (e.key === 'Escape') endTutorial();
-  }
-
-  function endTutorial() {
-    cleanup();
-    localStorage.setItem(TUTORIAL_KEY, '1');
-  }
-
-  function positionTooltip(targetEl, pos, tooltipEl) {
-    if (!targetEl || pos === 'center') {
-      tooltipEl.style.top = '50%';
-      tooltipEl.style.left = '50%';
-      tooltipEl.style.transform = 'translate(-50%, -50%)';
-      tooltipEl.style.position = 'fixed';
+    const result = await spinWheel();
+    if (!result.ok) {
+      if (result.error === 'cooldown') {
+        resultEl.innerHTML = `<span style="color:#ef4444;font-size:14px;">⏱ Come back later!</span>`;
+      } else {
+        resultEl.innerHTML = `<span style="color:#ef4444;font-size:14px;">${result.error}</span>`;
+      }
+      btn.disabled = false; btn.textContent = '🎰 Spin!';
       return;
     }
-    const rect = targetEl.getBoundingClientRect();
-    const tw = tooltipEl.offsetWidth || 300;
-    const th = tooltipEl.offsetHeight || 150;
-    const gap = 16;
-    let top, left;
-    tooltipEl.style.transform = '';
-    tooltipEl.style.position = 'fixed';
 
-    if (pos === 'bottom') {
-      top = rect.bottom + gap;
-      left = rect.left + rect.width / 2 - tw / 2;
-    } else if (pos === 'top') {
-      top = rect.top - th - gap;
-      left = rect.left + rect.width / 2 - tw / 2;
-    } else if (pos === 'right') {
-      top = rect.top + rect.height / 2 - th / 2;
-      left = rect.right + gap;
-    } else {
-      top = rect.bottom + gap;
-      left = rect.left + rect.width / 2 - tw / 2;
-    }
-    // Clamp to viewport
-    left = Math.max(12, Math.min(left, window.innerWidth - tw - 12));
-    top = Math.max(12, Math.min(top, window.innerHeight - th - 12));
-    tooltipEl.style.top = top + 'px';
-    tooltipEl.style.left = left + 'px';
-  }
+    // Animate wheel
+    const seg = result.segment;
+    const segIdx = segments.findIndex(s => s.label === seg.label);
+    const segAngle = segments.slice(0, segIdx).reduce((acc, s) => acc + (s.weight/totalWeight)*360, 0) + (seg.weight/totalWeight)*180;
+    const spins = 5 + Math.random() * 3;
+    const targetDeg = spins * 360 + (360 - segAngle);
+    const wheel = document.getElementById('spin-wheel-svg');
+    wheel.style.transformOrigin = 'center';
+    wheel.style.transform = `rotate(${targetDeg}deg)`;
 
-  function spotlightEl(el) {
-    if (!el || !_spotlight) { if (_spotlight) _spotlight.style.cssText = 'display:none'; return; }
-    const rect = el.getBoundingClientRect();
-    const pad = 8;
-    _spotlight.style.cssText = `
-      position:fixed;
-      top:${rect.top - pad}px;
-      left:${rect.left - pad}px;
-      width:${rect.width + pad*2}px;
-      height:${rect.height + pad*2}px;
-      border-radius:12px;
-      box-shadow:0 0 0 9999px rgba(0,0,0,0.55);
-      z-index:99996;
-      pointer-events:none;
-      transition:all 0.3s cubic-bezier(0.4,0,0.2,1);
-      border:2px solid rgba(58,125,255,0.8);
-    `;
-  }
-
-  function renderStep(idx) {
-    const step = _steps[idx];
-    if (!step) { endTutorial(); return; }
-    const targetEl = step.target ? step.target() : null;
-
-    // Scroll target into view
-    if (targetEl) targetEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
-
-    // Spotlight
     setTimeout(() => {
-      spotlightEl(targetEl);
+      if (seg.points > 0) {
+        resultEl.innerHTML = `<span style="color:#22c55e;">🎉 You won <strong style="font-size:28px;">${seg.points}</strong> pts!</span>`;
+      } else {
+        resultEl.innerHTML = `<span style="color:#6b7280;">😅 Try again next hour!</span>`;
+      }
+      btn.textContent = '⏳ Come back in 1 hour';
+    }, 4200);
+  });
+};
 
-      // Arrow direction
-      const arrowMap = { bottom: '↑', top: '↓', right: '←', left: '→', center: '' };
-      const arrow = step.position !== 'center' && targetEl ? arrowMap[step.position] || '' : '';
+/* ===================== GIFT POINTS MODAL ===================== */
+window.openGiftPoints = function() {
+  document.getElementById('flux-gift-modal')?.remove();
+  const modal = document.createElement('div');
+  modal.id = 'flux-gift-modal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:9100;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(6px);padding:20px;box-sizing:border-box;font-family:inherit;';
 
-      _tooltip.innerHTML = `
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;">
-          <div style="font-size:11px;font-weight:700;color:var(--accent,#3a7dff);letter-spacing:0.5px;text-transform:uppercase;">Step ${idx + 1} of ${_steps.length}</div>
-          <button id="tut-close" style="background:none;border:none;color:var(--muted,#6b7280);font-size:16px;cursor:pointer;line-height:1;padding:0;flex-shrink:0;" title="Close tutorial">✕</button>
-        </div>
-        ${arrow ? `<div style="font-size:28px;text-align:center;margin-bottom:6px;color:var(--accent,#3a7dff);">${arrow}</div>` : ''}
-        <div style="font-weight:700;font-size:16px;color:var(--text,#111827);margin-bottom:8px;">${step.title}</div>
-        <div style="font-size:13px;color:var(--muted,#6b7280);line-height:1.6;margin-bottom:18px;">${step.body}</div>
-        <div style="display:flex;gap:8px;align-items:center;">
-          ${idx > 0 ? `<button id="tut-back" style="padding:8px 16px;border:1px solid var(--glass-border,rgba(0,0,0,0.1));border-radius:10px;background:none;font-size:13px;font-weight:600;cursor:pointer;color:var(--text,#111827);">← Back</button>` : '<span style="flex:1"></span>'}
-          <div style="flex:1;display:flex;gap:4px;align-items:center;justify-content:center;">
-            ${_steps.map((_, i) => `<span style="width:${i===idx?'18':'6'}px;height:6px;border-radius:3px;background:${i===idx?'var(--accent,#3a7dff)':'var(--glass-border,rgba(0,0,0,0.12))'};transition:all 0.2s;display:inline-block;"></span>`).join('')}
-          </div>
-          <button id="tut-next" style="padding:8px 18px;background:var(--accent,#3a7dff);color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">
-            ${idx === _steps.length - 1 ? '🎉 Done' : 'Next →'}
-          </button>
-        </div>
-      `;
-
-      positionTooltip(targetEl, step.position, _tooltip);
-
-      document.getElementById('tut-next').addEventListener('click', () => advance(1));
-      document.getElementById('tut-back')?.addEventListener('click', () => advance(-1));
-      document.getElementById('tut-close').addEventListener('click', endTutorial);
-    }, targetEl ? 320 : 0);
-  }
-
-  function advance(dir) {
-    _currentStep = Math.max(0, Math.min(_currentStep + dir, _steps.length - 1));
-    if (dir > 0 && _currentStep >= _steps.length) { endTutorial(); return; }
-    renderStep(_currentStep);
-    if (_currentStep === _steps.length - 1 && dir > 0) {
-      // On last step, clicking Next again ends
-      setTimeout(() => {
-        const nextBtn = document.getElementById('tut-next');
-        if (nextBtn) nextBtn.addEventListener('click', endTutorial, { once: true });
-      }, 50);
-    }
-  }
-
-  function launchTutorial() {
-    cleanup();
-    _steps = getVisibleSteps();
-    _currentStep = 0;
-
-    // Dim overlay (click-through)
-    _overlay = document.createElement('div');
-    _overlay.id = 'flux-tutorial-overlay';
-    _overlay.style.cssText = 'position:fixed;inset:0;z-index:99995;pointer-events:none;';
-    document.body.appendChild(_overlay);
-
-    // Spotlight ring
-    _spotlight = document.createElement('div');
-    _spotlight.id = 'flux-tutorial-spotlight';
-    document.body.appendChild(_spotlight);
-
-    // Tooltip card
-    _tooltip = document.createElement('div');
-    _tooltip.id = 'flux-tutorial-tooltip';
-    _tooltip.style.cssText = `
-      position:fixed;z-index:99997;
-      background:var(--panel,#fff);
-      border:1px solid var(--glass-border,rgba(0,0,0,0.08));
-      border-radius:16px;padding:18px 18px 16px;
-      width:300px;max-width:calc(100vw - 24px);
-      box-shadow:0 20px 60px rgba(0,0,0,0.2);
-      font-family:inherit;
-      pointer-events:all;
-      transition:top 0.3s cubic-bezier(0.4,0,0.2,1), left 0.3s cubic-bezier(0.4,0,0.2,1);
-    `;
-    document.body.appendChild(_tooltip);
-
-    document.addEventListener('keydown', _keyHandler);
-
-    // Reposition on resize
-    _resizeObs = new ResizeObserver(() => {
-      const step = _steps[_currentStep];
-      if (!step) return;
-      const el = step.target ? step.target() : null;
-      spotlightEl(el);
-      positionTooltip(el, step.position, _tooltip);
-    });
-    _resizeObs.observe(document.body);
-
-    renderStep(0);
-  }
-
-  // Offer prompt for existing users
-  function showTutorialOffer() {
-    const offer = document.createElement('div');
-    offer.id = 'flux-tutorial-offer';
-    offer.style.cssText = `
-      position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
-      z-index:9001;display:flex;align-items:center;gap:14px;
-      background:var(--panel,#fff);border:1px solid var(--glass-border,rgba(0,0,0,0.08));
-      border-radius:16px;padding:14px 18px;
-      box-shadow:0 12px 40px rgba(0,0,0,0.15);
-      max-width:440px;width:calc(100vw - 48px);
-      animation:tut-offer-up 0.4s cubic-bezier(0.34,1.56,0.64,1) both;
-      font-family:inherit;
-    `;
-    offer.innerHTML = `
-      <style>@keyframes tut-offer-up { from{opacity:0;transform:translateX(-50%) translateY(20px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }</style>
-      <span style="font-size:28px;flex-shrink:0;">🎓</span>
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:14px;font-weight:700;color:var(--text,#111827);margin-bottom:2px;">Want a quick tour?</div>
-        <div style="font-size:12px;color:var(--muted,#6b7280);">Learn how to get the most out of Flux in 60 seconds.</div>
+  modal.innerHTML = `
+    <div style="background:var(--panel,#fff);border-radius:20px;padding:28px 24px;max-width:380px;width:100%;box-shadow:0 30px 80px rgba(0,0,0,0.25);">
+      <div style="text-align:center;margin-bottom:20px;">
+        <div style="font-size:40px;margin-bottom:8px;">🎁</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--text,#111);">Gift Points</div>
+        <div style="font-size:13px;color:var(--muted,#6b7280);margin-top:4px;">Send your points to another player. Daily cap: 500 pts.</div>
       </div>
-      <button id="tut-offer-yes" style="padding:8px 14px;background:var(--accent,#3a7dff);color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;font-family:inherit;">Show me →</button>
-      <button id="tut-offer-no" style="background:none;border:none;color:var(--muted,#9ca3af);cursor:pointer;font-size:18px;padding:0 0 0 4px;flex-shrink:0;line-height:1;">✕</button>
-    `;
-    document.body.appendChild(offer);
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;">
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--muted,#6b7280);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Recipient Username</label>
+          <input id="gift-username" type="text" placeholder="@username" maxlength="20"
+            style="width:100%;padding:10px 12px;border:1px solid var(--glass-border,rgba(0,0,0,0.1));border-radius:10px;font-size:14px;outline:none;box-sizing:border-box;background:var(--bg,#f9fafb);color:var(--text,#111);">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--muted,#6b7280);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Amount</label>
+          <input id="gift-amount" type="number" placeholder="Points to gift" min="1" max="500"
+            style="width:100%;padding:10px 12px;border:1px solid var(--glass-border,rgba(0,0,0,0.1));border-radius:10px;font-size:14px;outline:none;box-sizing:border-box;background:var(--bg,#f9fafb);color:var(--text,#111);">
+        </div>
+        <div id="gift-preview" style="display:none;padding:10px 14px;background:rgba(58,125,255,0.06);border-radius:10px;border:1px solid rgba(58,125,255,0.15);font-size:13px;color:var(--text,#111);"></div>
+      </div>
+      <p id="gift-msg" style="font-size:12px;text-align:center;margin:0 0 12px;display:none;"></p>
+      <div style="display:flex;gap:10px;">
+        <button id="gift-send-btn" style="flex:1;padding:12px;background:var(--accent,#3a7dff);color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;">🎁 Send Gift</button>
+        <button id="gift-close-btn" style="flex:1;padding:12px;background:var(--bg,#f9fafb);border:1px solid var(--glass-border,rgba(0,0,0,0.1));border-radius:12px;font-size:14px;cursor:pointer;color:var(--text,#111);">Cancel</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
 
-    const dismiss = () => {
-      offer.style.opacity = '0';
-      offer.style.transform = 'translateX(-50%) translateY(16px)';
-      offer.style.transition = 'all 0.2s ease';
-      setTimeout(() => offer.remove(), 220);
-      localStorage.setItem(TUTORIAL_OFFERED_KEY, '1');
-    };
+  const close = () => modal.remove();
+  document.getElementById('gift-close-btn').addEventListener('click', close);
+  modal.addEventListener('click', e => { if (e.target === modal) close(); });
 
-    document.getElementById('tut-offer-yes').addEventListener('click', () => { dismiss(); setTimeout(launchTutorial, 300); });
-    document.getElementById('tut-offer-no').addEventListener('click', dismiss);
-    setTimeout(dismiss, 12000);
-  }
-
-  // Public API
-  window.startFluxTutorial = function({ force = false, isNew = false } = {}) {
-    // Only run on pages that have game content
-    const hasContent = document.getElementById('game-grid') || document.getElementById('games-grid');
-    if (!hasContent && !force) return;
-
-    if (force) { launchTutorial(); return; }
-
-    if (localStorage.getItem(TUTORIAL_KEY)) return; // already completed
-
-    if (isNew) {
-      // Brand new user — start tutorial automatically
-      launchTutorial();
+  // Preview
+  const updatePreview = () => {
+    const user = document.getElementById('gift-username').value.trim();
+    const amt = parseInt(document.getElementById('gift-amount').value) || 0;
+    const preview = document.getElementById('gift-preview');
+    if (user && amt > 0) {
+      preview.style.display = 'block';
+      preview.innerHTML = `Sending <strong>${amt} pts</strong> to <strong>@${user}</strong>`;
     } else {
-      // Existing user — offer once
-      if (localStorage.getItem(TUTORIAL_OFFERED_KEY)) return;
-      showTutorialOffer();
+      preview.style.display = 'none';
     }
   };
-})();
+  document.getElementById('gift-username').addEventListener('input', updatePreview);
+  document.getElementById('gift-amount').addEventListener('input', updatePreview);
+
+  document.getElementById('gift-send-btn').addEventListener('click', async () => {
+    const username = document.getElementById('gift-username').value.trim().toLowerCase().replace('@', '');
+    const amount = parseInt(document.getElementById('gift-amount').value);
+    const msg = document.getElementById('gift-msg');
+    const btn = document.getElementById('gift-send-btn');
+    if (!username) { msg.style.color='#ef4444'; msg.textContent='Enter a username.'; msg.style.display='block'; return; }
+    if (!amount || amount < 1) { msg.style.color='#ef4444'; msg.textContent='Enter a valid amount.'; msg.style.display='block'; return; }
+    btn.textContent = 'Sending...'; btn.disabled = true;
+    const result = await giftPointsToUser(username, amount);
+    msg.style.display = 'block';
+    if (result.ok) {
+      msg.style.color = '#22c55e';
+      msg.textContent = `✓ Sent ${amount} pts to @${username}! Your new balance: ${result.newBalance} pts`;
+      setTimeout(close, 2500);
+    } else {
+      msg.style.color = '#ef4444'; msg.textContent = result.error;
+      btn.textContent = '🎁 Send Gift'; btn.disabled = false;
+    }
+  });
+};
 
 /* ===================== FLOATING TOOLTIP ===================== */
 (function() {
