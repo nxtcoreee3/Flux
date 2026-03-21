@@ -1499,6 +1499,34 @@ export function initAuthUI(onUserChange) {
       </div>
 
       <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🔐 Game Unlock Pricing</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <select id="mod-price-game-select" style="padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;color:#111827;background:#fff;outline:none;cursor:pointer;">
+          <option value="">Select a game...</option>
+        </select>
+        <div id="mod-price-current" style="font-size:12px;color:#6b7280;padding:8px 12px;background:#f9fafb;border-radius:8px;border:1px solid rgba(0,0,0,0.07);display:none;"></div>
+        <div style="display:flex;gap:8px;">
+          <div style="flex:1;">
+            <label style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:3px;">Price (pts, 0 = free)</label>
+            <input id="mod-price-amount" type="number" placeholder="0" min="0" max="99999"
+              style="width:100%;padding:8px 10px;border:1px solid rgba(0,0,0,0.1);border-radius:8px;font-size:13px;outline:none;box-sizing:border-box;">
+          </div>
+          <div style="flex:1;">
+            <label style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:3px;">Discount %</label>
+            <input id="mod-price-discount" type="number" placeholder="0" min="0" max="100"
+              style="width:100%;padding:8px 10px;border:1px solid rgba(0,0,0,0.1);border-radius:8px;font-size:13px;outline:none;box-sizing:border-box;">
+          </div>
+        </div>
+        <div id="mod-price-preview" style="font-size:12px;color:#22c55e;font-weight:700;display:none;text-align:center;padding:6px;background:rgba(34,197,94,0.08);border-radius:8px;"></div>
+        <div style="display:flex;gap:8px;">
+          <input id="mod-price-expiry" type="datetime-local"
+            style="flex:1;padding:8px 10px;border:1px solid rgba(0,0,0,0.1);border-radius:8px;font-size:12px;outline:none;color:#6b7280;">
+          <button id="mod-price-set-btn" style="padding:8px 14px;background:#3a7dff;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px;">Set Price</button>
+        </div>
+        <div style="font-size:10px;color:#9ca3af;">Discount expiry is optional. Leave blank for permanent discount.</div>
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
       <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🔒 Chat Controls</div>
       <div style="display:flex;flex-direction:column;gap:8px;">
         <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#f9fafb;border-radius:10px;border:1px solid rgba(0,0,0,0.07);">
@@ -1745,6 +1773,74 @@ export function initAuthUI(onUserChange) {
         });
       });
     }
+
+    // Populate pricing game select + wire controls
+    const priceGameSelect = document.getElementById('mod-price-game-select');
+    if (priceGameSelect && window._FLUX_GAMES) {
+      priceGameSelect.innerHTML = '<option value="">Select a game...</option>';
+      window._FLUX_GAMES.forEach(g => {
+        const opt = document.createElement('option');
+        opt.value = g.id; opt.textContent = g.title;
+        priceGameSelect.appendChild(opt);
+      });
+    }
+
+    // Load current pricing
+    try {
+      const pricingSnap = await getDoc(doc(db, 'stats', 'gamePricing'));
+      const pricing = pricingSnap.exists() ? pricingSnap.data() : {};
+
+      priceGameSelect?.addEventListener('change', () => {
+        const id = priceGameSelect.value;
+        const currentDiv = document.getElementById('mod-price-current');
+        const preview = document.getElementById('mod-price-preview');
+        if (!id) { if(currentDiv) currentDiv.style.display='none'; if(preview) preview.style.display='none'; return; }
+        const p = pricing[id] || { price: 0, discount: 0 };
+        const discounted = p.discount > 0 ? Math.round(p.price * (1 - p.discount/100)) : p.price;
+        if (currentDiv) {
+          currentDiv.style.display = 'block';
+          currentDiv.innerHTML = p.price === 0 ? '🆓 Currently free'
+            : p.discount > 0 ? `🏷️ Currently: <s>${p.price} pts</s> → <strong>${discounted} pts</strong> (${p.discount}% off)`
+            : `💰 Currently: ${p.price} pts`;
+        }
+        const amtEl = document.getElementById('mod-price-amount');
+        const discEl = document.getElementById('mod-price-discount');
+        if (amtEl) amtEl.value = p.price || '';
+        if (discEl) discEl.value = p.discount || '';
+        if (preview) preview.style.display = 'none';
+      });
+
+      const updatePricePreview = () => {
+        const price = parseInt(document.getElementById('mod-price-amount')?.value) || 0;
+        const discount = parseInt(document.getElementById('mod-price-discount')?.value) || 0;
+        const preview = document.getElementById('mod-price-preview');
+        if (!preview) return;
+        if (price === 0) { preview.textContent = '🆓 This game will be free'; preview.style.display = 'block'; return; }
+        if (discount > 0 && discount <= 100) {
+          preview.textContent = `🏷️ Was ${price} pts → Now ${Math.round(price*(1-discount/100))} pts (${discount}% off)`;
+        } else {
+          preview.textContent = `💰 ${price} pts to unlock`;
+        }
+        preview.style.display = 'block';
+      };
+      document.getElementById('mod-price-amount')?.addEventListener('input', updatePricePreview);
+      document.getElementById('mod-price-discount')?.addEventListener('input', updatePricePreview);
+
+      document.getElementById('mod-price-set-btn')?.addEventListener('click', async () => {
+        const gameId = priceGameSelect?.value;
+        const price = parseInt(document.getElementById('mod-price-amount')?.value) || 0;
+        const discount = parseInt(document.getElementById('mod-price-discount')?.value) || 0;
+        const expiry = document.getElementById('mod-price-expiry')?.value || null;
+        const msg = document.getElementById('mod-msg');
+        if (!gameId) { msg.style.color='#ef4444'; msg.textContent='Select a game first.'; msg.style.display='block'; setTimeout(()=>msg.style.display='none',2000); return; }
+        const result = await setGamePrice(gameId, price, discount, expiry ? new Date(expiry).toISOString() : null);
+        msg.style.color = result.ok ? '#22c55e' : '#ef4444';
+        msg.textContent = result.ok ? `✓ Price set for ${window._FLUX_GAMES?.find(g=>g.id===gameId)?.title}!` : result.error;
+        msg.style.display = 'block';
+        setTimeout(() => msg.style.display='none', 3000);
+        if (result.ok) pricing[gameId] = { price, discount, discountExpiry: expiry };
+      });
+    } catch (e) { console.warn('Pricing load failed:', e); }
 
     // Load device requests
     try {
