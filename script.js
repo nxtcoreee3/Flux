@@ -312,7 +312,7 @@ function createCard(game) {
 
   div.innerHTML = `
     ${isHot ? '<span class="hot-badge">🔥 HOT</span>' : ''}
-    ${isNew && !isHot ? '<span class="new-badge">NEW</span>' : ''}
+    ${isNew && !isHot ? '<span class="new-badge">✨ NEW</span>' : ''}
     <img class="thumb" src="${game.thumb}" alt="${game.title} thumbnail" loading="lazy">
     <div class="card-body">
       <h3 class="title">${game.title}</h3>
