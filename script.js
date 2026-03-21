@@ -3,7 +3,7 @@
    favorites (cloud+local), dark mode, toasts, recently played, new badge, stats button
 */
 
-import { initAuthUI, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, fetchAllGameStats, setCurrentlyPlaying, clearCurrentlyPlaying, rateGame, getUserRating, reportGame } from './firebase-auth.js';
+import { initAuthUI, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, fetchAllGameStats, setCurrentlyPlaying, clearCurrentlyPlaying, rateGame, getUserRating, reportGame, checkFirestoreHealth } from './firebase-auth.js';
 
 const GAMES = [
   {
@@ -508,6 +508,7 @@ function debounce(fn, wait=120) {
 document.addEventListener('DOMContentLoaded', () => {
   initCookieConsent();
   initDarkMode();
+  initFirestoreHealthCheck();
   initStatsButton();
   initPresence();
   initServerStatus();
@@ -641,6 +642,116 @@ function initMobileWarning() {
     } catch {}
     showWarning();
   })();
+}
+
+/* ===================== FIRESTORE HEALTH CHECK ===================== */
+async function initFirestoreHealthCheck() {
+  const TIMEOUT_MS = 8000;
+
+  const timeoutPromise = new Promise(resolve => setTimeout(() => resolve({ ok: false, error: 'timeout' }), TIMEOUT_MS));
+  const result = await Promise.race([checkFirestoreHealth(), timeoutPromise]);
+
+  if (result.ok) return; // all good, nothing to show
+
+  showFirestoreDownBanner(result.error === 'timeout');
+
+  // Recheck every 30s — remove banner if it comes back
+  const interval = setInterval(async () => {
+    const recheck = await Promise.race([checkFirestoreHealth(), new Promise(r => setTimeout(() => r({ ok: false }), 6000))]);
+    if (recheck.ok) {
+      document.getElementById('firestore-down-banner')?.remove();
+      clearInterval(interval);
+      showToast('🟢 Live features are back online!', 'success');
+    }
+  }, 30000);
+}
+
+function showFirestoreDownBanner(isTimeout) {
+  if (document.getElementById('firestore-down-banner')) return;
+
+  const banner = document.createElement('div');
+  banner.id = 'firestore-down-banner';
+  banner.style.cssText = `
+    position:fixed;top:0;left:0;right:0;z-index:99990;
+    background:linear-gradient(135deg,#f59e0b,#ef4444);
+    color:white;padding:10px 16px;
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    font-size:13px;font-weight:600;flex-wrap:wrap;
+    box-shadow:0 4px 20px rgba(239,68,68,0.3);
+    font-family:inherit;
+  `;
+  banner.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
+      <span style="font-size:16px;flex-shrink:0;">⚠️</span>
+      <span style="opacity:0.95;">
+        ${isTimeout
+          ? 'Firebase is responding slowly — live features (social, ratings, favourites) may be unavailable.'
+          : 'Firebase appears to be down — live features (social, ratings, favourites) are unavailable.'}
+        Games still work.
+      </span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+      <button id="firestore-info-btn" style="padding:5px 12px;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);border-radius:8px;color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;backdrop-filter:blur(4px);">Learn more</button>
+      <button id="firestore-banner-close" style="background:none;border:none;color:rgba(255,255,255,0.8);cursor:pointer;font-size:18px;padding:0 4px;line-height:1;">✕</button>
+    </div>
+  `;
+  document.body.prepend(banner);
+
+  document.getElementById('firestore-banner-close').addEventListener('click', () => banner.remove());
+  document.getElementById('firestore-info-btn').addEventListener('click', showFirestoreInfoModal);
+}
+
+function showFirestoreInfoModal() {
+  document.getElementById('firestore-info-modal')?.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'firestore-info-modal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:99992;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.55);backdrop-filter:blur(6px);padding:20px;box-sizing:border-box;font-family:inherit;';
+  modal.innerHTML = `
+    <div style="background:var(--panel,#fff);border-radius:20px;padding:28px 26px;max-width:480px;width:100%;box-shadow:0 30px 80px rgba(0,0,0,0.25);position:relative;">
+      <button id="firestore-info-close" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted,#6b7280);line-height:1;">✕</button>
+
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;">
+        <span style="font-size:36px;">🔥</span>
+        <div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:var(--text,#111827);letter-spacing:0.5px;">About Flux's Backend</div>
+          <div style="font-size:12px;color:var(--muted,#6b7280);margin-top:2px;">Why some features might be unavailable</div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:14px;font-size:13px;color:var(--text,#111827);line-height:1.65;">
+
+        <div style="background:var(--bg,#f9fafb);border-radius:12px;padding:14px 16px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));">
+          <div style="font-weight:700;margin-bottom:4px;">⚙️ What powers Flux?</div>
+          <div style="color:var(--muted,#6b7280);">Flux uses <strong style="color:var(--text,#111827);">Google Firebase</strong> — specifically Firestore and Firebase Auth — to power live features like profiles, favourites, ratings, global chat, and the social system. These run on Google's servers, not ours.</div>
+        </div>
+
+        <div style="background:var(--bg,#f9fafb);border-radius:12px;padding:14px 16px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));">
+          <div style="font-weight:700;margin-bottom:4px;">🚫 What happens when Firebase goes down?</div>
+          <div style="color:var(--muted,#6b7280);">When Firebase has an outage or slowdown, live features stop working — social, chat, ratings, favourites, and login. <strong style="color:var(--text,#111827);">Games themselves still work</strong> since they're hosted separately and don't need Firebase to run.</div>
+        </div>
+
+        <div style="background:var(--bg,#f9fafb);border-radius:12px;padding:14px 16px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));">
+          <div style="font-weight:700;margin-bottom:4px;">🤷 Can Flux fix it?</div>
+          <div style="color:var(--muted,#6b7280);">No — Firebase outages and slowdowns are entirely on Google's end. We have no control over their server uptime, response times, or regional availability. All we can do is wait for them to resolve it.</div>
+        </div>
+
+        <div style="background:rgba(58,125,255,0.06);border-radius:12px;padding:14px 16px;border:1px solid rgba(58,125,255,0.15);">
+          <div style="font-weight:700;margin-bottom:4px;color:var(--accent,#3a7dff);">📊 Check Firebase status</div>
+          <div style="color:var(--muted,#6b7280);">You can check if Firebase is having a global incident at <a href="https://status.firebase.google.com" target="_blank" rel="noopener" style="color:var(--accent,#3a7dff);font-weight:600;">status.firebase.google.com</a>. Flux will automatically detect when Firebase is back and restore live features — no refresh needed.</div>
+        </div>
+
+      </div>
+
+      <button id="firestore-info-ok" style="margin-top:20px;width:100%;padding:12px;background:var(--accent,#3a7dff);color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">Got it</button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  const close = () => modal.remove();
+  document.getElementById('firestore-info-close').addEventListener('click', close);
+  document.getElementById('firestore-info-ok').addEventListener('click', close);
+  modal.addEventListener('click', e => { if (e.target === modal) close(); });
 }
 
 function showSocialBanner() {
