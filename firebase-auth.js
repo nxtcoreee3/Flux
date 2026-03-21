@@ -46,6 +46,17 @@ const db = getFirestore(app);
 const rtdb = getDatabase(app);
 const googleProvider = new GoogleAuthProvider();
 
+/* ===================== FIRESTORE HEALTH CHECK ===================== */
+export async function checkFirestoreHealth() {
+  try {
+    const start = Date.now();
+    await getDoc(doc(db, 'stats', 'health_ping'));
+    return { ok: true, ms: Date.now() - start };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
 /* ===================== LIVE PRESENCE ===================== */
 let _onlineCount = 0;
 
