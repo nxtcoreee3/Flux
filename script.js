@@ -609,11 +609,82 @@ function initMobileWarning() {
 
   const deviceModel = (() => {
     const ua = navigator.userAgent;
-    if (/iPhone/.test(ua)) return 'iPhone';
-    if (/iPad/.test(ua)) return 'iPad';
-    const m = ua.match(/\(Linux;.*?;\s*(.*?)\s*Build/);
-    if (m) return m[1];
-    return ua.match(/\(([^)]+)\)/)?.[1] || 'Unknown Mobile';
+
+    // iOS — get exact model from UA hints if available, else use screen size mapping
+    if (/iPhone/.test(ua)) {
+      // Try to get iPhone generation from screen dimensions (works well)
+      const w = Math.min(screen.width, screen.height);
+      const h = Math.max(screen.width, screen.height);
+      if (w === 430 && h === 932) return 'iPhone 16 Plus / 15 Plus / 14 Plus';
+      if (w === 393 && h === 852) return 'iPhone 16 / 15 / 14 Pro';
+      if (w === 440 && h === 956) return 'iPhone 16 Pro Max';
+      if (w === 402 && h === 874) return 'iPhone 16 Pro';
+      if (w === 390 && h === 844) return 'iPhone 14 / 13 / 12';
+      if (w === 428 && h === 926) return 'iPhone 13 Pro Max / 12 Pro Max';
+      if (w === 375 && h === 812) return 'iPhone 13 Mini / 12 Mini / X / XS / 11 Pro';
+      if (w === 414 && h === 896) return 'iPhone 11 / XR / 11 Pro Max / XS Max';
+      if (w === 414 && h === 736) return 'iPhone 8 Plus / 7 Plus / 6s Plus';
+      if (w === 375 && h === 667) return 'iPhone SE (2nd/3rd Gen) / 8 / 7';
+      if (w === 320 && h === 568) return 'iPhone SE (1st Gen) / 5s';
+      return 'iPhone';
+    }
+
+    if (/iPad/.test(ua)) {
+      const w = Math.min(screen.width, screen.height);
+      if (w >= 1024) return 'iPad Pro 12.9"';
+      if (w === 834) return 'iPad Pro 11" / iPad Air';
+      if (w === 820) return 'iPad Air (4th/5th Gen)';
+      if (w === 768) return 'iPad (standard)';
+      return 'iPad';
+    }
+
+    // Android — parse manufacturer + model from UA string
+    if (/Android/.test(ua)) {
+      // Format: (Linux; Android X.X; ModelName Build/...)
+      const modelMatch = ua.match(/;\s*([^;)]+?)\s*(?:Build\/|[);\n])/);
+      if (modelMatch) {
+        const raw = modelMatch[1].trim();
+        // Skip version strings and generic junk
+        if (!/^Android|^Linux|^\d+\.\d+/.test(raw) && raw.length > 1) {
+          // Map common model codes to friendly names
+          const knownModels = {
+            'SM-S918': 'Samsung Galaxy S23 Ultra',
+            'SM-S908': 'Samsung Galaxy S22 Ultra',
+            'SM-S928': 'Samsung Galaxy S24 Ultra',
+            'SM-S921': 'Samsung Galaxy S24',
+            'SM-S901': 'Samsung Galaxy S22',
+            'SM-A546': 'Samsung Galaxy A54',
+            'SM-A536': 'Samsung Galaxy A53',
+            'SM-G991': 'Samsung Galaxy S21',
+            'SM-N986': 'Samsung Galaxy Note 20 Ultra',
+            'Pixel 9': 'Google Pixel 9',
+            'Pixel 8': 'Google Pixel 8',
+            'Pixel 7': 'Google Pixel 7',
+            'Pixel 6': 'Google Pixel 6',
+            '23049PCD8G': 'Xiaomi 13T',
+            '2312DRAAEU': 'Xiaomi 13T Pro',
+            'CPH2449': 'OnePlus Nord CE 3',
+            'CPH2551': 'OnePlus 12',
+            'RMX3771': 'Realme 11 Pro+',
+          };
+          for (const [code, name] of Object.entries(knownModels)) {
+            if (raw.includes(code)) return name;
+          }
+          return raw; // Return the raw model string — usually readable (e.g. "Pixel 7", "SM-S918B")
+        }
+      }
+      // Fallback: get Android version at least
+      const ver = ua.match(/Android\s*([\d.]+)/)?.[1];
+      return ver ? `Android ${ver} Device` : 'Android Device';
+    }
+
+    // Other mobile (Windows Phone, Opera Mini, etc.)
+    if (/Windows Phone/.test(ua)) {
+      const m = ua.match(/IEMobile\/[\d.]+;\s*([^;)]+)/);
+      return m ? m[1].trim() : 'Windows Phone';
+    }
+
+    return navigator.platform || 'Unknown Mobile';
   })();
 
   const skipKey = 'flux_mobile_skip';
@@ -644,7 +715,7 @@ function initMobileWarning() {
           <div style="font-size:36px;margin-bottom:12px;">📊</div>
           <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--text,#111827);margin-bottom:8px;">Help Us Improve</div>
           <p style="font-size:13px;color:var(--muted,#6b7280);line-height:1.6;margin:0 0 6px;">Would you like to send your device info to the developers? This helps us identify which devices to officially support.</p>
-          <p style="font-size:12px;color:var(--muted,#6b7280);margin:0 0 20px;">Device: <strong style="color:var(--text,#111827);">${deviceModel}</strong></p>
+          <p style="font-size:12px;color:var(--muted,#6b7280);margin:0 0 20px;">Device: <strong style="color:var(--text,#111827);">${deviceModel}</strong><br><span style="font-size:11px;word-break:break-all;opacity:0.7;">${screen.width}×${screen.height} · ${navigator.platform || 'unknown'}</span></p>
           <div style="display:flex;flex-direction:column;gap:10px;">
             <button id="mobile-warn-send" style="padding:12px 20px;background:#22c55e;color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">✓ Yes, Send Info</button>
             <button id="mobile-warn-nosend" style="padding:12px 20px;background:var(--bg,#f3f4f6);color:var(--text,#111827);border:1px solid var(--glass-border,rgba(0,0,0,0.1));border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">No Thanks</button>
@@ -664,6 +735,8 @@ function initMobileWarning() {
             platform: navigator.platform || '',
             screenW: screen.width,
             screenH: screen.height,
+            pixelRatio: window.devicePixelRatio || 1,
+            language: navigator.language || '',
             submittedAt: serverTimestamp(),
             status: 'pending'
           });
