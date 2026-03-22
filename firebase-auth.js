@@ -2286,15 +2286,38 @@ export async function setIncidentBanner(active, message = '', type = 'warning', 
 export function initIncidentBanner() {
   import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js').then(async ({ onSnapshot, doc: fd }) => {
     let _lastMsg = null;
+    const _sessionKey = 'flux_banner_seen';
     const ref = fd(db, 'stats', 'incidentBanner');
+
+    // Inject animation keyframes once
+    if (!document.getElementById('flux-banner-style')) {
+      const s = document.createElement('style');
+      s.id = 'flux-banner-style';
+      s.textContent = `
+        @keyframes banner-slide-in { from { transform:translateX(-110%); opacity:0; } to { transform:translateX(0); opacity:1; } }
+        @keyframes banner-slide-out { from { transform:translateX(0); opacity:1; } to { transform:translateX(-110%); opacity:0; } }
+      `;
+      document.head.appendChild(s);
+    }
+
+    const dismissBanner = (banner) => {
+      banner.style.animation = 'banner-slide-out 0.3s ease forwards';
+      setTimeout(() => banner.remove(), 300);
+    };
 
     onSnapshot(ref, (snap) => {
       const existing = document.getElementById('flux-incident-banner');
-      if (!snap.exists() || !snap.data().active) { existing?.remove(); return; }
+      if (!snap.exists() || !snap.data().active) { existing ? dismissBanner(existing) : null; return; }
       const d = snap.data();
+
+      // Only show once per session per unique message
+      const seenKey = `${_sessionKey}_${d.updatedAt}`;
       if (d.message === _lastMsg && existing) return;
+      if (sessionStorage.getItem(seenKey)) return;
+
       _lastMsg = d.message;
-      existing?.remove();
+      sessionStorage.setItem(seenKey, '1');
+      if (existing) dismissBanner(existing);
 
       const colors = {
         info:    { bg: '#1e40af', border: '#3b82f6', icon: 'ℹ️' },
@@ -2337,18 +2360,13 @@ export function initIncidentBanner() {
       `;
       document.body.appendChild(banner);
 
-      // Inject animation keyframe once
-      if (!document.getElementById('flux-banner-style')) {
-        const s = document.createElement('style');
-        s.id = 'flux-banner-style';
-        s.textContent = '@keyframes banner-slide-in { from { transform:translateX(-100%); opacity:0; } to { transform:translateX(0); opacity:1; } }';
-        document.head.appendChild(s);
-      }
+      document.getElementById('incident-banner-close').addEventListener('click', () => dismissBanner(banner));
+      document.getElementById('incident-status-link').addEventListener('click', () => window.open('status.html', '_blank'));
 
-      document.getElementById('incident-banner-close').addEventListener('click', () => banner.remove());
-      document.getElementById('incident-status-link').addEventListener('click', () => {
-        window.open('status.html', '_blank');
-      });
+      // Auto-dismiss after 5 seconds
+      setTimeout(() => {
+        if (document.getElementById('flux-incident-banner') === banner) dismissBanner(banner);
+      }, 5000);
     });
   });
 }
