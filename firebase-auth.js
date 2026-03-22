@@ -1186,6 +1186,9 @@ export function initAuthUI(onUserChange) {
       <a href="settings.html" style="display:flex;align-items:center;gap:10px;padding:10px 16px;font-size:13px;color:var(--text,#111827);text-decoration:none;border-bottom:1px solid var(--glass-border,rgba(0,0,0,0.06));">
         <span>⚙️</span> Settings
       </a>
+      <a href="status.html" style="display:flex;align-items:center;gap:10px;padding:10px 16px;font-size:13px;color:var(--text,#111827);text-decoration:none;border-bottom:1px solid var(--glass-border,rgba(0,0,0,0.06));">
+        <span>🛰️</span> Status
+      </a>
       <button id="sign-out-btn" style="width:100%;padding:10px 16px;background:none;border:none;text-align:left;cursor:pointer;font-size:13px;color:#ef4444;display:flex;align-items:center;gap:10px;">
         <span>🚪</span> Sign Out
       </button>
