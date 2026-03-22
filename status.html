@@ -256,26 +256,24 @@
       }
     }
 
-    // Live updates via Firestore snapshot
+    // Live updates via Firestore snapshot (catches admin-written updates)
     onSnapshot(doc(db, 'stats', 'serviceHealth'), snap => {
-      renderServices(snap.exists() ? snap.data().services : null);
+      if (snap.exists()) renderServices(snap.data().services);
     });
 
-    // Refresh button
+    // Refresh button — render directly from probes
     document.getElementById('refresh-btn').addEventListener('click', async () => {
       const icon = document.getElementById('refresh-icon');
       icon.classList.add('spinning');
-      await autoCheckServiceHealth();
+      const services = await autoCheckServiceHealth();
+      renderServices(services);
       icon.classList.remove('spinning');
     });
 
-    // Always run a fresh health check on load — show existing data first, then update
+    // Run probes on load and render immediately — no Firestore dependency
     (async () => {
-      try {
-        const snap = await getDoc(doc(db, 'stats', 'serviceHealth'));
-        if (snap.exists()) renderServices(snap.data().services);
-      } catch {}
-      await autoCheckServiceHealth();
+      const services = await autoCheckServiceHealth();
+      renderServices(services);
     })();
   </script>
 </body>

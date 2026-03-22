@@ -2424,10 +2424,9 @@ export async function setServiceStatus(serviceKey, status, flaggedBy = 'dev') {
 }
 
 export async function autoCheckServiceHealth() {
-  // Run health checks and update Firestore if issues are detected
   const results = {};
 
-  // 1. Firestore check — time a real read
+  // 1. Firestore — time a real read
   try {
     const start = Date.now();
     await getDoc(doc(db, 'stats', 'health_ping'));
@@ -2437,12 +2436,15 @@ export async function autoCheckServiceHealth() {
     results.firestore = 'outage';
   }
 
-  // 2. Google Auth check — see if auth is responsive
+  // 2. Auth — check if Firebase Auth SDK is responsive
   try {
-    await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('timeout')), 5000);
-      const unsub = auth.onAuthStateChanged(() => { clearTimeout(timer); unsub(); resolve(); });
-    });
+    await Promise.race([
+      new Promise((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('timeout')), 4000);
+        const unsub = auth.onAuthStateChanged(() => { clearTimeout(timer); unsub(); resolve(); });
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000))
+    ]);
     results.googleAuth = 'operational';
   } catch {
     results.googleAuth = 'degraded';
@@ -2451,61 +2453,65 @@ export async function autoCheckServiceHealth() {
   // 3. Website — we're here so it's operational
   results.website = 'operational';
 
-  // 4. Games — try fetching a known game URL header
+  // 4. Games — no-cors fetch (will succeed if host is reachable)
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 5000);
-    const res = await fetch('https://nxtcoreee3.github.io/Drive-Mad/', { method: 'HEAD', signal: ctrl.signal, mode: 'no-cors' });
+    await fetch('https://nxtcoreee3.github.io/Drive-Mad/', { method: 'HEAD', signal: ctrl.signal, mode: 'no-cors' });
     clearTimeout(timer);
     results.games = 'operational';
   } catch {
     results.games = 'degraded';
   }
 
-  // Write results to Firestore
-  try {
-    const snap = await getDoc(doc(db, 'stats', 'serviceHealth'));
-    const existing = snap.exists() ? (snap.data().services || {}) : {};
+  // Build service objects from results
+  const services = {};
+  for (const [key, status] of Object.entries(results)) {
+    services[key] = {
+      status,
+      message: SERVICE_DESCRIPTIONS[key]?.descriptions[status] || '',
+      flaggedBy: 'ai',
+      detectedAt: new Date().toISOString(),
+    };
+  }
 
-    let anyIssue = false;
-    for (const [key, status] of Object.entries(results)) {
-      const prev = existing[key]?.status;
-      if (status !== 'operational' && prev !== status) {
-        existing[key] = {
-          status,
-          message: SERVICE_DESCRIPTIONS[key]?.descriptions[status] || '',
-          flaggedBy: 'ai',
-          detectedAt: new Date().toISOString(),
-        };
-        anyIssue = true;
-      } else if (status === 'operational' && prev && prev !== 'operational') {
-        // Recovered — mark operational but keep history
-        existing[key] = {
-          status: 'operational',
-          message: SERVICE_DESCRIPTIONS[key]?.descriptions.operational,
-          flaggedBy: 'ai',
-          detectedAt: new Date().toISOString(),
-        };
+  // Only write to Firestore + trigger banner if user is admin
+  // (Firestore rules restrict writes to stats/ to authenticated users/admin)
+  const user = auth.currentUser;
+  if (user && user.uid === OWNER_UID) {
+    try {
+      const snap = await getDoc(doc(db, 'stats', 'serviceHealth'));
+      const existing = snap.exists() ? (snap.data().services || {}) : {};
+      let anyNewIssue = false;
+      for (const [key, svc] of Object.entries(services)) {
+        const prev = existing[key]?.status;
+        if (svc.status !== prev) {
+          existing[key] = svc;
+          if (svc.status !== 'operational') anyNewIssue = true;
+        }
       }
-    }
-
-    await setDoc(doc(db, 'stats', 'serviceHealth'), { services: existing, updatedAt: new Date().toISOString() });
-
-    // Auto-trigger banner if new issues detected
-    if (anyIssue) {
-      const issues = Object.entries(existing)
-        .filter(([, v]) => v.status !== 'operational')
-        .map(([k]) => SERVICE_DESCRIPTIONS[k]?.name)
-        .filter(Boolean);
-      if (issues.length) {
-        const msg = `Automated monitoring has detected issues with: <strong>${issues.join(', ')}</strong>. Our systems are actively investigating.`;
-        const type = Object.values(existing).some(v => v.status === 'outage') ? 'error' : 'warning';
-        await setIncidentBanner(true, msg, type, 'ai');
+      await setDoc(doc(db, 'stats', 'serviceHealth'), { services: existing, updatedAt: new Date().toISOString() });
+      if (anyNewIssue) {
+        const issues = Object.values(existing).filter(v => v.status !== 'operational').map(v => SERVICE_DESCRIPTIONS[Object.keys(existing).find(k => existing[k] === v)]?.name).filter(Boolean);
+        if (issues.length) {
+          const msg = `Automated monitoring detected issues with: <strong>${issues.join(', ')}</strong>. Our team is investigating.`;
+          const type = Object.values(existing).some(v => v.status === 'outage') ? 'error' : 'warning';
+          await setIncidentBanner(true, msg, type, 'ai');
+        }
       }
-    }
-  } catch (e) { console.warn('Health write failed:', e); }
+    } catch (e) { console.warn('Health write failed:', e); }
+  } else {
+    // Non-admin: try a simple authenticated write with less restrictive path
+    // Just attempt, ignore failure — read-only status page still works
+    try {
+      await setDoc(doc(db, 'stats', 'serviceHealth'), {
+        services,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch { /* rules blocked it — that's fine */ }
+  }
 
-  return results;
+  return services;
 }
 
 export function initServerStatus() {
