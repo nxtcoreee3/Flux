@@ -152,8 +152,15 @@ const GAMES = [
   thumb: 'assets/jetpack-joyride.png',
   url: 'https://nxtcoreee3.github.io/Jetpack-Joyride/',
   desc: 'Fly with a jetpack, dodge lasers and missiles, and see how far you can go.'
+},
+{
+  id: 'crossy-road',
+  title: 'Crossy Road',
+  thumb: 'assets/crossy-road.png',
+  url: 'https://nxtcoreee3.github.io/Crossy-Road/',
+  desc: 'Hop across roads, rivers, and tracks while avoiding traffic and obstacles.'
 }
-   ];
+];
 
 // expose game count globally for stats button
 window._FLUX_GAME_COUNT = GAMES.length;
