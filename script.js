@@ -166,6 +166,13 @@ const GAMES = [
   thumb: 'assets/stacktris.png',
   url: 'https://nxtcoreee3.github.io/Stacktris/',
   desc: 'Stack spinning blocks carefully and build the tallest tower without it falling.',
+},
+{
+  id: 'guess-their-answer',
+  title: 'Guess Their Answer',
+  thumb: 'assets/guess-their-answer.png',
+  url: 'https://nxtcoreee3.github.io/Guess-Their-Answer/',
+  desc: 'Answer fun questions by guessing the most popular responses to beat your opponents.'
 }
 ];
 
