@@ -159,6 +159,13 @@ const GAMES = [
   thumb: 'assets/crossy-road.png',
   url: 'https://nxtcoreee3.github.io/Crossy-Road/',
   desc: 'Hop across roads, rivers, and tracks while avoiding traffic and obstacles.'
+},
+{
+  id: 'stacktris',
+  title: 'Stacktris',
+  thumb: 'assets/stacktris.png',
+  url: 'https://nxtcoreee3.github.io/Stacktris/',
+  desc: 'Stack spinning blocks carefully and build the tallest tower without it falling.',
 }
 ];
 
