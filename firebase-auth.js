@@ -1634,55 +1634,6 @@ export function initAuthUI(onUserChange) {
     } catch (e) { console.warn('Chaos stop failed', e); }
   });
 
-  // ── Weather effects ──
-  modModal.querySelectorAll('.weather-btn').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const effect = btn.dataset.effect;
-      const modMsg = document.getElementById('mod-msg');
-      const result = await setWeatherEffect(effect);
-      // Update button highlights
-      modModal.querySelectorAll('.weather-btn').forEach(b => {
-        const on = b.dataset.effect === effect;
-        b.style.background = on ? '#111827' : '#fff';
-        b.style.color = on ? '#fff' : '#111827';
-        b.style.borderColor = on ? '#111827' : '#e5e7eb';
-      });
-      if (result.ok) {
-        const labels = { snow:'❄️ Snow', rain:'🌧️ Rain', spring:'🌸 Spring blossoms', autumn:'🍂 Autumn leaves' };
-        modMsg.style.color = '#22c55e';
-        modMsg.textContent = `✓ ${labels[effect]} activated!`;
-        modMsg.style.display = 'block';
-        setTimeout(() => modMsg.style.display = 'none', 2500);
-      }
-    });
-  });
-
-  document.getElementById('mod-weather-stop').addEventListener('click', async () => {
-    const modMsg = document.getElementById('mod-msg');
-    await setWeatherEffect('none');
-    modModal.querySelectorAll('.weather-btn').forEach(b => {
-      b.style.background = '#fff'; b.style.color = '#111827'; b.style.borderColor = '#e5e7eb';
-    });
-    modMsg.style.color = '#22c55e';
-    modMsg.textContent = '✓ Weather cleared.';
-    modMsg.style.display = 'block';
-    setTimeout(() => modMsg.style.display = 'none', 2000);
-  });
-
-  // Load current weather state and highlight active button
-  try {
-    const weatherSnap = await getDoc(doc(db, 'stats', 'weatherEffect'));
-    if (weatherSnap.exists()) {
-      const activeEffect = weatherSnap.data().effect;
-      modModal.querySelectorAll('.weather-btn').forEach(b => {
-        const on = b.dataset.effect === activeEffect;
-        b.style.background = on ? '#111827' : '#fff';
-        b.style.color = on ? '#fff' : '#111827';
-        b.style.borderColor = on ? '#111827' : '#e5e7eb';
-      });
-    }
-  } catch {}
-
   // Jumpscare — one-shot trigger with unique ID each time
   document.getElementById('mod-jumpscare-btn').addEventListener('click', async () => {
     try {
@@ -1844,6 +1795,54 @@ export function initAuthUI(onUserChange) {
           dmBtn.style.color = _dmLocked ? '#fff' : '#6b7280';
           dmBtn.style.borderColor = _dmLocked ? '#22c55e' : '#e5e7eb';
         }
+      }
+    } catch {}
+
+    // ── Weather effects ──
+    modModal.querySelectorAll('.weather-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const effect = btn.dataset.effect;
+        const modMsg = document.getElementById('mod-msg');
+        const result = await setWeatherEffect(effect);
+        modModal.querySelectorAll('.weather-btn').forEach(b => {
+          const on = b.dataset.effect === effect;
+          b.style.background = on ? '#111827' : '#fff';
+          b.style.color = on ? '#fff' : '#111827';
+          b.style.borderColor = on ? '#111827' : '#e5e7eb';
+        });
+        if (result.ok) {
+          const labels = { snow:'❄️ Snow', rain:'🌧️ Rain', spring:'🌸 Spring blossoms', autumn:'🍂 Autumn leaves' };
+          modMsg.style.color = '#22c55e';
+          modMsg.textContent = `✓ ${labels[effect]} activated!`;
+          modMsg.style.display = 'block';
+          setTimeout(() => modMsg.style.display = 'none', 2500);
+        }
+      });
+    });
+
+    document.getElementById('mod-weather-stop')?.addEventListener('click', async () => {
+      const modMsg = document.getElementById('mod-msg');
+      await setWeatherEffect('none');
+      modModal.querySelectorAll('.weather-btn').forEach(b => {
+        b.style.background = '#fff'; b.style.color = '#111827'; b.style.borderColor = '#e5e7eb';
+      });
+      modMsg.style.color = '#22c55e';
+      modMsg.textContent = '✓ Weather cleared.';
+      modMsg.style.display = 'block';
+      setTimeout(() => modMsg.style.display = 'none', 2000);
+    });
+
+    // Load current weather state
+    try {
+      const weatherSnap = await getDoc(doc(db, 'stats', 'weatherEffect'));
+      if (weatherSnap.exists()) {
+        const activeEffect = weatherSnap.data().effect;
+        modModal.querySelectorAll('.weather-btn').forEach(b => {
+          const on = b.dataset.effect === activeEffect;
+          b.style.background = on ? '#111827' : '#fff';
+          b.style.color = on ? '#fff' : '#111827';
+          b.style.borderColor = on ? '#111827' : '#e5e7eb';
+        });
       }
     } catch {}
   });
