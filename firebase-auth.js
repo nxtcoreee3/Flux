@@ -1925,12 +1925,14 @@ export function initAuthUI(onUserChange) {
         const o = document.createElement('option'); o.value = g.id; o.textContent = g.title; codeGameSel.appendChild(o);
       });
     }
-    document.getElementById('mod-code-type')?.addEventListener('change', function() {
+    if (!document.getElementById('mod-code-type')?.dataset.bound) { document.getElementById('mod-code-type').dataset.bound='1'; document.getElementById('mod-code-type').addEventListener('change', function() {
       const isGame = this.value === 'game';
       document.getElementById('mod-code-value-num').style.display = isGame ? 'none' : 'flex';
       document.getElementById('mod-code-value-game').style.display = isGame ? 'flex' : 'none';
-    });
-    document.getElementById('mod-code-create-btn')?.addEventListener('click', async () => {
+    }); }
+    const _codeBtn = document.getElementById('mod-code-create-btn');
+    if (_codeBtn && !_codeBtn.dataset.bound) { _codeBtn.dataset.bound = '1';
+    _codeBtn.addEventListener('click', async () => {
       const code = document.getElementById('mod-code-input').value.trim();
       const type = document.getElementById('mod-code-type').value;
       const isGame = type === 'game';
@@ -1954,7 +1956,7 @@ export function initAuthUI(onUserChange) {
         document.getElementById('mod-code-desc').value = '';
         loadRewardCodesList();
       }
-    });
+    }); } // end duplicate-listener guard
     loadRewardCodesList();
 
     async function loadRewardCodesList() {
