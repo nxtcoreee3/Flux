@@ -564,7 +564,7 @@ export function signInWithGoogle() { return signInWithPopup(auth, googleProvider
 export function signInAsGuest() { return signInAnonymously(auth); }
 export function signInWithEmail(email, password) { return signInWithEmailAndPassword(auth, email, password); }
 export function registerWithEmail(email, password) { return createUserWithEmailAndPassword(auth, email, password); }
-export function logOut() { return signOut(auth); }
+export function logOut() { if (window._fluxBanned) return Promise.resolve(); return signOut(auth); }
 export function onAuthChange(callback) { onAuthStateChanged(auth, callback); }
 export function getCurrentUser() { return auth.currentUser; }
 
@@ -1142,6 +1142,76 @@ export function initProfileSetup(onComplete) {
 }
 
 /* ===================== AUTH UI ===================== */
+
+/* ===================== BAN OVERLAY ===================== */
+function showBanOverlay(reason, bannedAt) {
+  // Remove any existing overlay
+  document.getElementById('flux-ban-overlay')?.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'flux-ban-overlay';
+  overlay.style.cssText = `
+    position:fixed;inset:0;z-index:999999;
+    background:#0a0a0a;
+    display:flex;align-items:center;justify-content:center;
+    font-family:'DM Sans',system-ui,sans-serif;
+    padding:20px;box-sizing:border-box;
+  `;
+
+  const since = bannedAt
+    ? new Date(bannedAt).toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' })
+    : 'Unknown date';
+
+  overlay.innerHTML = `
+    <div style="max-width:480px;width:100%;text-align:center;">
+      <div style="font-size:72px;margin-bottom:20px;filter:grayscale(1);">🔨</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:52px;color:#ef4444;margin-bottom:8px;letter-spacing:1px;line-height:1;">
+        You're Banned
+      </div>
+      <div style="font-size:14px;color:#6b7280;margin-bottom:28px;">
+        Your account has been permanently suspended from Flux.
+      </div>
+      <div style="background:#111;border:1px solid #1f1f1f;border-radius:16px;padding:20px 24px;margin-bottom:24px;text-align:left;">
+        <div style="font-size:11px;color:#4b5563;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;">Reason</div>
+        <div style="font-size:14px;color:#e5e7eb;line-height:1.6;">${reason || 'No reason provided.'}</div>
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid #1f1f1f;">
+          <div style="font-size:11px;color:#4b5563;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px;">Banned since</div>
+          <div style="font-size:13px;color:#9ca3af;">${since}</div>
+        </div>
+      </div>
+      <div style="font-size:13px;color:#4b5563;line-height:1.7;">
+        You cannot play games, interact with other users, or access any features.<br>
+        If you believe this is a mistake, contact us on
+        <a href="https://github.com/nxtcoreee3" target="_blank" rel="noopener" style="color:#3a7dff;text-decoration:none;font-weight:600;">GitHub</a>.
+      </div>
+      <div style="margin-top:20px;padding:12px 16px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:10px;font-size:12px;color:#ef4444;font-weight:600;">
+        🔒 Your account is locked. Signing out is disabled.
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  // Block all clicks on the page except the GitHub link
+  overlay.addEventListener('click', (e) => {
+    if (e.target.tagName !== 'A') e.stopPropagation();
+  }, true);
+
+  // Intercept and block all keyboard input
+  document.addEventListener('keydown', (e) => {
+    if (document.getElementById('flux-ban-overlay')) e.stopImmediatePropagation();
+  }, true);
+
+  // Block all play buttons and interactive elements
+  document.querySelectorAll('.play-btn, .favorite, .rate-btn, button:not(#flux-ban-overlay button)').forEach(el => {
+    el.disabled = true;
+    el.style.pointerEvents = 'none';
+  });
+
+  // Expose globally so it persists
+  window._fluxBanned = true;
+}
+
 export function initAuthUI(onUserChange) {
   const rightActions = document.querySelector('.right-actions');
   if (!rightActions) return;
@@ -1925,14 +1995,12 @@ export function initAuthUI(onUserChange) {
         const o = document.createElement('option'); o.value = g.id; o.textContent = g.title; codeGameSel.appendChild(o);
       });
     }
-    if (!document.getElementById('mod-code-type')?.dataset.bound) { document.getElementById('mod-code-type').dataset.bound='1'; document.getElementById('mod-code-type').addEventListener('change', function() {
+    document.getElementById('mod-code-type')?.addEventListener('change', function() {
       const isGame = this.value === 'game';
       document.getElementById('mod-code-value-num').style.display = isGame ? 'none' : 'flex';
       document.getElementById('mod-code-value-game').style.display = isGame ? 'flex' : 'none';
-    }); }
-    const _codeBtn = document.getElementById('mod-code-create-btn');
-    if (_codeBtn && !_codeBtn.dataset.bound) { _codeBtn.dataset.bound = '1';
-    _codeBtn.addEventListener('click', async () => {
+    });
+    document.getElementById('mod-code-create-btn')?.addEventListener('click', async () => {
       const code = document.getElementById('mod-code-input').value.trim();
       const type = document.getElementById('mod-code-type').value;
       const isGame = type === 'game';
@@ -1956,7 +2024,7 @@ export function initAuthUI(onUserChange) {
         document.getElementById('mod-code-desc').value = '';
         loadRewardCodesList();
       }
-    }); } // end duplicate-listener guard
+    });
     loadRewardCodesList();
 
     async function loadRewardCodesList() {
@@ -2180,6 +2248,26 @@ export function initAuthUI(onUserChange) {
       if (!user.isAnonymous) {
         // Check for profile and trigger setup if missing
         const profile = await getProfile(user.uid);
+
+        // ── BAN CHECK ── show overlay and block everything if banned
+        if (profile && profile.isBanned) {
+          showBanOverlay(profile.banReason || '', profile.bannedAt || '');
+          // Still show their name/avatar so they know they're logged in
+          if (name) name.textContent = profile.displayName || profile.username || user.displayName || user.email;
+          // Hide sign-out button — banned users cannot log out
+          const signOutBtn = document.getElementById('sign-out-btn');
+          if (signOutBtn) {
+            signOutBtn.style.display = 'none';
+          }
+          // Block spin wheel, gift, redeem
+          ['spin-wheel-btn','gift-points-btn','redeem-code-btn'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) { el.disabled = true; el.style.opacity = '0.4'; el.style.pointerEvents = 'none'; }
+          });
+          if (onUserChange) onUserChange(user);
+          return; // stop normal auth flow
+        }
+
         if (!profile) {
           initProfileSetup((p) => {
             if (p && name) name.textContent = p.displayName || p.username;

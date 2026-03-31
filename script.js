@@ -430,7 +430,7 @@ function createCard(game) {
   div.querySelector('.report-btn').addEventListener('click', (e) => { e.stopPropagation(); showReportModal(game); });
 
   // Click card body → open detail view
-  div.querySelector('.card-body').addEventListener('click', (e) => { e.stopPropagation(); openGameDetail(game); });
+  div.querySelector('.card-body').addEventListener('click', (e) => { e.stopPropagation(); if (!window._fluxBanned) openGameDetail(game); });
 
   // Click lock overlay → unlock modal
   div.querySelector('.card-lock-overlay')?.addEventListener('click', (e) => {
@@ -440,6 +440,7 @@ function createCard(game) {
 
   div.querySelector('.play-btn').addEventListener('click', (e) => {
     e.stopPropagation();
+    if (window._fluxBanned) return; // banned users cannot play
     if (isLocked) { showUnlockModal(game, finalPrice, activeDiscount, pricing.price); return; }
     addRecent(game.id);
     renderRecentSection();
@@ -1338,23 +1339,18 @@ window.openSpinWheel = async function() {
   const lastSpin = await getLastSpin();
   const cooldownMs = lastSpin ? Math.max(0, new Date(lastSpin).getTime()+3600000-Date.now()) : 0;
   const segs = SPIN_SEGMENTS;
+  const total = segs.reduce((s,seg)=>s+seg.weight,0);
   const size=260, cx=130, cy=130, r=126;
-
-  // All segments are EQUAL visual size (360/n degrees each)
-  // Weights only affect random selection probability, not slice size
-  const segCount = segs.length;
-  const sliceDeg = 360 / segCount;          // visual degrees per slice
-  const sliceRad = (2 * Math.PI) / segCount; // radians per slice
-
-  let svgSlices='';
-  segs.forEach((seg, i) => {
-    const angle = -Math.PI/2 + i * sliceRad;
-    const x1=cx+r*Math.cos(angle), y1=cy+r*Math.sin(angle);
-    const x2=cx+r*Math.cos(angle+sliceRad), y2=cy+r*Math.sin(angle+sliceRad);
-    const mid=angle+sliceRad/2;
-    const tx=cx+(r*0.65)*Math.cos(mid), ty=cy+(r*0.65)*Math.sin(mid);
-    svgSlices+=`<path d="M${cx},${cy} L${x1.toFixed(2)},${y1.toFixed(2)} A${r},${r} 0 0,1 ${x2.toFixed(2)},${y2.toFixed(2)} Z" fill="${seg.color}" stroke="white" stroke-width="1.5"/>`;
+  let svgSlices=''; let angle=-Math.PI/2;
+  segs.forEach(seg => {
+    const sweep=(seg.weight/total)*2*Math.PI;
+    const x1=cx+r*Math.cos(angle),y1=cy+r*Math.sin(angle);
+    const x2=cx+r*Math.cos(angle+sweep),y2=cy+r*Math.sin(angle+sweep);
+    const large=sweep>Math.PI?1:0;
+    const mid=angle+sweep/2, tx=cx+(r*0.65)*Math.cos(mid), ty=cy+(r*0.65)*Math.sin(mid);
+    svgSlices+=`<path d="M${cx},${cy} L${x1.toFixed(2)},${y1.toFixed(2)} A${r},${r} 0 ${large},1 ${x2.toFixed(2)},${y2.toFixed(2)} Z" fill="${seg.color}" stroke="white" stroke-width="1.5"/>`;
     svgSlices+=`<text x="${tx.toFixed(2)}" y="${ty.toFixed(2)}" text-anchor="middle" dominant-baseline="middle" fill="white" font-size="10" font-weight="700" font-family="DM Sans,sans-serif" transform="rotate(${(mid*180/Math.PI).toFixed(1)},${tx.toFixed(2)},${ty.toFixed(2)})">${seg.label}</text>`;
+    angle+=sweep;
   });
   const onCooldown=cooldownMs>0;
   const mL=Math.floor(cooldownMs/60000), sL=Math.floor((cooldownMs%60000)/1000);
@@ -1394,13 +1390,9 @@ window.openSpinWheel = async function() {
     if(!result.ok){res.innerHTML=`<span style="color:#ef4444;font-size:14px;">${result.error==='cooldown'?'⏱ Come back later!':result.error}</span>`;btn.disabled=false;btn.textContent='🎰 Spin!';return;}
     const seg=result.segment;
     const segIdx=segs.findIndex(s=>s.label===seg.label);
-    // Each segment is equal size: 360/n degrees
-    // Centre of winning segment in visual degrees (from 12 o'clock, clockwise)
-    const segCentreDeg = segIdx * sliceDeg + sliceDeg / 2;
-    // Spin enough full rotations so the pointer (top) lands on that segment centre
-    const spins = 5 + Math.random() * 3;
-    const targetDeg = spins * 360 + (360 - segCentreDeg);
-    document.getElementById('spin-wheel-svg').style.transform=`rotate(${targetDeg}deg)`;
+    const segAngleDeg=segs.slice(0,segIdx).reduce((acc,s)=>acc+(s.weight/total)*360,0)+(seg.weight/total)*180;
+    const spins=5+Math.random()*3;
+    document.getElementById('spin-wheel-svg').style.transform=`rotate(${spins*360+(360-segAngleDeg)}deg)`;
     setTimeout(()=>{
       if(seg.points>0) res.innerHTML=`<span style="color:#22c55e;">🎉 You won <strong style="font-size:28px;">${seg.points}</strong> pts!</span>`;
       else res.innerHTML=`<span style="color:#6b7280;">😅 Try again next hour!</span>`;
