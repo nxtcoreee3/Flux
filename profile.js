@@ -70,19 +70,15 @@ async function loadProfilePage() {
     return;
   }
 
-  // Fetch profile by username
   const profile = await getProfileByUsername(usernameParam);
   if (!profile) {
     root.innerHTML = renderNotFound(`@${usernameParam} doesn't exist.`);
     return;
   }
 
-  // Update page title
   document.title = `${profile.displayName || profile.username} — Flux`;
 
-  // Wait for auth to resolve before rendering
   onAuthStateChanged(auth, async (currentUser) => {
-    // Re-fetch profile after auth so follower state is always fresh
     const freshProfile = await getProfileByUsername(usernameParam) || profile;
     const isOwn = currentUser && currentUser.uid === freshProfile.uid;
     const isAdmin = currentUser && currentUser.uid === OWNER_UID;
@@ -96,10 +92,6 @@ async function loadProfilePage() {
 }
 
 function renderProfile(profile, { isOwn, isAdmin, isFollowing, canSeeContent, currentUser }) {
-  const avatarHTML = profile.avatarURL
-    ? `<img class="profile-avatar" src="${profile.avatarURL}" alt="${profile.displayName}">`
-    : `<div class="profile-avatar-placeholder">${(profile.displayName || profile.username || '?')[0].toUpperCase()}</div>`;
-
   const joinDate = profile.joinedAt
     ? new Date(profile.joinedAt).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
     : '';
@@ -115,6 +107,33 @@ function renderProfile(profile, { isOwn, isAdmin, isFollowing, canSeeContent, cu
   }
 
   let editBtn = isOwn ? `<button id="edit-profile-btn" class="edit-profile-btn">✏️ Edit Profile</button>` : '';
+
+  // Avatar HTML — clickable camera overlay when viewing own profile
+  let avatarHTML;
+  if (isOwn) {
+    avatarHTML = `
+      <div class="profile-avatar-ring" id="avatar-ring-wrapper" style="position:relative;cursor:pointer;" title="Change profile picture">
+        ${profile.avatarURL
+          ? `<img class="profile-avatar" src="${profile.avatarURL}" alt="${profile.displayName}" id="profile-avatar-img">`
+          : `<div class="profile-avatar-placeholder" id="profile-avatar-placeholder">${(profile.displayName || profile.username || '?')[0].toUpperCase()}</div>`}
+        <div id="avatar-camera-overlay" style="
+          position:absolute;inset:0;border-radius:50%;
+          background:rgba(0,0,0,0.45);
+          display:flex;align-items:center;justify-content:center;
+          opacity:0;transition:opacity 0.18s;
+          pointer-events:none;
+        ">
+          <span style="font-size:20px;">📷</span>
+        </div>
+      </div>`;
+  } else {
+    avatarHTML = `
+      <div class="profile-avatar-ring">
+        ${profile.avatarURL
+          ? `<img class="profile-avatar" src="${profile.avatarURL}" alt="${profile.displayName}">`
+          : `<div class="profile-avatar-placeholder">${(profile.displayName || profile.username || '?')[0].toUpperCase()}</div>`}
+      </div>`;
+  }
 
   let adminPanel = '';
   if (isAdmin && !isOwn) {
@@ -156,7 +175,6 @@ function renderProfile(profile, { isOwn, isAdmin, isFollowing, canSeeContent, cu
 
         ${rankSection}
 
-        <!-- Roles section -->
         <div style="margin-bottom:14px;">
           <div style="font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Roles</div>
           <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">${activeRoleChips}</div>
@@ -172,7 +190,6 @@ function renderProfile(profile, { isOwn, isAdmin, isFollowing, canSeeContent, cu
           </div>
         </div>
 
-        <!-- Ban section -->
         ${profile.isBanned
           ? `<button id="unban-btn" style="padding:8px 16px;background:#22c55e;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;">✅ Unban User</button>`
           : `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
@@ -189,7 +206,6 @@ function renderProfile(profile, { isOwn, isAdmin, isFollowing, canSeeContent, cu
   } else if (!canSeeContent) {
     contentHTML = `<div class="private-notice"><span class="lock-icon">🔒</span><p>This profile is private.</p><p style="font-size:12px;margin-top:4px;">Follow <strong>@${profile.username}</strong> to see their games.</p></div>`;
   } else {
-    // Favourites
     const favs = (profile.favorites || []).map(id => GAMES_MAP[id]).filter(Boolean);
     const favsHTML = favs.length
       ? `<div class="mini-game-grid">${favs.map(g => `
@@ -199,7 +215,6 @@ function renderProfile(profile, { isOwn, isAdmin, isFollowing, canSeeContent, cu
           </div>`).join('')}</div>`
       : `<p style="color:var(--muted);font-size:13px;margin:0;">No favourited games yet.</p>`;
 
-    // Recently played
     const recent = (profile.recentlyPlayed || []).map(id => GAMES_MAP[id]).filter(Boolean).slice(0, 6);
     const recentHTML = recent.length
       ? `<div class="mini-game-grid">${recent.map(g => `
@@ -229,7 +244,6 @@ function renderProfile(profile, { isOwn, isAdmin, isFollowing, canSeeContent, cu
   const cardStyle = theme.cardStyle || 'default';
   const bannerTextColor = getContrastColor(bannerColor);
 
-  // Generate floating emojis for confetti effect
   let bannerInner = bannerEmoji ? `<span style="font-size:48px;position:relative;z-index:1;color:${bannerTextColor};">${bannerEmoji}</span>` : '';
   if (effect === 'confetti') {
     const confettiEmojis = ['🎉','✨','🎊','⭐','💫','🌟'];
@@ -271,11 +285,7 @@ function renderProfile(profile, { isOwn, isAdmin, isFollowing, canSeeContent, cu
 
       <div class="profile-body">
         <div class="profile-top-row">
-          <div class="profile-avatar-ring">
-            ${profile.avatarURL
-              ? `<img class="profile-avatar" src="${profile.avatarURL}" alt="${profile.displayName}">`
-              : `<div class="profile-avatar-placeholder">${(profile.displayName || profile.username || '?')[0].toUpperCase()}</div>`}
-          </div>
+          ${avatarHTML}
           <div class="profile-name-block">
             <h1 class="profile-displayname">${profile.displayName || profile.username}</h1>
             <p class="profile-username">@${profile.username} ${profile.isPrivate ? '🔒' : ''} ${profile.isBanned ? '<span class="ban-badge">🚫 Banned</span>' : ''}</p>
@@ -329,7 +339,6 @@ function bindEvents(profile, { isOwn, isAdmin, isFollowing, currentUser }) {
     const nowFollowing = btn.classList.contains('following');
     btn.disabled = true;
 
-    // Find the followers count element and update it optimistically
     const followerStatEl = document.querySelector('.profile-stat-num');
 
     if (nowFollowing) {
@@ -346,7 +355,7 @@ function bindEvents(profile, { isOwn, isAdmin, isFollowing, currentUser }) {
     btn.disabled = false;
   });
 
-  // Mini game cards — open in new tab
+  // Mini game cards
   document.querySelectorAll('.mini-game-card').forEach(card => {
     card.addEventListener('click', () => window.open(card.dataset.url, '_blank', 'noopener'));
   });
@@ -354,7 +363,16 @@ function bindEvents(profile, { isOwn, isAdmin, isFollowing, currentUser }) {
   // Edit profile
   document.getElementById('edit-profile-btn')?.addEventListener('click', () => showEditModal(profile));
 
-  // Rank buttons — owner only
+  // Avatar ring — show camera overlay on hover, open picker on click
+  const avatarRing = document.getElementById('avatar-ring-wrapper');
+  const cameraOverlay = document.getElementById('avatar-camera-overlay');
+  if (avatarRing && cameraOverlay) {
+    avatarRing.addEventListener('mouseenter', () => { cameraOverlay.style.opacity = '1'; });
+    avatarRing.addEventListener('mouseleave', () => { cameraOverlay.style.opacity = '0'; });
+    avatarRing.addEventListener('click', () => showAvatarPicker(profile, currentUser));
+  }
+
+  // Rank buttons
   document.querySelectorAll('.rank-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       const rank = btn.dataset.rank;
@@ -420,6 +438,196 @@ function bindEvents(profile, { isOwn, isAdmin, isFollowing, currentUser }) {
   });
 }
 
+/* ===================== AVATAR PICKER ===================== */
+function showAvatarPicker(profile, currentUser) {
+  document.getElementById('avatar-picker-overlay')?.remove();
+
+  // Build premade grid (Profile1.png … Profile12.png)
+  const premadeGrid = Array.from({ length: 12 }, (_, i) => {
+    const n = i + 1;
+    const src = `profile pictures/Profile${n}.png`;
+    const isActive = profile.avatarURL === src;
+    return `
+      <div class="pfp-option ${isActive ? 'pfp-active' : ''}"
+           data-src="${src}"
+           style="
+             width:72px;height:72px;border-radius:50%;overflow:hidden;cursor:pointer;
+             border:3px solid ${isActive ? 'var(--accent,#3a7dff)' : 'transparent'};
+             transition:border-color 0.15s,transform 0.15s;
+             flex-shrink:0;
+           ">
+        <img src="${src}" alt="Profile ${n}"
+             style="width:100%;height:100%;object-fit:cover;display:block;"
+             onerror="this.parentElement.style.display='none'">
+      </div>`;
+  }).join('');
+
+  // Google import button — shown only when user signed in with Google (has photoURL)
+  const googlePhotoURL = currentUser?.photoURL || null;
+  const googleSection = googlePhotoURL ? `
+    <div style="margin-bottom:20px;">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">Import from Google</div>
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--bg);border-radius:12px;border:1px solid var(--glass-border);">
+        <img src="${googlePhotoURL}" alt="Google account photo"
+             style="width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid var(--glass-border);">
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:600;color:var(--text);">Your Google photo</div>
+          <div style="font-size:11px;color:var(--muted);">Use your Google account picture</div>
+        </div>
+        <button id="pfp-use-google" style="
+          padding:8px 14px;background:var(--accent,#3a7dff);color:white;border:none;
+          border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;
+          ${profile.avatarURL === googlePhotoURL ? 'opacity:0.6;cursor:default;' : ''}
+        " ${profile.avatarURL === googlePhotoURL ? 'disabled' : ''}>
+          ${profile.avatarURL === googlePhotoURL ? '✓ Active' : 'Use this'}
+        </button>
+      </div>
+    </div>
+  ` : `
+    <div style="margin-bottom:20px;">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">Import from Google</div>
+      <div style="padding:12px 14px;background:var(--bg);border-radius:12px;border:1px solid var(--glass-border);display:flex;align-items:center;gap:10px;">
+        <span style="font-size:20px;">🔗</span>
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--text);">No Google account linked</div>
+          <div style="font-size:11px;color:var(--muted);">Sign in with Google to import your photo</div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'avatar-picker-overlay';
+  overlay.className = 'edit-modal-overlay';
+  overlay.innerHTML = `
+    <div class="edit-modal-box" style="max-width:480px;">
+      <button id="pfp-close" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted);">✕</button>
+      <h3 style="font-family:'Bebas Neue',sans-serif;font-size:26px;margin:0 0 20px;color:var(--text);">Change Profile Picture</h3>
+
+      ${googleSection}
+
+      <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;">Choose a premade avatar</div>
+      <div id="pfp-grid" style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:20px;justify-content:flex-start;">
+        ${premadeGrid}
+      </div>
+
+      <p id="pfp-status" style="font-size:12px;text-align:center;margin:0 0 12px;display:none;"></p>
+      <div style="display:flex;gap:8px;">
+        <button id="pfp-remove" style="
+          flex:1;padding:10px;background:transparent;border:1px solid rgba(239,68,68,0.4);
+          border-radius:10px;font-weight:600;cursor:pointer;font-size:13px;color:#ef4444;
+          ${!profile.avatarURL ? 'opacity:0.4;cursor:default;' : ''}
+        " ${!profile.avatarURL ? 'disabled' : ''}>Remove photo</button>
+        <button id="pfp-cancel" style="
+          flex:1;padding:10px;background:var(--accent,#3a7dff);color:white;border:none;
+          border-radius:10px;font-weight:700;cursor:pointer;font-size:13px;
+        ">Done</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  // Hover & selection state for premade grid
+  overlay.querySelectorAll('.pfp-option').forEach(el => {
+    el.addEventListener('mouseenter', () => {
+      if (!el.classList.contains('pfp-active')) {
+        el.style.borderColor = 'rgba(58,125,255,0.5)';
+        el.style.transform = 'scale(1.07)';
+      }
+    });
+    el.addEventListener('mouseleave', () => {
+      if (!el.classList.contains('pfp-active')) {
+        el.style.borderColor = 'transparent';
+        el.style.transform = 'scale(1)';
+      }
+    });
+    el.addEventListener('click', () => selectPremade(el, overlay, profile));
+  });
+
+  // Google import
+  document.getElementById('pfp-use-google')?.addEventListener('click', async () => {
+    if (!googlePhotoURL) return;
+    await saveAvatar(googlePhotoURL, profile, overlay);
+  });
+
+  // Remove photo
+  document.getElementById('pfp-remove')?.addEventListener('click', async () => {
+    await saveAvatar('', profile, overlay);
+  });
+
+  // Close buttons
+  document.getElementById('pfp-close').addEventListener('click', () => overlay.remove());
+  document.getElementById('pfp-cancel').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+}
+
+async function selectPremade(el, overlay, profile) {
+  // Clear previous active
+  overlay.querySelectorAll('.pfp-option').forEach(o => {
+    o.classList.remove('pfp-active');
+    o.style.borderColor = 'transparent';
+    o.style.transform = 'scale(1)';
+  });
+  el.classList.add('pfp-active');
+  el.style.borderColor = 'var(--accent,#3a7dff)';
+  el.style.transform = 'scale(1.07)';
+
+  await saveAvatar(el.dataset.src, profile, overlay);
+}
+
+async function saveAvatar(url, profile, overlay) {
+  const statusEl = document.getElementById('pfp-status');
+  if (statusEl) {
+    statusEl.style.display = 'block';
+    statusEl.style.color = 'var(--muted)';
+    statusEl.textContent = 'Saving…';
+  }
+
+  await updateProfile(profile.uid, { avatarURL: url });
+
+  // Optimistically update the visible avatar on the profile page
+  const img = document.getElementById('profile-avatar-img');
+  const placeholder = document.getElementById('profile-avatar-placeholder');
+  if (url) {
+    if (img) {
+      img.src = url;
+    } else if (placeholder) {
+      // Replace placeholder with img
+      const newImg = document.createElement('img');
+      newImg.className = 'profile-avatar';
+      newImg.id = 'profile-avatar-img';
+      newImg.src = url;
+      newImg.alt = profile.displayName || profile.username;
+      placeholder.replaceWith(newImg);
+    }
+    // Also update the nav bar avatar if present
+    const navAvatar = document.getElementById('user-avatar');
+    if (navAvatar) navAvatar.src = url;
+    const navAvatarLarge = document.getElementById('profile-avatar-large');
+    if (navAvatarLarge) navAvatarLarge.src = url;
+  } else {
+    // Removed photo — show placeholder
+    if (img) {
+      const newPlaceholder = document.createElement('div');
+      newPlaceholder.className = 'profile-avatar-placeholder';
+      newPlaceholder.id = 'profile-avatar-placeholder';
+      newPlaceholder.textContent = (profile.displayName || profile.username || '?')[0].toUpperCase();
+      img.replaceWith(newPlaceholder);
+    }
+  }
+
+  if (statusEl) {
+    statusEl.style.color = '#22c55e';
+    statusEl.textContent = '✓ Profile picture updated!';
+    setTimeout(() => {
+      statusEl.style.display = 'none';
+      overlay.remove();
+    }, 900);
+  } else {
+    overlay.remove();
+  }
+}
+
 function showEditModal(profile) {
   const existing = document.getElementById('edit-modal-overlay');
   if (existing) existing.remove();
@@ -466,7 +674,6 @@ function showEditModal(profile) {
                 style="padding:8px 10px;border:1px solid var(--glass-border);border-radius:8px;font-size:20px;text-align:center;background:var(--bg);color:var(--text);outline:none;width:100%;box-sizing:border-box;">
             </div>
           </div>
-          <!-- Preview -->
           <div id="theme-preview" style="margin-top:10px;height:40px;border-radius:8px;background:${bannerColor};display:flex;align-items:center;justify-content:center;font-size:22px;transition:background 0.2s;">${bannerEmoji}</div>
           <div style="margin-top:10px;">
             <label class="field-label" style="margin-bottom:6px;">Banner Effect</label>
