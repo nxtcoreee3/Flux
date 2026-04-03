@@ -96,10 +96,13 @@ export function initPresence() {
 
   onValue(ref(rtdb, 'presence'), (snap) => {
     _onlineCount = snap.exists() ? Object.keys(snap.val()).length : 0;
+    // update stats dropdown if open
     const el = document.getElementById('stats-online-count');
     if (el) el.textContent = _onlineCount;
+    // update the eye button count
     const badge = document.getElementById('stats-btn-count');
     if (badge) badge.textContent = _onlineCount;
+    // check and update peak
     if (_onlineCount > 0) updatePeakOnline(_onlineCount);
   });
 }
@@ -118,7 +121,7 @@ export async function trackLoginStreak() {
   if (!user || user.isAnonymous) return;
   const today = getSwedishDate();
   const storageKey = `flux_streak_${today}`;
-  if (localStorage.getItem(storageKey)) return;
+  if (localStorage.getItem(storageKey)) return; // already tracked today
 
   try {
     const { runTransaction } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
@@ -131,11 +134,13 @@ export async function trackLoginStreak() {
       const streak = data.loginStreak || 0;
       const points = data.points || 0;
 
+      // Calculate yesterday in Swedish time
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
       const yesterdayStr = yesterday.toLocaleDateString('sv-SE', { timeZone: 'Europe/Stockholm' });
 
       const newStreak = lastLogin === yesterdayStr ? streak + 1 : 1;
+      // Points: 10 base + 2 per streak day (capped at 50 bonus)
       const streakBonus = Math.min((newStreak - 1) * 2, 50);
       const pointsEarned = 10 + streakBonus;
 
@@ -154,8 +159,9 @@ export async function trackLoginStreak() {
 export async function trackTimeOnSite() {
   const user = auth.currentUser;
   if (!user || user.isAnonymous) return;
-  const POINTS_PER_MINUTE = 1;
-  const INTERVAL = 5 * 60 * 1000;
+  const startTime = Date.now();
+  const POINTS_PER_MINUTE = 1; // 1 point per minute, awarded every 5 minutes
+  const INTERVAL = 5 * 60 * 1000; // 5 minutes
 
   const interval = setInterval(async () => {
     try {
@@ -172,6 +178,7 @@ export async function trackTimeOnSite() {
     } catch {}
   }, INTERVAL);
 
+  // Clear on page unload
   window.addEventListener('beforeunload', () => clearInterval(interval));
 }
 
@@ -235,6 +242,7 @@ export async function trackGamePlay(gameId, gameTitle) {
       }
     });
 
+    // Recalculate hot game
     await updateHotGame();
   } catch (e) { console.warn('Game tracking failed:', e); }
 }
@@ -377,13 +385,14 @@ export async function clearCurrentlyPlaying() {
 
 /* ===================== DAILY VISITOR TRACKING ===================== */
 function getSwedishDate() {
-  return new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Stockholm' });
+  return new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Stockholm' }); // "YYYY-MM-DD"
 }
 
+// Stores a flag in localStorage so each device is only counted once per day.
 export async function trackDailyVisitor() {
   const today = getSwedishDate();
   const storageKey = `flux_visited_${today}`;
-  if (localStorage.getItem(storageKey)) return;
+  if (localStorage.getItem(storageKey)) return; // already counted today on this device
 
   try {
     const { runTransaction } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
@@ -392,8 +401,10 @@ export async function trackDailyVisitor() {
     await runTransaction(db, async (tx) => {
       const snap = await tx.get(visitorRef);
       if (snap.exists() && snap.data().date === today) {
+        // Same day — atomically increment so concurrent visitors don't overwrite each other
         tx.update(visitorRef, { count: increment(1) });
       } else {
+        // New day (or first ever) — reset to 1
         tx.set(visitorRef, { date: today, count: 1 });
       }
     });
@@ -411,6 +422,7 @@ async function fetchVisitorsToday() {
   } catch { return '—'; }
 }
 
+/* ===================== STATS BUTTON ===================== */
 /* ===================== DARK MODE ===================== */
 export function initDarkMode() {
   const DARK_KEY = 'flux_dark';
@@ -421,6 +433,7 @@ export function initDarkMode() {
 }
 
 export function initStatsButton() {
+  // Inject beta pulse keyframe globally for beta badges
   if (!document.getElementById('flux-beta-style')) {
     const s = document.createElement('style');
     s.id = 'flux-beta-style';
@@ -445,10 +458,13 @@ export function initStatsButton() {
       box-shadow:0 20px 60px rgba(0,0,0,0.15);
       border:1px solid var(--glass-border);width:240px;z-index:300;overflow:hidden;
     ">
+      <!-- header -->
       <div style="padding:14px 16px;border-bottom:1px solid var(--glass-border);display:flex;align-items:center;gap:8px;">
         <span style="font-size:16px;">📊</span>
         <span style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--text);">Flux Stats</span>
       </div>
+
+      <!-- online now -->
       <div style="padding:14px 16px;border-bottom:1px solid var(--glass-border);display:flex;align-items:center;gap:12px;">
         <div style="width:36px;height:36px;border-radius:10px;background:rgba(34,197,94,0.12);display:flex;align-items:center;justify-content:center;font-size:16px;">👥</div>
         <div style="flex:1;">
@@ -463,6 +479,8 @@ export function initStatsButton() {
           </div>
         </div>
       </div>
+
+      <!-- visitors today -->
       <div style="padding:14px 16px;border-bottom:1px solid var(--glass-border);display:flex;align-items:center;gap:12px;">
         <div style="width:36px;height:36px;border-radius:10px;background:rgba(168,85,247,0.12);display:flex;align-items:center;justify-content:center;font-size:16px;">📅</div>
         <div>
@@ -473,6 +491,8 @@ export function initStatsButton() {
           </div>
         </div>
       </div>
+
+      <!-- total favourites -->
       <div style="padding:14px 16px;border-bottom:1px solid var(--glass-border);display:flex;align-items:center;gap:12px;">
         <div style="width:36px;height:36px;border-radius:10px;background:rgba(255,209,102,0.15);display:flex;align-items:center;justify-content:center;font-size:16px;">★</div>
         <div>
@@ -483,6 +503,8 @@ export function initStatsButton() {
           </div>
         </div>
       </div>
+
+      <!-- total games -->
       <div style="padding:14px 16px;display:flex;align-items:center;gap:12px;">
         <div style="width:36px;height:36px;border-radius:10px;background:rgba(58,125,255,0.12);display:flex;align-items:center;justify-content:center;font-size:16px;">🎮</div>
         <div>
@@ -507,23 +529,28 @@ export function initStatsButton() {
     dd.style.display = isOpen ? 'none' : 'block';
 
     if (!isOpen) {
+      // fill in live data when opening
       document.getElementById('stats-online-count').textContent = _onlineCount;
       document.getElementById('stats-btn-count').textContent = _onlineCount;
 
+      // fetch global fav count
       document.getElementById('stats-fav-count').textContent = '…';
       const favCount = await fetchGlobalFavCount();
       document.getElementById('stats-fav-count').textContent = favCount;
 
+      // fetch visitors today
       document.getElementById('stats-visitors-today').textContent = '…';
       const visitorsToday = await fetchVisitorsToday();
       document.getElementById('stats-visitors-today').textContent = visitorsToday;
 
+      // fetch peak online and show it
       const peak = await fetchPeakOnline();
       const peakCount = document.getElementById('stats-peak-count');
       const peakRow = document.getElementById('stats-peak-row');
       if (peakCount) peakCount.textContent = peak;
       if (peakRow) peakRow.style.display = 'block';
 
+      // game count from GAMES array (passed via window)
       const gameCount = window._FLUX_GAME_COUNT || '—';
       document.getElementById('stats-game-count').textContent = gameCount;
     }
@@ -543,6 +570,7 @@ export function getCurrentUser() { return auth.currentUser; }
 
 /* ===================== FIRESTORE FAVORITES ===================== */
 export async function loadCloudFavs() {
+  // Wait up to 5s for auth to resolve
   const user = await new Promise((resolve) => {
     if (auth.currentUser !== null) { resolve(auth.currentUser); return; }
     const unsub = onAuthStateChanged(auth, (u) => { unsub(); resolve(u); });
@@ -590,10 +618,12 @@ export async function saveCloudFavs(favs) {
     const statsRef = doc(db, 'stats', 'favourites');
 
     await runTransaction(db, async (tx) => {
+      // ALL reads first
       const prevSnap = await tx.get(userRef);
       const profileSnap = await tx.get(profileRef);
       const statsSnap = await tx.get(statsRef);
 
+      // Then all writes
       const prevCount = prevSnap.exists() ? (prevSnap.data().favorites || []).length : 0;
       const diff = favs.length - prevCount;
 
@@ -651,6 +681,7 @@ export async function createProfile({ uid, username, displayName, bio, isPrivate
   const { collection, query, where, getDocs, serverTimestamp: fsTimestamp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
   const badges = uid === OWNER_UID ? ['owner', 'admin'] : [];
 
+  // Pull existing favorites from users collection so they show on profile
   let existingFavs = [];
   try {
     const userSnap = await getDoc(doc(db, 'users', uid));
@@ -665,6 +696,7 @@ export async function createProfile({ uid, username, displayName, bio, isPrivate
     isPrivate: isPrivate || false,
     avatarURL: avatarURL || '',
     badges,
+    // New users follow the owner, owner doesn't follow them back
     followers: uid === OWNER_UID ? [] : [],
     following: uid === OWNER_UID ? [] : [OWNER_UID],
     favorites: existingFavs,
@@ -673,6 +705,7 @@ export async function createProfile({ uid, username, displayName, bio, isPrivate
   };
   await setDoc(doc(db, 'profiles', uid), profileData);
 
+  // Add this user to owner's followers list (they follow owner, so owner gains a follower)
   if (uid !== OWNER_UID) {
     try {
       const { arrayUnion } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
@@ -709,6 +742,7 @@ export function initNotifications() {
   const user = auth.currentUser;
   if (!user || user.isAnonymous) return;
 
+  // Inject bell into nav
   const rightActions = document.querySelector('.right-actions');
   if (!rightActions || document.getElementById('notif-btn')) return;
 
@@ -747,6 +781,7 @@ export function initNotifications() {
     loadNotifications(user.uid);
   });
 
+  // Listen for unread count
   import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({ collection: col, query: q, where: w, onSnapshot: ons }) => {
     const unreadQ = q(col(db, 'notifications'), w('uid', '==', user.uid), w('read', '==', false));
     ons(unreadQ, (snap) => {
@@ -795,11 +830,13 @@ async function loadNotifications(uid) {
       `;
       item.addEventListener('mouseenter', () => item.style.background = 'var(--bg)');
       item.addEventListener('mouseleave', () => item.style.background = n.read ? '' : 'rgba(58,125,255,0.05)');
+      // Mark as read on click
       item.addEventListener('click', async () => {
         if (!n.read) await updateDoc(doc(db, 'notifications', n.id), { read: true });
       });
       list.appendChild(item);
     });
+    // Remove last border
     list.lastChild?.style.setProperty('border-bottom', 'none');
   } catch (e) { list.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px;">Failed to load</div>'; }
 }
@@ -836,6 +873,7 @@ export function getContrastColor(hexColor) {
     return luminance > 0.5 ? '#111827' : '#ffffff';
   } catch { return '#ffffff'; }
 }
+
 
 export async function followUser(targetUid) {
   const user = auth.currentUser;
@@ -904,10 +942,12 @@ export function renderBadges(badges = [], roles = []) {
   }).join(' ');
 
   const roleHTML = (roles || []).map(r => {
+    // Check predefined first
     const pre = PREDEFINED_ROLES.find(p => p.id === r.id);
     if (pre) {
       return `<span style="display:inline-flex;align-items:center;gap:3px;background:${pre.color};color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;letter-spacing:0.3px;">${pre.emoji} ${pre.label}</span>`;
     }
+    // Custom role
     const color = r.color || '#6b7280';
     return `<span style="display:inline-flex;align-items:center;gap:3px;background:${color};color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;letter-spacing:0.3px;">${r.emoji || '🏷️'} ${r.label}</span>`;
   }).join(' ');
@@ -940,13 +980,14 @@ export async function getUserRank(targetUid) {
 }
 
 export async function assignRole(targetUid, role) {
+  // role = { id, label, emoji, color }
   const user = auth.currentUser;
   if (!user || user.uid !== OWNER_UID) return;
   const ref = doc(db, 'profiles', targetUid);
   const snap = await getDoc(ref);
   if (!snap.exists()) return;
   const existing = snap.data().roles || [];
-  if (existing.find(r => r.id === role.id)) return;
+  if (existing.find(r => r.id === role.id)) return; // already has it
   await updateDoc(ref, { roles: [...existing, role] });
 }
 
@@ -962,11 +1003,13 @@ export async function removeRole(targetUid, roleId) {
 
 /* ===================== PROFILE SETUP MODAL ===================== */
 export function initProfileSetup(onComplete) {
+  // Called after sign-in — checks if profile exists, if not shows setup modal
   onAuthStateChanged(auth, async (user) => {
     if (!user || user.isAnonymous) return;
     const profile = await getProfile(user.uid);
     if (profile) { if (onComplete) onComplete(profile); return; }
 
+    // No profile yet — show setup modal
     const modal = document.createElement('div');
     modal.id = 'profile-setup-modal';
     modal.style.cssText = 'position:fixed;inset:0;z-index:600;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);backdrop-filter:blur(6px);';
@@ -1030,6 +1073,7 @@ export function initProfileSetup(onComplete) {
     `;
     document.body.appendChild(modal);
 
+    // Toggle switch behaviour
     const checkbox = document.getElementById('psetup-private');
     const track = document.getElementById('psetup-toggle-track');
     const thumb = document.getElementById('psetup-toggle-thumb');
@@ -1038,11 +1082,13 @@ export function initProfileSetup(onComplete) {
       thumb.style.transform = checkbox.checked ? 'translateX(20px)' : 'translateX(0)';
     });
 
+    // Username availability check
     let _usernameTimer = null;
     document.getElementById('psetup-username').addEventListener('input', (e) => {
       const val = e.target.value.trim().toLowerCase();
       const msgEl = document.getElementById('psetup-username-msg');
       clearTimeout(_usernameTimer);
+      // Validate format
       if (val && !/^[a-z0-9_.]{3,20}$/.test(val)) {
         msgEl.textContent = 'Only letters, numbers, _ and . allowed (3-20 chars)';
         msgEl.style.color = '#ef4444'; msgEl.style.display = 'block'; return;
@@ -1095,8 +1141,11 @@ export function initProfileSetup(onComplete) {
   });
 }
 
+/* ===================== AUTH UI ===================== */
+
 /* ===================== BAN OVERLAY ===================== */
 function showBanOverlay(reason, bannedAt) {
+  // Remove any existing overlay
   document.getElementById('flux-ban-overlay')?.remove();
 
   const overlay = document.createElement('div');
@@ -1143,23 +1192,26 @@ function showBanOverlay(reason, bannedAt) {
 
   document.body.appendChild(overlay);
 
+  // Block all clicks on the page except the GitHub link
   overlay.addEventListener('click', (e) => {
     if (e.target.tagName !== 'A') e.stopPropagation();
   }, true);
 
+  // Intercept and block all keyboard input
   document.addEventListener('keydown', (e) => {
     if (document.getElementById('flux-ban-overlay')) e.stopImmediatePropagation();
   }, true);
 
+  // Block all play buttons and interactive elements
   document.querySelectorAll('.play-btn, .favorite, .rate-btn, button:not(#flux-ban-overlay button)').forEach(el => {
     el.disabled = true;
     el.style.pointerEvents = 'none';
   });
 
+  // Expose globally so it persists
   window._fluxBanned = true;
 }
 
-/* ===================== AUTH UI ===================== */
 export function initAuthUI(onUserChange) {
   const rightActions = document.querySelector('.right-actions');
   if (!rightActions) return;
@@ -1179,6 +1231,7 @@ export function initAuthUI(onUserChange) {
     <span id="user-name" style="font-size:13px;font-weight:600;color:var(--text,#111827);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
     <span style="color:var(--muted,#6b7280);font-size:11px;">▾</span>
     <div id="profile-dropdown" style="display:none;position:absolute;top:calc(100% + 10px);right:0;background:var(--panel,#fff);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,0.2);border:1px solid var(--glass-border,rgba(0,0,0,0.07));width:240px;z-index:300;overflow:hidden;">
+      <!-- Header: avatar + name -->
       <div style="padding:14px 16px;border-bottom:1px solid var(--glass-border,rgba(0,0,0,0.06));display:flex;align-items:center;gap:10px;">
         <img id="profile-avatar-large" src="" alt="avatar" style="width:38px;height:38px;border-radius:50%;object-fit:cover;border:1px solid rgba(0,0,0,0.08);display:none;flex-shrink:0;">
         <div id="profile-avatar-placeholder" style="width:38px;height:38px;border-radius:50%;background:#3a7dff;display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:15px;flex-shrink:0;">?</div>
@@ -1187,6 +1240,7 @@ export function initAuthUI(onUserChange) {
           <div id="profile-email" style="font-size:11px;color:var(--muted,#6b7280);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
         </div>
       </div>
+      <!-- Core actions -->
       <a id="view-profile-btn" href="profile.html" style="display:none;align-items:center;gap:10px;padding:10px 16px;font-size:13px;color:var(--text,#111827);text-decoration:none;border-bottom:1px solid var(--glass-border,rgba(0,0,0,0.06));">
         <span>👤</span> My Profile
       </a>
@@ -1288,6 +1342,8 @@ export function initAuthUI(onUserChange) {
     document.getElementById('profile-dropdown').style.display = 'none';
   });
 
+  // tutorial-btn moved to settings.html
+
   document.getElementById('spin-wheel-btn')?.addEventListener('click', (e) => {
     e.stopPropagation();
     document.getElementById('profile-dropdown').style.display = 'none';
@@ -1304,6 +1360,30 @@ export function initAuthUI(onUserChange) {
     e.stopPropagation();
     document.getElementById('profile-dropdown').style.display = 'none';
     if (typeof window.openRedeemCode === 'function') window.openRedeemCode();
+  });
+
+  // dark-toggle moved to settings.html
+
+  document.getElementById('beta-mode-btn')?.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const isBeta = document.documentElement.classList.toggle('beta');
+    localStorage.setItem('flux_beta', isBeta ? '1' : '0');
+    const indicator = document.getElementById('beta-mode-indicator');
+    if (indicator) indicator.style.display = isBeta ? 'inline-flex' : 'none';
+    // Persist to Firestore profile
+    try {
+      const user = auth.currentUser;
+      if (user && !user.isAnonymous) {
+        await updateDoc(doc(db, 'profiles', user.uid), { betaMode: isBeta });
+      }
+    } catch {}
+    // Show toast
+    const t = document.createElement('div');
+    t.style.cssText = `position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:99999;background:${isBeta ? 'linear-gradient(135deg,#7c6aff,#a855f7)' : '#1a1d27'};color:white;padding:12px 22px;border-radius:20px;font-size:13px;font-weight:700;box-shadow:0 8px 30px rgba(0,0,0,0.3);pointer-events:none;opacity:0;transition:opacity 0.2s;`;
+    t.textContent = isBeta ? '🧪 Beta UI activated!' : '✓ Returned to classic UI';
+    document.body.appendChild(t);
+    requestAnimationFrame(() => t.style.opacity = '1');
+    setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 200); }, 2500);
   });
 
   userDisplay.addEventListener('click', async (e) => {
@@ -1368,10 +1448,781 @@ export function initAuthUI(onUserChange) {
     }
   });
 
+  // Mod modal
   const ADMIN_UID = 'zEy6TO5ligf2um4rssIZs9C9X7f2';
+  const modModal = document.createElement('div');
+  modModal.id = 'mod-modal';
+  modModal.style.cssText = 'display:none;position:fixed;inset:0;z-index:500;align-items:center;justify-content:center;background:rgba(0,0,0,0.4);backdrop-filter:blur(4px);';
+  modModal.innerHTML = `
+    <div style="background:#fff;border-radius:16px;padding:28px;width:100%;max-width:400px;box-shadow:0 30px 80px rgba(0,0,0,0.2);position:relative;max-height:90vh;overflow-y:auto;">
+      <button id="mod-modal-close" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:18px;cursor:pointer;color:#6b7280;">✕</button>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+        <span style="font-size:22px;">⚙️</span>
+        <h3 style="font-family:'Bebas Neue',sans-serif;font-size:26px;margin:0;color:#111827;">Mod Panel</h3>
+      </div>
 
-  // (Mod modal HTML omitted for brevity — identical to original, no changes needed there)
-  // If you need the full mod modal, it is unchanged from your original firebase-auth.js
+      <!-- ── INCIDENT BANNER ── -->
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">📢 Incident Banner</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px;">
+        <select id="mod-banner-type" style="padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;color:#111827;background:#fff;outline:none;cursor:pointer;">
+          <option value="warning">⚠️ Warning</option>
+          <option value="error">🔴 Error / Outage</option>
+          <option value="info">ℹ️ Info</option>
+        </select>
+        <textarea id="mod-banner-msg" placeholder="Banner message shown to all users..." maxlength="200" rows="2"
+          style="padding:10px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;outline:none;box-sizing:border-box;resize:none;font-family:inherit;"></textarea>
+        <div style="display:flex;gap:8px;">
+          <button id="mod-banner-show-btn" style="flex:1;padding:10px;background:#f59e0b;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:13px;">📢 Show Banner</button>
+          <button id="mod-banner-hide-btn" style="flex:1;padding:10px;background:#6b7280;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:13px;">✕ Dismiss</button>
+        </div>
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
+
+      <!-- ── SERVICE STATUS ── -->
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🛡️ Service Status</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px;">
+        <div style="font-size:11px;color:#9ca3af;margin-bottom:2px;">Flag a service issue (auto-triggers banner + updates status page)</div>
+        ${['firestore', 'googleAuth', 'website', 'games'].map(key => {
+          const labels = { firestore:'🔥 Database', googleAuth:'🔐 Auth', website:'🌐 Website', games:'🎮 Games' };
+          return `<div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:13px;font-weight:600;color:#111827;flex:1;">${labels[key]}</span>
+            <select class="mod-svc-status" data-key="${key}" style="padding:6px 10px;border:1px solid rgba(0,0,0,0.1);border-radius:8px;font-size:12px;color:#111827;background:#fff;outline:none;cursor:pointer;">
+              <option value="operational">✅ Operational</option>
+              <option value="degraded">⚠️ Degraded</option>
+              <option value="outage">🔴 Outage</option>
+            </select>
+            <button class="mod-svc-flag-btn" data-key="${key}" style="padding:6px 12px;background:#3a7dff;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:11px;">Flag</button>
+          </div>`;
+        }).join('')}
+        <div style="display:flex;gap:8px;margin-top:4px;">
+          <button id="mod-run-healthcheck" style="flex:1;padding:9px;background:#22c55e;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:12px;">🤖 Run Auto Health Check</button>
+          <a href="status.html" target="_blank" style="flex:1;padding:9px;background:#f9fafb;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-weight:700;cursor:pointer;font-size:12px;color:#111827;text-decoration:none;display:flex;align-items:center;justify-content:center;">🔗 View Status Page</a>
+        </div>
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
+
+      <!-- ── SERVER CONTROL ── -->
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Server Control</div>
+      <div style="margin-bottom:12px;">
+        <div id="mod-current-status" style="font-size:13px;font-weight:600;color:#111827;padding:10px 12px;background:#f9fafb;border-radius:8px;border:1px solid rgba(0,0,0,0.07);margin-bottom:10px;">Loading...</div>
+        <select id="mod-duration" style="width:100%;padding:10px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;color:#111827;background:#fff;outline:none;cursor:pointer;margin-bottom:8px;">
+          <option value="0">⛔ No limit — restore manually</option>
+          <option value="1">⏱ 1 minute</option>
+          <option value="2">⏱ 2 minutes</option>
+          <option value="5">⏱ 5 minutes</option>
+          <option value="10">⏱ 10 minutes</option>
+          <option value="30">⏱ 30 minutes</option>
+          <option value="60">⏱ 1 hour</option>
+        </select>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <button id="mod-shutdown-btn" style="padding:11px;background:#ef4444;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">🔴 Shut Down Server</button>
+          <select id="mod-crash-reason" style="padding:10px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;color:#111827;background:#fff;outline:none;cursor:pointer;">
+            <option value="The server has crashed due to high traffic. We're working on a fix.">🚦 Too much traffic</option>
+            <option value="The database has overloaded and caused a crash. Please try again soon.">🗄️ Database overload</option>
+            <option value="A memory leak has caused the server to crash unexpectedly.">💾 Memory leak</option>
+            <option value="An unexpected internal error has caused a server crash. Our team is investigating.">⚠️ Unexpected internal error</option>
+            <option value="The server is under a DDoS attack. We're working to restore access.">🛡️ DDoS attack</option>
+            <option value="A failed deployment has taken the server down. Rolling back now.">🚀 Failed deployment</option>
+          </select>
+          <button id="mod-crash-btn" style="padding:11px;background:#f59e0b;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">💥 Fake Server Crash</button>
+          <button id="mod-restore-btn" style="padding:11px;background:#22c55e;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">✅ Restore Server</button>
+        </div>
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
+
+      <!-- ── BROADCAST ── -->
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">📢 Broadcast Message</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px;">
+        <input id="mod-broadcast-text" type="text" placeholder="Type your message..." maxlength="120"
+          style="padding:10px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;outline:none;box-sizing:border-box;">
+        <button id="mod-broadcast-btn" style="padding:11px;background:#3a7dff;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">📣 Send to Everyone</button>
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
+
+      <!-- ── CHAT LOCK ── -->
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🔒 Chat Controls</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#f9fafb;border-radius:10px;border:1px solid rgba(0,0,0,0.07);">
+          <div>
+            <div style="font-size:13px;font-weight:700;color:#111827;">🌐 Global Chat</div>
+            <div id="global-chat-lock-status" style="font-size:11px;color:#6b7280;margin-top:2px;">Unlocked</div>
+          </div>
+          <button id="mod-global-chat-lock-btn" style="padding:7px 14px;background:#ef4444;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px;">🔒 Lock</button>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#f9fafb;border-radius:10px;border:1px solid rgba(0,0,0,0.07);">
+          <div>
+            <div style="font-size:13px;font-weight:700;color:#111827;">💬 Direct Messages</div>
+            <div id="dm-lock-status" style="font-size:11px;color:#6b7280;margin-top:2px;">Unlocked</div>
+          </div>
+          <button id="mod-dm-lock-btn" style="padding:7px 14px;background:#ef4444;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px;">🔒 Lock</button>
+        </div>
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
+
+      <!-- ── ADMIN ABUSE ── -->
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">😈 Admin Abuse</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <button class="abuse-btn" data-effect="shake" style="padding:10px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:#111827;">🫨 Shake</button>
+        <button class="abuse-btn" data-effect="flip" style="padding:10px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:#111827;">🙃 Flip Page</button>
+        <button class="abuse-btn" data-effect="confetti" style="padding:10px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:#111827;">🎉 Confetti</button>
+        <button class="abuse-btn" data-effect="crazytext" style="padding:10px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:#111827;">🤪 Crazy Text</button>
+        <button class="abuse-btn" data-effect="colour" style="padding:10px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:#111827;">🎨 Colour Chaos</button>
+        <button id="mod-jumpscare-btn" style="padding:10px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:#111827;">😱 Jumpscare</button>
+        <button class="abuse-btn" data-effect="forceiframe" style="padding:10px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:#111827;grid-column:span 1;">🔒 Force Iframe</button>
+        <button id="mod-abuse-stop" style="padding:10px 8px;border:2px solid #ef4444;border-radius:10px;background:#fff;cursor:pointer;font-size:13px;font-weight:700;color:#ef4444;">🛑 Stop All</button>
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">📱 Mobile Device Requests</div>
+      <div id="mod-device-requests-wrap">
+        <div id="mod-device-requests-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+        <div id="mod-device-requests-empty" style="font-size:12px;color:#9ca3af;text-align:center;padding:8px 0;">No pending requests</div>
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🎮 Game Labels</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px;">
+        <select id="mod-game-select" style="padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;color:#111827;background:#fff;outline:none;cursor:pointer;">
+          <option value="">Select a game...</option>
+        </select>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button class="compat-btn" data-compat="ipad" style="flex:1;padding:7px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:12px;font-weight:700;color:#6b7280;">📱 iPad</button>
+          <button class="compat-btn" data-compat="pc" style="flex:1;padding:7px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:12px;font-weight:700;color:#6b7280;">🖥️ PC</button>
+          <button class="compat-btn" data-compat="both" style="flex:1;padding:7px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:12px;font-weight:700;color:#6b7280;">✅ Both</button>
+          <button class="compat-btn" data-compat="" style="flex:1;padding:7px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:12px;font-weight:700;color:#6b7280;">✕ Clear</button>
+        </div>
+        <div id="mod-game-reports-wrap" style="display:none;">
+          <div style="font-size:11px;color:#ef4444;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">⚠️ Open Reports</div>
+          <div id="mod-game-reports-list"></div>
+        </div>
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🎟️ Reward Codes</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <input id="mod-code-input" type="text" placeholder="Code (e.g. FLUX2026)" maxlength="20"
+          style="padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;outline:none;box-sizing:border-box;text-transform:uppercase;letter-spacing:1px;">
+        <select id="mod-code-type" style="padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;color:#111827;background:#fff;outline:none;cursor:pointer;">
+          <option value="points">⭐ Points reward</option>
+          <option value="game">🎮 Unlock a game</option>
+          <option value="spins">🎰 Free spins</option>
+        </select>
+        <div id="mod-code-value-wrap" style="display:flex;gap:8px;">
+          <input id="mod-code-value-num" type="number" placeholder="Amount (pts or spins)" min="1"
+            style="flex:1;padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;outline:none;">
+          <select id="mod-code-value-game" style="display:none;flex:1;padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;color:#111827;background:#fff;outline:none;cursor:pointer;">
+            <option value="">Select game...</option>
+          </select>
+        </div>
+        <input id="mod-code-desc" type="text" placeholder="Description (optional)" maxlength="60"
+          style="padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;outline:none;box-sizing:border-box;">
+        <div style="display:flex;gap:8px;">
+          <div style="flex:1;">
+            <label style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:3px;">Max uses (0=∞)</label>
+            <input id="mod-code-maxuses" type="number" placeholder="0" min="0"
+              style="width:100%;padding:8px 10px;border:1px solid rgba(0,0,0,0.1);border-radius:8px;font-size:13px;outline:none;box-sizing:border-box;">
+          </div>
+          <div style="flex:1;">
+            <label style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:3px;">Expires</label>
+            <input id="mod-code-expiry" type="datetime-local"
+              style="width:100%;padding:8px 10px;border:1px solid rgba(0,0,0,0.1);border-radius:8px;font-size:12px;outline:none;color:#6b7280;box-sizing:border-box;">
+          </div>
+        </div>
+        <button id="mod-code-create-btn" style="padding:10px;background:#7c3aed;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:13px;">🎟️ Create Code</button>
+        <!-- Active codes list -->
+        <div id="mod-codes-list" style="display:flex;flex-direction:column;gap:6px;margin-top:4px;"></div>
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <input id="mod-gift-username" type="text" placeholder="Username..." maxlength="20"
+          style="padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;outline:none;box-sizing:border-box;">
+        <div style="display:flex;gap:8px;">
+          <input id="mod-gift-amount" type="number" placeholder="Points..." min="1" max="10000"
+            style="flex:1;padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;outline:none;">
+          <button id="mod-gift-btn" style="padding:9px 16px;background:#f59e0b;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:13px;">🎁 Gift</button>
+        </div>
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🔐 Game Unlock Pricing</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <select id="mod-price-game-select" style="padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;color:#111827;background:#fff;outline:none;cursor:pointer;">
+          <option value="">Select a game...</option>
+        </select>
+        <div id="mod-price-current" style="font-size:12px;color:#6b7280;padding:8px 12px;background:#f9fafb;border-radius:8px;border:1px solid rgba(0,0,0,0.07);display:none;"></div>
+        <div style="display:flex;gap:8px;">
+          <div style="flex:1;">
+            <label style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:3px;">Price (pts, 0 = free)</label>
+            <input id="mod-price-amount" type="number" placeholder="0" min="0" max="99999"
+              style="width:100%;padding:8px 10px;border:1px solid rgba(0,0,0,0.1);border-radius:8px;font-size:13px;outline:none;box-sizing:border-box;">
+          </div>
+          <div style="flex:1;">
+            <label style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:3px;">Discount %</label>
+            <input id="mod-price-discount" type="number" placeholder="0" min="0" max="100"
+              style="width:100%;padding:8px 10px;border:1px solid rgba(0,0,0,0.1);border-radius:8px;font-size:13px;outline:none;box-sizing:border-box;">
+          </div>
+        </div>
+        <div id="mod-price-preview" style="font-size:12px;color:#22c55e;font-weight:700;display:none;text-align:center;padding:6px;background:rgba(34,197,94,0.08);border-radius:8px;"></div>
+        <div style="display:flex;gap:8px;">
+          <input id="mod-price-expiry" type="datetime-local"
+            style="flex:1;padding:8px 10px;border:1px solid rgba(0,0,0,0.1);border-radius:8px;font-size:12px;outline:none;color:#6b7280;">
+          <button id="mod-price-set-btn" style="padding:8px 14px;background:#3a7dff;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px;">Set Price</button>
+        </div>
+        <div style="font-size:10px;color:#9ca3af;">Discount expiry is optional. Leave blank for permanent discount.</div>
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🔒 Chat Controls</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#f9fafb;border-radius:10px;border:1px solid rgba(0,0,0,0.07);">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:#111827;">🌐 Global Chat</div>
+            <div style="font-size:11px;color:#6b7280;">Prevent users from sending messages</div>
+          </div>
+          <button id="mod-globalchat-lock" style="padding:6px 14px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;border:2px solid #e5e7eb;background:#fff;color:#6b7280;transition:all 0.15s;">Lock</button>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#f9fafb;border-radius:10px;border:1px solid rgba(0,0,0,0.07);">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:#111827;">💬 Direct Messages</div>
+            <div style="font-size:11px;color:#6b7280;">Prevent users from sending DMs</div>
+          </div>
+          <button id="mod-dms-lock" style="padding:6px 14px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;border:2px solid #e5e7eb;background:#fff;color:#6b7280;transition:all 0.15s;">Lock</button>
+        </div>
+      </div>
+
+      <p id="mod-msg" style="font-size:12px;margin:12px 0 0;text-align:center;display:none;"></p>
+    </div>
+  `;
+  document.body.appendChild(modModal);
+
+  document.getElementById('mod-modal-close').addEventListener('click', () => { modModal.style.display = 'none'; });
+  modModal.addEventListener('click', (e) => { if (e.target === modModal) modModal.style.display = 'none'; });
+
+  let _autoRestoreTimer = null;
+
+  async function setServerStatus(status, message) {
+    const msg = document.getElementById('mod-msg');
+    const durationMins = parseInt(document.getElementById('mod-duration').value) || 0;
+    const restoreAt = durationMins > 0 ? new Date(Date.now() + durationMins * 60000).toISOString() : null;
+    try {
+      await setDoc(doc(db, 'stats', 'server'), { status, message, updatedAt: new Date().toISOString(), restoreAt });
+      msg.style.color = '#22c55e';
+      msg.textContent = durationMins > 0 ? `Status set — restoring in ${durationMins} min` : `Status set to "${status}"`;
+      msg.style.display = 'block';
+      document.getElementById('mod-current-status').textContent = `${status} — ${message}${durationMins > 0 ? ` (restores in ~${durationMins}m)` : ''}`;
+      document.getElementById('mod-current-status').style.color = status === 'online' ? '#22c55e' : status === 'crash' ? '#f59e0b' : '#ef4444';
+      setTimeout(() => { msg.style.display = 'none'; }, 3000);
+      if (_autoRestoreTimer) clearTimeout(_autoRestoreTimer);
+      if (durationMins > 0 && status !== 'online') {
+        _autoRestoreTimer = setTimeout(async () => {
+          await setDoc(doc(db, 'stats', 'server'), { status: 'online', message: 'online', updatedAt: new Date().toISOString(), restoreAt: null });
+        }, durationMins * 60000);
+      }
+    } catch (e) {
+      msg.style.color = '#ef4444'; msg.textContent = 'Failed to update status.'; msg.style.display = 'block';
+    }
+  }
+
+  document.getElementById('mod-shutdown-btn').addEventListener('click', () =>
+    setServerStatus('shutdown', 'The server has been shut down by an admin. Please check back later.'));
+  document.getElementById('mod-crash-btn').addEventListener('click', () =>
+    setServerStatus('crash', document.getElementById('mod-crash-reason').value));
+  document.getElementById('mod-restore-btn').addEventListener('click', () =>
+    setServerStatus('online', 'online'));
+
+  // Broadcast
+  document.getElementById('mod-broadcast-btn').addEventListener('click', async () => {
+    const text = document.getElementById('mod-broadcast-text').value.trim();
+    if (!text) return;
+    const msg = document.getElementById('mod-msg');
+    try {
+      await setDoc(doc(db, 'stats', 'broadcast'), {
+        message: text,
+        sentAt: new Date().toISOString(),
+        id: Math.random().toString(36).slice(2)
+      });
+      document.getElementById('mod-broadcast-text').value = '';
+      msg.style.color = '#22c55e'; msg.textContent = 'Message sent!'; msg.style.display = 'block';
+      setTimeout(() => { msg.style.display = 'none'; }, 2500);
+    } catch (e) {
+      msg.style.color = '#ef4444'; msg.textContent = 'Failed to send.'; msg.style.display = 'block';
+    }
+  });
+
+  // Chat lock buttons
+  let _globalChatLocked = false;
+  let _dmLocked = false;
+
+  document.getElementById('mod-globalchat-lock').addEventListener('click', async () => {
+    _globalChatLocked = !_globalChatLocked;
+    const btn = document.getElementById('mod-globalchat-lock');
+    try {
+      await setDoc(doc(db, 'stats', 'chatlock'), {
+        globalLocked: _globalChatLocked,
+        dmLocked: _dmLocked,
+        updatedAt: new Date().toISOString()
+      });
+      btn.textContent = _globalChatLocked ? '🔓 Unlock' : '🔒 Lock';
+      btn.style.background = _globalChatLocked ? '#22c55e' : '#fff';
+      btn.style.color = _globalChatLocked ? '#fff' : '#6b7280';
+      btn.style.borderColor = _globalChatLocked ? '#22c55e' : '#e5e7eb';
+    } catch (e) { console.warn('Chat lock failed', e); }
+  });
+
+  document.getElementById('mod-dms-lock').addEventListener('click', async () => {
+    _dmLocked = !_dmLocked;
+    const btn = document.getElementById('mod-dms-lock');
+    try {
+      await setDoc(doc(db, 'stats', 'chatlock'), {
+        globalLocked: _globalChatLocked,
+        dmLocked: _dmLocked,
+        updatedAt: new Date().toISOString()
+      });
+      btn.textContent = _dmLocked ? '🔓 Unlock' : '🔒 Lock';
+      btn.style.background = _dmLocked ? '#22c55e' : '#fff';
+      btn.style.color = _dmLocked ? '#fff' : '#6b7280';
+      btn.style.borderColor = _dmLocked ? '#22c55e' : '#e5e7eb';
+    } catch (e) { console.warn('DM lock failed', e); }
+  });
+
+  // Gift points
+  document.getElementById('mod-gift-btn').addEventListener('click', async () => {
+    const username = document.getElementById('mod-gift-username').value.trim().toLowerCase();
+    const amount = parseInt(document.getElementById('mod-gift-amount').value);
+    const msg = document.getElementById('mod-msg');
+    if (!username || !amount) { msg.style.color='#ef4444'; msg.textContent='Enter username and amount.'; msg.style.display='block'; return; }
+    const profile = await getProfileByUsername(username);
+    if (!profile) { msg.style.color='#ef4444'; msg.textContent='User not found.'; msg.style.display='block'; return; }
+    const result = await giftPoints(profile.uid, amount);
+    msg.style.color = result.ok ? '#22c55e' : '#ef4444';
+    msg.textContent = result.ok ? `✓ Gifted ${amount} points to @${username}!` : result.error;
+    msg.style.display = 'block';
+    if (result.ok) { document.getElementById('mod-gift-username').value=''; document.getElementById('mod-gift-amount').value=''; }
+    setTimeout(() => { msg.style.display='none'; }, 3000);
+  });
+
+  // Game compatibility buttons
+  modModal.querySelectorAll('.compat-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const select = document.getElementById('mod-game-select');
+      const gameId = select.value;
+      const gameTitle = select.options[select.selectedIndex]?.text || '';
+      if (!gameId) { msg.style.color='#ef4444'; msg.textContent='Select a game first.'; msg.style.display='block'; setTimeout(()=>{msg.style.display='none';},2000); return; }
+      const compat = btn.dataset.compat;
+      const result = await setGameCompatibility(gameId, gameTitle, compat);
+      if (result.ok) {
+        const t = document.createElement('div');
+        t.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9999;background:var(--panel,#fff);border-radius:12px;padding:12px 16px;box-shadow:0 8px 30px rgba(0,0,0,0.14);border-left:4px solid #22c55e;display:flex;align-items:center;gap:10px;font-size:13px;font-weight:500;color:var(--text,#111);opacity:0;transform:translateY(8px);transition:all 0.2s ease;max-width:280px;';
+        t.innerHTML = `<span>✅</span><span>✓ ${gameTitle} labelled as ${compat ? compat.toUpperCase() : 'unlabelled'}</span>`;
+        document.body.appendChild(t);
+        requestAnimationFrame(() => { t.style.opacity='1'; t.style.transform='translateY(0)'; });
+        setTimeout(() => { t.style.opacity='0'; t.style.transform='translateY(8px)'; setTimeout(()=>t.remove(),200); }, 3000);
+      } else {
+        msg.style.color = '#ef4444'; msg.textContent = result.error; msg.style.display = 'block';
+        setTimeout(()=>{msg.style.display='none';}, 2500);
+      }
+      // Update button highlights
+      modModal.querySelectorAll('.compat-btn').forEach(b => {
+        const on = b.dataset.compat === compat && compat !== '';
+        b.style.background = on ? '#111827' : '#fff';
+        b.style.color = on ? '#fff' : '#6b7280';
+        b.style.borderColor = on ? '#111827' : '#e5e7eb';
+      });
+    });
+  });
+
+  // Admin abuse buttons — toggle on/off
+  const _activeEffects = new Set();
+  modModal.querySelectorAll('.abuse-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const effect = btn.dataset.effect;
+      const isActive = _activeEffects.has(effect);
+      const newEffects = new Set(_activeEffects);
+      if (isActive) newEffects.delete(effect); else newEffects.add(effect);
+      try {
+        await setDoc(doc(db, 'stats', 'chaos'), { effects: [...newEffects], updatedAt: new Date().toISOString() });
+      } catch (e) { console.warn('Chaos write failed', e); }
+    });
+  });
+
+  document.getElementById('mod-abuse-stop').addEventListener('click', async () => {
+    try {
+      await setDoc(doc(db, 'stats', 'chaos'), { effects: [], updatedAt: new Date().toISOString() });
+    } catch (e) { console.warn('Chaos stop failed', e); }
+  });
+
+  // Jumpscare — one-shot trigger with unique ID each time
+  document.getElementById('mod-jumpscare-btn').addEventListener('click', async () => {
+    try {
+      await setDoc(doc(db, 'stats', 'jumpscare'), {
+        triggeredAt: new Date().toISOString(),
+        id: Math.random().toString(36).slice(2)
+      });
+      const msg = document.getElementById('mod-msg');
+      msg.style.color = '#22c55e'; msg.textContent = '😱 Jumpscare sent!'; msg.style.display = 'block';
+      setTimeout(() => { msg.style.display = 'none'; }, 2000);
+    } catch (e) { console.warn('Jumpscare failed', e); }
+  });
+
+  // Open mod modal
+  document.getElementById('mod-panel-btn').addEventListener('click', async (e) => {
+    e.stopPropagation();
+    document.getElementById('profile-dropdown').style.display = 'none';
+    modModal.style.display = 'flex';
+    const snap = await getDoc(doc(db, 'stats', 'server'));
+    const statusEl = document.getElementById('mod-current-status');
+    if (snap.exists()) {
+      const { status, message, restoreAt } = snap.data();
+      const timeLeft = restoreAt ? Math.max(0, Math.round((new Date(restoreAt) - Date.now()) / 60000)) : null;
+      statusEl.textContent = `${status} — ${message}${timeLeft > 0 ? ` (restores in ~${timeLeft}m)` : ''}`;
+      statusEl.style.color = status === 'online' ? '#22c55e' : status === 'crash' ? '#f59e0b' : '#ef4444';
+    } else {
+      statusEl.textContent = 'online — no issues';
+      statusEl.style.color = '#22c55e';
+    }
+    // Sync active chaos effects to button states
+    try {
+      const chaosSnap = await getDoc(doc(db, 'stats', 'chaos'));
+      const active = chaosSnap.exists() ? (chaosSnap.data().effects || []) : [];
+      _activeEffects.clear();
+      active.forEach(e => _activeEffects.add(e));
+      modModal.querySelectorAll('.abuse-btn').forEach(btn => {
+        const on = _activeEffects.has(btn.dataset.effect);
+        btn.style.background = on ? '#111827' : '#fff';
+        btn.style.color = on ? '#fff' : '#111827';
+        btn.style.borderColor = on ? '#111827' : '#e5e7eb';
+      });
+    } catch {}
+
+    // Populate game select from window._FLUX_GAMES
+    const gameSelect = document.getElementById('mod-game-select');
+    if (gameSelect && window._FLUX_GAMES) {
+      gameSelect.innerHTML = '<option value="">Select a game...</option>';
+      window._FLUX_GAMES.forEach(g => {
+        const opt = document.createElement('option');
+        opt.value = g.id; opt.textContent = g.title;
+        gameSelect.appendChild(opt);
+      });
+      // Load current compat on select change
+      gameSelect.addEventListener('change', async () => {
+        const id = gameSelect.value;
+        if (!id) return;
+        const { fetchAllGameStats } = await import('./firebase-auth.js').catch(()=>({}));
+        const snap = await getDoc(doc(db, 'gamestats', id));
+        const compat = snap.exists() ? snap.data().compatibility || '' : '';
+        modModal.querySelectorAll('.compat-btn').forEach(b => {
+          const on = b.dataset.compat === compat && compat !== '';
+          b.style.background = on ? '#111827' : '#fff';
+          b.style.color = on ? '#fff' : '#6b7280';
+          b.style.borderColor = on ? '#111827' : '#e5e7eb';
+        });
+      });
+    }
+
+    // ── Incident banner controls ──
+    document.getElementById('mod-banner-show-btn')?.addEventListener('click', async () => {
+      const msg = document.getElementById('mod-banner-msg').value.trim();
+      const type = document.getElementById('mod-banner-type').value;
+      const modMsg = document.getElementById('mod-msg');
+      if (!msg) { modMsg.style.color='#ef4444'; modMsg.textContent='Enter a banner message.'; modMsg.style.display='block'; setTimeout(()=>modMsg.style.display='none',2000); return; }
+      const result = await setIncidentBanner(true, msg, type, 'dev');
+      modMsg.style.color = result.ok ? '#22c55e' : '#ef4444';
+      modMsg.textContent = result.ok ? '✓ Banner is now live!' : result.error;
+      modMsg.style.display = 'block'; setTimeout(() => modMsg.style.display='none', 3000);
+    });
+    document.getElementById('mod-banner-hide-btn')?.addEventListener('click', async () => {
+      const modMsg = document.getElementById('mod-msg');
+      const result = await setIncidentBanner(false, '', 'info', 'dev');
+      modMsg.style.color = result.ok ? '#22c55e' : '#ef4444';
+      modMsg.textContent = result.ok ? '✓ Banner dismissed.' : result.error;
+      modMsg.style.display = 'block'; setTimeout(() => modMsg.style.display='none', 2000);
+    });
+
+    // ── Service status flags ──
+    // Load current statuses
+    try {
+      const healthSnap = await getDoc(doc(db, 'stats', 'serviceHealth'));
+      if (healthSnap.exists()) {
+        const svcs = healthSnap.data().services || {};
+        document.querySelectorAll('.mod-svc-status').forEach(sel => {
+          const key = sel.dataset.key;
+          if (svcs[key]?.status) sel.value = svcs[key].status;
+        });
+      }
+    } catch {}
+
+    document.querySelectorAll('.mod-svc-flag-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const key = btn.dataset.key;
+        const status = document.querySelector(`.mod-svc-status[data-key="${key}"]`).value;
+        const modMsg = document.getElementById('mod-msg');
+        btn.textContent = '...'; btn.disabled = true;
+        const result = await setServiceStatus(key, status, 'dev');
+        btn.textContent = 'Flag'; btn.disabled = false;
+        modMsg.style.color = result.ok ? '#22c55e' : '#ef4444';
+        modMsg.textContent = result.ok ? `✓ ${key} flagged as ${status}` : result.error;
+        modMsg.style.display = 'block'; setTimeout(() => modMsg.style.display='none', 3000);
+      });
+    });
+
+    document.getElementById('mod-run-healthcheck')?.addEventListener('click', async () => {
+      const btn = document.getElementById('mod-run-healthcheck');
+      const modMsg = document.getElementById('mod-msg');
+      btn.textContent = '🤖 Checking...'; btn.disabled = true;
+      const results = await autoCheckServiceHealth();
+      btn.textContent = '🤖 Run Auto Health Check'; btn.disabled = false;
+      const issues = Object.entries(results).filter(([,v]) => v !== 'operational').map(([k]) => k);
+      modMsg.style.color = issues.length ? '#f59e0b' : '#22c55e';
+      modMsg.textContent = issues.length ? `⚠️ Issues: ${issues.join(', ')}` : '✅ All systems operational';
+      modMsg.style.display = 'block'; setTimeout(() => modMsg.style.display='none', 4000);
+      // Refresh selects
+      document.querySelectorAll('.mod-svc-status').forEach(sel => {
+        if (results[sel.dataset.key]) sel.value = results[sel.dataset.key];
+      });
+    });
+
+    // ── Reward codes ──
+    const codeGameSel = document.getElementById('mod-code-value-game');
+    if (codeGameSel && window._FLUX_GAMES) {
+      codeGameSel.innerHTML = '<option value="">Select game...</option>';
+      window._FLUX_GAMES.forEach(g => {
+        const o = document.createElement('option'); o.value = g.id; o.textContent = g.title; codeGameSel.appendChild(o);
+      });
+    }
+    document.getElementById('mod-code-type')?.addEventListener('change', function() {
+      const isGame = this.value === 'game';
+      document.getElementById('mod-code-value-num').style.display = isGame ? 'none' : 'flex';
+      document.getElementById('mod-code-value-game').style.display = isGame ? 'flex' : 'none';
+    });
+    document.getElementById('mod-code-create-btn')?.addEventListener('click', async () => {
+      const code = document.getElementById('mod-code-input').value.trim();
+      const type = document.getElementById('mod-code-type').value;
+      const isGame = type === 'game';
+      const value = isGame
+        ? document.getElementById('mod-code-value-game').value
+        : parseInt(document.getElementById('mod-code-value-num').value) || 0;
+      const desc = document.getElementById('mod-code-desc').value.trim();
+      const maxUses = parseInt(document.getElementById('mod-code-maxuses').value) || 0;
+      const expiryRaw = document.getElementById('mod-code-expiry').value;
+      const expiresAt = expiryRaw ? new Date(expiryRaw).toISOString() : null;
+      const msg = document.getElementById('mod-msg');
+      if (!code) { msg.style.color='#ef4444'; msg.textContent='Enter a code name.'; msg.style.display='block'; setTimeout(()=>msg.style.display='none',2000); return; }
+      if (!value) { msg.style.color='#ef4444'; msg.textContent='Enter a value.'; msg.style.display='block'; setTimeout(()=>msg.style.display='none',2000); return; }
+      const result = await createRewardCode(code, type, value, { description: desc, maxUses, expiresAt });
+      msg.style.color = result.ok ? '#22c55e' : '#ef4444';
+      msg.textContent = result.ok ? `✓ Code "${code.toUpperCase()}" created!` : result.error;
+      msg.style.display = 'block'; setTimeout(() => msg.style.display='none', 3000);
+      if (result.ok) {
+        document.getElementById('mod-code-input').value = '';
+        document.getElementById('mod-code-value-num').value = '';
+        document.getElementById('mod-code-desc').value = '';
+        loadRewardCodesList();
+      }
+    });
+    loadRewardCodesList();
+
+    async function loadRewardCodesList() {
+      const list = document.getElementById('mod-codes-list');
+      if (!list) return;
+      const codes = await getRewardCodes();
+      list.innerHTML = '';
+      if (!codes.length) { list.innerHTML = '<div style="font-size:12px;color:#9ca3af;text-align:center;padding:6px 0;">No codes yet</div>'; return; }
+      codes.sort((a,b) => a.active === b.active ? 0 : a.active ? -1 : 1).forEach(c => {
+        const item = document.createElement('div');
+        item.style.cssText = `padding:10px 12px;border-radius:10px;border:1px solid ${c.active ? 'rgba(124,58,237,0.2)' : 'rgba(0,0,0,0.06)'};background:${c.active ? 'rgba(124,58,237,0.04)' : '#f9fafb'};font-size:12px;`;
+        const typeIcon = { points:'⭐', game:'🎮', spins:'🎰' }[c.type] || '🎟️';
+        const valueLabel = c.type === 'game' ? (window._FLUX_GAMES?.find(g=>g.id===c.value)?.title || c.value) : `${c.value} ${c.type}`;
+        const expires = c.expiresAt ? `· Exp ${new Date(c.expiresAt).toLocaleDateString()}` : '';
+        item.innerHTML = `
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <div>
+              <span style="font-family:monospace;font-weight:800;font-size:13px;color:${c.active?'#7c3aed':'#9ca3af'};letter-spacing:1px;">${c.code}</span>
+              <span style="margin-left:6px;font-size:10px;color:#6b7280;">${typeIcon} ${valueLabel} · ${c.uses}/${c.maxUses||'∞'} uses ${expires}</span>
+            </div>
+            ${c.active ? `<button data-code="${c.code}" class="mod-deactivate-code" style="padding:3px 8px;background:none;border:1px solid rgba(239,68,68,0.3);border-radius:6px;color:#ef4444;cursor:pointer;font-size:10px;font-weight:700;flex-shrink:0;">Deactivate</button>` : '<span style="font-size:10px;color:#9ca3af;font-weight:700;">INACTIVE</span>'}
+          </div>
+          ${c.description ? `<div style="font-size:11px;color:#9ca3af;margin-top:3px;">${c.description}</div>` : ''}
+        `;
+        item.querySelector('.mod-deactivate-code')?.addEventListener('click', async (e) => {
+          await deactivateRewardCode(e.currentTarget.dataset.code);
+          item.style.opacity = '0.5';
+          e.currentTarget.textContent = 'Deactivated'; e.currentTarget.disabled = true;
+          loadRewardCodesList();
+        });
+        list.appendChild(item);
+      });
+    }
+
+    // Populate pricing game select + wire controls
+    const priceGameSelect = document.getElementById('mod-price-game-select');
+    if (priceGameSelect && window._FLUX_GAMES) {
+      priceGameSelect.innerHTML = '<option value="">Select a game...</option>';
+      window._FLUX_GAMES.forEach(g => {
+        const opt = document.createElement('option');
+        opt.value = g.id; opt.textContent = g.title;
+        priceGameSelect.appendChild(opt);
+      });
+    }
+
+    // Load current pricing
+    try {
+      const pricingSnap = await getDoc(doc(db, 'stats', 'gamePricing'));
+      const pricing = pricingSnap.exists() ? pricingSnap.data() : {};
+
+      priceGameSelect?.addEventListener('change', () => {
+        const id = priceGameSelect.value;
+        const currentDiv = document.getElementById('mod-price-current');
+        const preview = document.getElementById('mod-price-preview');
+        if (!id) { if(currentDiv) currentDiv.style.display='none'; if(preview) preview.style.display='none'; return; }
+        const p = pricing[id] || { price: 0, discount: 0 };
+        const discounted = p.discount > 0 ? Math.round(p.price * (1 - p.discount/100)) : p.price;
+        if (currentDiv) {
+          currentDiv.style.display = 'block';
+          currentDiv.innerHTML = p.price === 0 ? '🆓 Currently free'
+            : p.discount > 0 ? `🏷️ Currently: <s>${p.price} pts</s> → <strong>${discounted} pts</strong> (${p.discount}% off)`
+            : `💰 Currently: ${p.price} pts`;
+        }
+        const amtEl = document.getElementById('mod-price-amount');
+        const discEl = document.getElementById('mod-price-discount');
+        if (amtEl) amtEl.value = p.price || '';
+        if (discEl) discEl.value = p.discount || '';
+        if (preview) preview.style.display = 'none';
+      });
+
+      const updatePricePreview = () => {
+        const price = parseInt(document.getElementById('mod-price-amount')?.value) || 0;
+        const discount = parseInt(document.getElementById('mod-price-discount')?.value) || 0;
+        const preview = document.getElementById('mod-price-preview');
+        if (!preview) return;
+        if (price === 0) { preview.textContent = '🆓 This game will be free'; preview.style.display = 'block'; return; }
+        if (discount > 0 && discount <= 100) {
+          preview.textContent = `🏷️ Was ${price} pts → Now ${Math.round(price*(1-discount/100))} pts (${discount}% off)`;
+        } else {
+          preview.textContent = `💰 ${price} pts to unlock`;
+        }
+        preview.style.display = 'block';
+      };
+      document.getElementById('mod-price-amount')?.addEventListener('input', updatePricePreview);
+      document.getElementById('mod-price-discount')?.addEventListener('input', updatePricePreview);
+
+      document.getElementById('mod-price-set-btn')?.addEventListener('click', async () => {
+        const gameId = priceGameSelect?.value;
+        const price = parseInt(document.getElementById('mod-price-amount')?.value) || 0;
+        const discount = parseInt(document.getElementById('mod-price-discount')?.value) || 0;
+        const expiry = document.getElementById('mod-price-expiry')?.value || null;
+        const msg = document.getElementById('mod-msg');
+        if (!gameId) { msg.style.color='#ef4444'; msg.textContent='Select a game first.'; msg.style.display='block'; setTimeout(()=>msg.style.display='none',2000); return; }
+        const result = await setGamePrice(gameId, price, discount, expiry ? new Date(expiry).toISOString() : null);
+        msg.style.color = result.ok ? '#22c55e' : '#ef4444';
+        msg.textContent = result.ok ? `✓ Price set for ${window._FLUX_GAMES?.find(g=>g.id===gameId)?.title}!` : result.error;
+        msg.style.display = 'block';
+        setTimeout(() => msg.style.display='none', 3000);
+        if (result.ok) pricing[gameId] = { price, discount, discountExpiry: expiry };
+      });
+    } catch (e) { console.warn('Pricing load failed:', e); }
+
+    // Load device requests
+    try {
+      const { getDocs, collection: col, query, where, orderBy, updateDoc, doc: docRef } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const reqQ = query(col(db, 'deviceRequests'), where('status', '==', 'pending'), orderBy('submittedAt', 'desc'));
+      const reqSnap = await getDocs(reqQ);
+      const list = document.getElementById('mod-device-requests-list');
+      const empty = document.getElementById('mod-device-requests-empty');
+      if (list) {
+        list.innerHTML = '';
+        if (reqSnap.empty) {
+          if (empty) empty.style.display = 'block';
+        } else {
+          if (empty) empty.style.display = 'none';
+          reqSnap.forEach(d => {
+            const r = d.data();
+            const item = document.createElement('div');
+            item.style.cssText = 'padding:10px;background:#f0f9ff;border-radius:8px;font-size:12px;border:1px solid rgba(59,130,246,0.2);';
+            item.innerHTML = `
+              <div style="font-weight:700;color:#111827;margin-bottom:2px;">📱 ${r.deviceModel}</div>
+              <div style="color:#6b7280;margin-bottom:6px;font-size:11px;">${r.screenW}×${r.screenH} · ${r.platform || 'unknown platform'}</div>
+              <div style="display:flex;gap:6px;">
+                <button data-id="${d.id}" data-model="${r.deviceModel}" class="dev-blacklist-btn" style="flex:1;padding:5px 8px;background:#22c55e;color:white;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:11px;">✓ Blacklist Model</button>
+                <button data-id="${d.id}" class="dev-ignore-btn" style="flex:1;padding:5px 8px;background:#f3f4f6;color:#6b7280;border:1px solid #e5e7eb;border-radius:7px;font-weight:700;cursor:pointer;font-size:11px;">✕ Ignore</button>
+              </div>
+            `;
+            item.querySelector('.dev-blacklist-btn').addEventListener('click', async (e) => {
+              const id = e.currentTarget.dataset.id;
+              const model = e.currentTarget.dataset.model;
+              try {
+                // Store blacklisted model in Firestore
+                await updateDoc(docRef(db, 'deviceRequests', id), { status: 'blacklisted' });
+                const { setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+                await setDoc(docRef(db, 'mobileBlacklist', model.replace(/\s+/g, '_')), { model, blacklistedAt: new Date().toISOString() });
+              } catch {}
+              item.remove();
+              if (!list.children.length && empty) empty.style.display = 'block';
+            });
+            item.querySelector('.dev-ignore-btn').addEventListener('click', async (e) => {
+              try { await updateDoc(docRef(db, 'deviceRequests', e.currentTarget.dataset.id), { status: 'ignored' }); } catch {}
+              item.remove();
+              if (!list.children.length && empty) empty.style.display = 'block';
+            });
+            list.appendChild(item);
+          });
+        }
+      }
+    } catch {}
+
+    // Load open game reports
+    try {
+      const reports = await fetchGameReports();
+      const wrap = document.getElementById('mod-game-reports-wrap');
+      const list = document.getElementById('mod-game-reports-list');
+      if (wrap && list) {
+        if (reports.length) {
+          wrap.style.display = 'block';
+          list.innerHTML = '';
+          reports.forEach(r => {
+            const item = document.createElement('div');
+            item.style.cssText = 'padding:8px;background:#fff5f5;border-radius:8px;margin-bottom:6px;font-size:12px;border:1px solid rgba(239,68,68,0.2);';
+            item.innerHTML = `<strong>${r.gameTitle}</strong>: ${r.reason} <button data-id="${r.id}" style="float:right;background:none;border:none;color:#22c55e;font-weight:700;cursor:pointer;font-size:12px;">✓ Dismiss</button>`;
+            item.querySelector('button').addEventListener('click', async (e) => {
+              await dismissGameReport(e.currentTarget.dataset.id);
+              item.remove();
+              if (!list.children.length) wrap.style.display = 'none';
+            });
+            list.appendChild(item);
+          });
+        } else {
+          wrap.style.display = 'none';
+        }
+      }
+    } catch {}
+    // Sync chat lock state
+    try {
+      const lockSnap = await getDoc(doc(db, 'stats', 'chatlock'));
+      if (lockSnap.exists()) {
+        _globalChatLocked = lockSnap.data().globalLocked || false;
+        _dmLocked = lockSnap.data().dmLocked || false;
+        const glBtn = document.getElementById('mod-globalchat-lock');
+        const dmBtn = document.getElementById('mod-dms-lock');
+        if (glBtn) {
+          glBtn.textContent = _globalChatLocked ? '🔓 Unlock' : '🔒 Lock';
+          glBtn.style.background = _globalChatLocked ? '#22c55e' : '#fff';
+          glBtn.style.color = _globalChatLocked ? '#fff' : '#6b7280';
+          glBtn.style.borderColor = _globalChatLocked ? '#22c55e' : '#e5e7eb';
+        }
+        if (dmBtn) {
+          dmBtn.textContent = _dmLocked ? '🔓 Unlock' : '🔒 Lock';
+          dmBtn.style.background = _dmLocked ? '#22c55e' : '#fff';
+          dmBtn.style.color = _dmLocked ? '#fff' : '#6b7280';
+          dmBtn.style.borderColor = _dmLocked ? '#22c55e' : '#e5e7eb';
+        }
+      }
+    } catch {}
+  });
 
   function showAuthError(msg) {
     const el = document.getElementById('auth-error');
@@ -1391,22 +2242,30 @@ export function initAuthUI(onUserChange) {
       const profilePlaceholder = document.getElementById('profile-avatar-placeholder');
       const modBtn = document.getElementById('mod-panel-btn');
 
+      // Show mod panel button only for admin
       if (modBtn) modBtn.style.display = user.uid === ADMIN_UID ? 'flex' : 'none';
 
       if (!user.isAnonymous) {
+        // Check for profile and trigger setup if missing
         const profile = await getProfile(user.uid);
 
+        // ── BAN CHECK ── show overlay and block everything if banned
         if (profile && profile.isBanned) {
           showBanOverlay(profile.banReason || '', profile.bannedAt || '');
+          // Still show their name/avatar so they know they're logged in
           if (name) name.textContent = profile.displayName || profile.username || user.displayName || user.email;
+          // Hide sign-out button — banned users cannot log out
           const signOutBtn = document.getElementById('sign-out-btn');
-          if (signOutBtn) signOutBtn.style.display = 'none';
+          if (signOutBtn) {
+            signOutBtn.style.display = 'none';
+          }
+          // Block spin wheel, gift, redeem
           ['spin-wheel-btn','gift-points-btn','redeem-code-btn'].forEach(id => {
             const el = document.getElementById(id);
             if (el) { el.disabled = true; el.style.opacity = '0.4'; el.style.pointerEvents = 'none'; }
           });
           if (onUserChange) onUserChange(user);
-          return;
+          return; // stop normal auth flow
         }
 
         if (!profile) {
@@ -1419,21 +2278,20 @@ export function initAuthUI(onUserChange) {
           const profileLinkEl = document.getElementById('view-profile-btn');
           if (profileLinkEl) profileLinkEl.style.display = 'flex';
           if (profileLinkEl) profileLinkEl.href = `profile.html?user=${profile.username}`;
-          // Keep Firestore avatarURL in sync with Google photoURL only if no custom avatar is set
-          if (user.photoURL && !profile.avatarURL) {
+          if (user.photoURL && user.photoURL !== profile.avatarURL) {
             updateDoc(doc(db, 'profiles', user.uid), { avatarURL: user.photoURL }).catch(() => {});
           }
           setTimeout(() => { if (typeof window.startFluxTutorial === 'function') window.startFluxTutorial({ isNew: false }); }, 1200);
         }
-
+        // Init notifications for signed-in users
         initNotifications();
-
+        // Sync dropdown dark mode icon
         const isDark = document.documentElement.classList.contains('dark');
         const icon = document.getElementById('dropdown-dark-icon');
         const label = document.getElementById('dropdown-dark-label');
         if (icon) icon.textContent = isDark ? '☀️' : '🌙';
         if (label) label.textContent = isDark ? 'Light Mode' : 'Dark Mode';
-
+        // Apply beta mode from profile
         try {
           const profileSnap = await getDoc(doc(db, 'profiles', user.uid));
           if (profileSnap.exists()) {
@@ -1444,6 +2302,7 @@ export function initAuthUI(onUserChange) {
             if (indicator) indicator.style.display = betaOn ? 'inline-flex' : 'none';
           }
         } catch {
+          // Fallback to localStorage if Firestore unavailable
           const betaLocal = localStorage.getItem('flux_beta') === '1';
           document.documentElement.classList.toggle('beta', betaLocal);
           const indicator = document.getElementById('beta-mode-indicator');
@@ -1474,14 +2333,10 @@ export function initAuthUI(onUserChange) {
           localSpan.addEventListener('click', (e) => { e.stopPropagation(); localSpan.style.filter = localSpan.style.filter ? '' : 'blur(4px)'; });
         }
         profilePlaceholder.textContent = (user.displayName || user.email || '?')[0].toUpperCase();
-
-        // ── THE FIX: prefer Firestore avatarURL over Google photoURL ──
-        const profile = await getProfile(user.uid);
-        const avatarSrc = profile?.avatarURL || user.photoURL || '';
-        if (avatarSrc) {
-          avatar.src = avatarSrc;
+        if (user.photoURL) {
+          avatar.src = user.photoURL;
           avatar.style.display = 'block';
-          profileAvatarLarge.src = avatarSrc;
+          profileAvatarLarge.src = user.photoURL;
           profileAvatarLarge.style.display = 'block';
           profilePlaceholder.style.display = 'none';
         } else {
@@ -1489,7 +2344,6 @@ export function initAuthUI(onUserChange) {
           profileAvatarLarge.style.display = 'none';
           profilePlaceholder.style.display = 'flex';
         }
-
         document.getElementById('change-password-btn')?.style && (document.getElementById('change-password-btn').style.display = 'flex');
       }
     } else {
@@ -1501,6 +2355,300 @@ export function initAuthUI(onUserChange) {
 }
 
 /* ===================== SERVER STATUS ===================== */
+
+/* ===================== INCIDENT BANNER ===================== */
+/* Firestore path: stats/incidentBanner
+   { active, message, type ('info'|'warning'|'error'), flaggedBy ('ai'|'dev'), updatedAt }
+*/
+
+export async function setIncidentBanner(active, message = '', type = 'warning', flaggedBy = 'dev') {
+  const user = auth.currentUser;
+  if (!user || user.uid !== OWNER_UID) return { ok: false, error: 'Admin only.' };
+  try {
+    await setDoc(doc(db, 'stats', 'incidentBanner'), {
+      active, message, type, flaggedBy,
+      updatedAt: new Date().toISOString(),
+    });
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+export function initIncidentBanner() {
+  import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js').then(async ({ onSnapshot, doc: fd }) => {
+    let _lastMsg = null;
+    const _sessionKey = 'flux_banner_seen';
+    const ref = fd(db, 'stats', 'incidentBanner');
+
+    // Inject animation keyframes once
+    if (!document.getElementById('flux-banner-style')) {
+      const s = document.createElement('style');
+      s.id = 'flux-banner-style';
+      s.textContent = `
+        @keyframes banner-slide-in { from { transform:translateX(-110%); opacity:0; } to { transform:translateX(0); opacity:1; } }
+        @keyframes banner-slide-out { from { transform:translateX(0); opacity:1; } to { transform:translateX(-110%); opacity:0; } }
+      `;
+      document.head.appendChild(s);
+    }
+
+    const dismissBanner = (banner) => {
+      banner.style.animation = 'banner-slide-out 0.3s ease forwards';
+      setTimeout(() => banner.remove(), 300);
+    };
+
+    onSnapshot(ref, (snap) => {
+      const existing = document.getElementById('flux-incident-banner');
+      if (!snap.exists() || !snap.data().active) { existing ? dismissBanner(existing) : null; return; }
+      const d = snap.data();
+
+      // Only show once per session per unique message
+      const seenKey = `${_sessionKey}_${d.updatedAt}`;
+      if (d.message === _lastMsg && existing) return;
+      if (sessionStorage.getItem(seenKey)) return;
+
+      _lastMsg = d.message;
+      sessionStorage.setItem(seenKey, '1');
+      if (existing) dismissBanner(existing);
+
+      const colors = {
+        info:    { bg: '#1e40af', border: '#3b82f6', icon: 'ℹ️' },
+        warning: { bg: '#92400e', border: '#f59e0b', icon: '⚠️' },
+        error:   { bg: '#7f1d1d', border: '#ef4444', icon: '🔴' },
+      };
+      const c = colors[d.type] || colors.warning;
+      const banner = document.createElement('div');
+      banner.id = 'flux-incident-banner';
+      banner.style.cssText = `
+        position:fixed;top:0;left:0;z-index:99980;
+        background:${c.bg};
+        border-bottom:2px solid ${c.border};
+        color:white;font-family:inherit;
+        padding:0;max-width:380px;
+        box-shadow:0 4px 20px rgba(0,0,0,0.4);
+        border-radius:0 0 14px 0;
+        overflow:hidden;
+        animation:banner-slide-in 0.3s cubic-bezier(0.34,1.56,0.64,1) both;
+      `;
+      const flagLabel = d.flaggedBy === 'ai'
+        ? '<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(255,255,255,0.15);padding:1px 7px;border-radius:20px;font-size:9px;font-weight:800;letter-spacing:0.5px;text-transform:uppercase;">🤖 Flagged by AI</span>'
+        : '<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(255,255,255,0.15);padding:1px 7px;border-radius:20px;font-size:9px;font-weight:800;letter-spacing:0.5px;text-transform:uppercase;">👨‍💻 Flagged by Developer</span>';
+      const time = new Date(d.updatedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      banner.innerHTML = `
+        <div style="padding:10px 14px 10px 12px;">
+          <div style="display:flex;align-items:flex-start;gap:10px;">
+            <span style="font-size:18px;flex-shrink:0;margin-top:1px;">${c.icon}</span>
+            <div style="flex:1;min-width:0;">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap;">
+                ${flagLabel}
+                <span style="font-size:9px;color:rgba(255,255,255,0.5);">${time}</span>
+              </div>
+              <div style="font-size:12px;line-height:1.5;color:rgba(255,255,255,0.92);">${d.message}</div>
+              <button id="incident-status-link" style="margin-top:6px;background:rgba(255,255,255,0.15);border:none;color:white;font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;cursor:pointer;font-family:inherit;letter-spacing:0.3px;">View Status Page →</button>
+            </div>
+            <button id="incident-banner-close" style="background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:16px;padding:0;flex-shrink:0;line-height:1;margin-top:-2px;">✕</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(banner);
+
+      document.getElementById('incident-banner-close').addEventListener('click', () => dismissBanner(banner));
+      document.getElementById('incident-status-link').addEventListener('click', () => window.open('status.html', '_blank'));
+
+      // Auto-dismiss after 5 seconds
+      setTimeout(() => {
+        if (document.getElementById('flux-incident-banner') === banner) dismissBanner(banner);
+      }, 5000);
+    });
+  });
+}
+
+/* ===================== STATUS PAGE DATA ===================== */
+/* Firestore path: stats/serviceHealth
+   { services: { firestore, googleAuth, website, games }, updatedAt }
+   Each service: { status ('operational'|'degraded'|'outage'), message, flaggedBy, detectedAt }
+*/
+
+const SERVICE_DESCRIPTIONS = {
+  firestore: {
+    name: 'Database (Firestore)',
+    icon: '🔥',
+    descriptions: {
+      operational: 'All database operations are running normally. User profiles, game stats, favourites, and real-time features are fully functional.',
+      degraded: 'The Firestore database is experiencing elevated latency or intermittent errors. Some operations such as loading profiles, saving favourites, or real-time features may be slow or fail occasionally. Engineers are investigating.',
+      outage: 'The Firestore database is currently unavailable. This is a Google Firebase infrastructure issue affecting user authentication state, profiles, favourites, game statistics, chat, and all real-time features. Games are still accessible but personalisation features will not work until service is restored.',
+    }
+  },
+  googleAuth: {
+    name: 'Authentication (Google)',
+    icon: '🔐',
+    descriptions: {
+      operational: 'Sign-in and authentication services are operating normally. Google login, email/password login, and session management are all functional.',
+      degraded: 'Authentication services are experiencing intermittent issues. Some sign-in attempts may fail or take longer than expected. Existing sessions should remain active.',
+      outage: 'Authentication is currently unavailable. Users cannot sign in or out. This is caused by a Google Firebase Authentication infrastructure issue. Existing sessions may still work, but new logins will fail.',
+    }
+  },
+  website: {
+    name: 'Website & Interface',
+    icon: '🌐',
+    descriptions: {
+      operational: 'The Flux website is loading normally. All pages, assets, and the user interface are being served correctly from GitHub Pages.',
+      degraded: 'The website is experiencing slow load times or intermittent availability issues. This may be caused by GitHub Pages infrastructure delays or CDN propagation. Some pages or assets may take longer to load.',
+      outage: 'The Flux website is currently unreachable or not loading correctly. This is likely a GitHub Pages outage or a DNS/CDN issue. No action can be taken from our side until the underlying infrastructure is restored.',
+    }
+  },
+  games: {
+    name: 'Games',
+    icon: '🎮',
+    descriptions: {
+      operational: 'All games are loading and running normally. Embedded game content is being served correctly.',
+      degraded: 'Some games may be failing to load or embed correctly. This could be caused by the game host blocking iframe embedding or a temporary issue with the game provider. Other games should still work.',
+      outage: 'Games are currently not loading. This may be caused by a widespread iframe blocking policy change, a network issue with the game hosting providers, or a GitHub Pages delivery problem.',
+    }
+  },
+};
+
+export async function setServiceStatus(serviceKey, status, flaggedBy = 'dev') {
+  const user = auth.currentUser;
+  if (!user || user.uid !== OWNER_UID) return { ok: false, error: 'Admin only.' };
+  try {
+    const snap = await getDoc(doc(db, 'stats', 'serviceHealth'));
+    const current = snap.exists() ? (snap.data().services || {}) : {};
+    current[serviceKey] = {
+      status,
+      message: SERVICE_DESCRIPTIONS[serviceKey]?.descriptions[status] || '',
+      flaggedBy,
+      detectedAt: new Date().toISOString(),
+    };
+    await setDoc(doc(db, 'stats', 'serviceHealth'), { services: current, updatedAt: new Date().toISOString() });
+
+    // Auto-trigger incident banner if not operational
+    if (status !== 'operational') {
+      const svc = SERVICE_DESCRIPTIONS[serviceKey];
+      const type = status === 'outage' ? 'error' : 'warning';
+      const msg = `<strong>${svc?.name}</strong> is ${status === 'outage' ? 'experiencing an outage' : 'degraded'}. ${svc?.descriptions[status]?.split('.')[0]}.`;
+      await setIncidentBanner(true, msg, type, flaggedBy);
+    }
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+export async function autoCheckServiceHealth() {
+  // First, load existing statuses so we know which services devs have already flagged
+  let existing = {};
+  try {
+    const snap = await getDoc(doc(db, 'stats', 'serviceHealth'));
+    existing = snap.exists() ? (snap.data().services || {}) : {};
+  } catch {}
+
+  const results = {};
+  const KEYS = ['firestore', 'googleAuth', 'website', 'games'];
+
+  // For each service: if a developer has flagged it, skip the probe entirely
+  // and carry the existing status through unchanged
+  const shouldSkip = (key) => existing[key]?.flaggedBy === 'dev';
+
+  // 1. Firestore — time a real read
+  if (shouldSkip('firestore')) {
+    results.firestore = existing.firestore;
+  } else {
+    try {
+      const start = Date.now();
+      await getDoc(doc(db, 'stats', 'health_ping'));
+      const ms = Date.now() - start;
+      results.firestore = { status: ms > 4000 ? 'degraded' : 'operational', flaggedBy: 'ai' };
+    } catch {
+      results.firestore = { status: 'outage', flaggedBy: 'ai' };
+    }
+  }
+
+  // 2. Auth — check if Firebase Auth SDK is responsive
+  if (shouldSkip('googleAuth')) {
+    results.googleAuth = existing.googleAuth;
+  } else {
+    try {
+      await Promise.race([
+        new Promise((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error('timeout')), 4000);
+          const unsub = auth.onAuthStateChanged(() => { clearTimeout(timer); unsub(); resolve(); });
+        }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000))
+      ]);
+      results.googleAuth = { status: 'operational', flaggedBy: 'ai' };
+    } catch {
+      results.googleAuth = { status: 'degraded', flaggedBy: 'ai' };
+    }
+  }
+
+  // 3. Website — we're here so it's operational (unless dev-flagged)
+  if (shouldSkip('website')) {
+    results.website = existing.website;
+  } else {
+    results.website = { status: 'operational', flaggedBy: 'ai' };
+  }
+
+  // 4. Games — no-cors fetch
+  if (shouldSkip('games')) {
+    results.games = existing.games;
+  } else {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 5000);
+      await fetch('https://nxtcoreee3.github.io/Drive-Mad/', { method: 'HEAD', signal: ctrl.signal, mode: 'no-cors' });
+      clearTimeout(timer);
+      results.games = { status: 'operational', flaggedBy: 'ai' };
+    } catch {
+      results.games = { status: 'degraded', flaggedBy: 'ai' };
+    }
+  }
+
+  // Build full service objects
+  const services = {};
+  for (const key of KEYS) {
+    const r = results[key];
+    // If it was dev-flagged and we skipped it, keep the full existing object
+    if (shouldSkip(key) && existing[key]) {
+      services[key] = existing[key];
+    } else {
+      services[key] = {
+        status: r?.status || 'operational',
+        message: SERVICE_DESCRIPTIONS[key]?.descriptions[r?.status || 'operational'] || '',
+        flaggedBy: 'ai',
+        detectedAt: new Date().toISOString(),
+      };
+    }
+  }
+
+  // Write to Firestore if admin
+  const user = auth.currentUser;
+  if (user && user.uid === OWNER_UID) {
+    try {
+      let anyNewIssue = false;
+      for (const [key, svc] of Object.entries(services)) {
+        if (shouldSkip(key)) continue; // never overwrite a dev flag
+        if (svc.status !== (existing[key]?.status) && svc.status !== 'operational') anyNewIssue = true;
+      }
+      await setDoc(doc(db, 'stats', 'serviceHealth'), { services, updatedAt: new Date().toISOString() });
+      if (anyNewIssue) {
+        const issues = Object.entries(services)
+          .filter(([, v]) => v.status !== 'operational')
+          .map(([k]) => SERVICE_DESCRIPTIONS[k]?.name)
+          .filter(Boolean);
+        if (issues.length) {
+          const msg = `Automated monitoring detected issues with: <strong>${issues.join(', ')}</strong>. Our team is investigating.`;
+          const type = Object.values(services).some(v => v.status === 'outage') ? 'error' : 'warning';
+          await setIncidentBanner(true, msg, type, 'ai');
+        }
+      }
+    } catch (e) { console.warn('Health write failed:', e); }
+  } else {
+    // Non-admin: attempt write, ignore failure
+    try {
+      await setDoc(doc(db, 'stats', 'serviceHealth'), { services, updatedAt: new Date().toISOString() });
+    } catch {}
+  }
+
+  return services;
+}
+
 export function initServerStatus() {
   const ADMIN_UID = 'zEy6TO5ligf2um4rssIZs9C9X7f2';
 
@@ -1523,6 +2671,7 @@ export function initServerStatus() {
       if (!snap.exists()) return;
       const { status, message, restoreAt } = snap.data();
 
+      // Clean up timers
       if (_countdownInterval) { clearInterval(_countdownInterval); _countdownInterval = null; }
       if (_viewerPoll) { clearInterval(_viewerPoll); _viewerPoll = null; }
 
@@ -1539,6 +2688,7 @@ export function initServerStatus() {
         const viewerCount = _onlineCount || 0;
 
         if (isAdmin) {
+          // Admin gets a dismissible banner at the top — can still use the site normally
           document.getElementById('server-status-overlay')?.remove();
           let banner = document.getElementById('server-status-banner');
           if (!banner) {
@@ -1580,6 +2730,7 @@ export function initServerStatus() {
             await setDoc(firestoreDoc(db, 'stats', 'server'), { status, message, updatedAt: new Date().toISOString(), restoreAt: newRestoreAt });
           });
 
+          // Countdown in banner
           if (restoreAt) {
             const bannerCountdown = document.getElementById('banner-countdown');
             const tick = () => {
@@ -1591,6 +2742,7 @@ export function initServerStatus() {
           }
 
         } else {
+          // Regular users get full blocking overlay
           document.getElementById('server-status-banner')?.remove();
           let overlay = document.getElementById('server-status-overlay');
           if (!overlay) {
@@ -1624,12 +2776,14 @@ export function initServerStatus() {
             </div>
           `;
 
+          // Live viewer count
           const viewerEl = document.getElementById('overlay-viewer-count');
           _viewerPoll = setInterval(() => {
             if (!document.getElementById('server-status-overlay')) { clearInterval(_viewerPoll); return; }
             if (viewerEl) viewerEl.textContent = `${_onlineCount || 0} ${(_onlineCount || 0) === 1 ? 'person' : 'people'} watching`;
           }, 5000);
 
+          // Countdown timer
           if (restoreAt) {
             const countdownEl = document.getElementById('overlay-countdown');
             const tick = () => {
@@ -1661,6 +2815,7 @@ export function initBroadcast() {
     let _lastBroadcastId = null;
     const broadcastRef = firestoreDoc(db, 'stats', 'broadcast');
 
+    // Pre-load current ID so we don't show old broadcast on page load
     try {
       const initial = await getDoc(broadcastRef);
       if (initial.exists()) _lastBroadcastId = initial.data().id || null;
@@ -1694,6 +2849,7 @@ export function initBroadcast() {
       }, 5000);
     }
 
+    // Primary: real-time listener
     onSnapshot(broadcastRef, (snap) => {
       if (!snap.exists()) return;
       const { message, id } = snap.data();
@@ -1702,6 +2858,7 @@ export function initBroadcast() {
       showBroadcastToast(message);
     });
 
+    // Fallback poll every 1.5s for mobile browsers
     setInterval(async () => {
       try {
         const snap = await getDoc(broadcastRef);
@@ -1777,6 +2934,7 @@ export function initChaos() {
       randomise();
       _crazyInterval = setInterval(randomise, 800);
     } else {
+      // Restore text if crazytext was on before
       if (prev.has('crazytext')) {
         document.querySelectorAll('h1,h2,h3,.title,.card-body').forEach(el => {
           el.style.fontFamily = ''; el.style.fontSize = ''; el.style.color = ''; el.style.transform = '';
@@ -1804,19 +2962,24 @@ export function initChaos() {
       _confettiInterval = setInterval(spawnConfetti, 120);
     }
 
+    // Force iframe — hide all "Open" buttons so users must play in iframe
     if (_activeEffects.has('forceiframe')) {
       getSheet().insertRule(`.open-btn { display: none !important; }`, 0);
+    } else if (prev.has('forceiframe')) {
+      // Restore open buttons when toggled off — handled by clearRules() above
     }
   }
 
   import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({ onSnapshot, getDoc, doc: firestoreDoc }) => {
     const chaosRef = firestoreDoc(db, 'stats', 'chaos');
 
+    // Primary: real-time listener
     onSnapshot(chaosRef, (snap) => {
       const effects = snap.exists() ? (snap.data().effects || []) : [];
       applyEffects(effects);
     });
 
+    // Fallback poll every 3s for mobile browsers that drop WebSocket connections
     setInterval(async () => {
       try {
         const snap = await getDoc(chaosRef);
@@ -1835,6 +2998,7 @@ export function initJumpscare() {
     let _lastJumpscareId = null;
     const jumpscareRef = firestoreDoc(db, 'stats', 'jumpscare');
 
+    // Pre-load the current ID so we don't trigger on page load
     try {
       const initial = await getDoc(jumpscareRef);
       if (initial.exists()) _lastJumpscareId = initial.data().id || null;
@@ -1871,6 +3035,17 @@ export function initJumpscare() {
       const dismiss = () => { overlay.remove(); style.remove(); };
       overlay.addEventListener('click', dismiss);
       setTimeout(dismiss, isAdmin ? 2000 : 2500);
+
+      if (isAdmin) {
+        let container = document.getElementById('toast-container');
+        if (!container) { container = document.createElement('div'); container.id = 'toast-container'; container.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:999999;display:flex;flex-direction:column;gap:8px;pointer-events:none;'; document.body.appendChild(container); }
+        const t = document.createElement('div');
+        t.style.cssText = 'background:#111827;border-radius:12px;padding:12px 16px;box-shadow:0 8px 30px rgba(0,0,0,0.3);border-left:4px solid #22c55e;font-size:13px;font-weight:600;color:#22c55e;pointer-events:all;opacity:0;transform:translateY(8px);transition:all 0.25s ease;';
+        t.textContent = '✅ Jumpscare deployed to all users!';
+        container.appendChild(t);
+        requestAnimationFrame(() => { t.style.opacity = '1'; t.style.transform = 'translateY(0)'; });
+        setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateY(8px)'; setTimeout(() => t.remove(), 250); }, 3000);
+      }
     }
 
     onSnapshot(jumpscareRef, (snap) => {
@@ -1881,6 +3056,7 @@ export function initJumpscare() {
       triggerJumpscare();
     });
 
+    // Fallback poll every 1.5s for mobile
     setInterval(async () => {
       try {
         const snap = await getDoc(jumpscareRef);
@@ -2138,15 +3314,18 @@ export async function giftPointsToUser(targetUsername, amount) {
 
 /* ===================== REWARD CODES ===================== */
 export async function createRewardCode(code, type, value, options = {}) {
+  // type: 'points' | 'game' | 'spins'
+  // value: number (points/spins) or gameId string
   const user = auth.currentUser;
   if (!user || user.uid !== OWNER_UID) return { ok: false, error: 'Admin only.' };
   try {
     const { setDoc: sd, doc: d } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
     await sd(d(db, 'rewardCodes', code.toUpperCase().trim()), {
       code: code.toUpperCase().trim(),
-      type, value,
+      type,
+      value,
       description: options.description || '',
-      maxUses: options.maxUses || 0,
+      maxUses: options.maxUses || 0, // 0 = unlimited
       uses: 0,
       redeemedBy: [],
       expiresAt: options.expiresAt || null,
@@ -2178,6 +3357,7 @@ export async function redeemCode(codeStr) {
       if ((c.redeemedBy || []).includes(user.uid)) { result = { ok: false, error: 'You have already redeemed this code.' }; return; }
       if (!profileSnap.exists()) { result = { ok: false, error: 'Profile not found.' }; return; }
       const profile = profileSnap.data();
+      // Apply reward
       const profileUpdate = {};
       if (c.type === 'points') {
         profileUpdate.points = (profile.points || 0) + Number(c.value);
@@ -2185,7 +3365,9 @@ export async function redeemCode(codeStr) {
         result = { ok: true, type: 'points', value: Number(c.value), message: `🎉 You got ${c.value} points!` };
       } else if (c.type === 'game') {
         const unlocked = profile.unlockedGames || [];
-        if (unlocked.includes(c.value)) { result = { ok: false, error: 'You already own this game.' }; return; }
+        if (unlocked.includes(c.value)) {
+          result = { ok: false, error: 'You already own this game.' }; return;
+        }
         profileUpdate.unlockedGames = [...unlocked, c.value];
         result = { ok: true, type: 'game', value: c.value, message: `🎮 Game unlocked!` };
       } else if (c.type === 'spins') {
@@ -2194,7 +3376,10 @@ export async function redeemCode(codeStr) {
       }
       profileUpdate.redeemedCodes = [...(profile.redeemedCodes || []), code];
       tx.update(profileRef, profileUpdate);
-      tx.update(codeRef, { uses: (c.uses || 0) + 1, redeemedBy: [...(c.redeemedBy || []), user.uid] });
+      tx.update(codeRef, {
+        uses: (c.uses || 0) + 1,
+        redeemedBy: [...(c.redeemedBy || []), user.uid],
+      });
     });
     return result;
   } catch (e) { return { ok: false, error: e.message }; }
@@ -2220,8 +3405,11 @@ export async function deactivateRewardCode(code) {
 
 /* ===================== CHAT LOCK ===================== */
 export function initChatLock(type, onLocked, onUnlocked) {
+  // type: 'global' | 'dm'
   import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(async ({ onSnapshot, getDoc, doc: firestoreDoc }) => {
     const lockRef = firestoreDoc(db, 'stats', 'chatlock');
+
+    // Pre-load current state
     try {
       const snap = await getDoc(lockRef);
       if (snap.exists()) {
@@ -2229,6 +3417,7 @@ export function initChatLock(type, onLocked, onUnlocked) {
         if (locked) onLocked(); else onUnlocked();
       }
     } catch {}
+
     onSnapshot(lockRef, (snap) => {
       if (!snap.exists()) { onUnlocked(); return; }
       const locked = type === 'global' ? snap.data().globalLocked : snap.data().dmLocked;
@@ -2242,6 +3431,7 @@ export function initCookieConsent() {
   const CONSENT_KEY = 'flux_cookie_consent';
   const POLICY_KEY = 'flux_policy_accepted';
 
+  // Check if existing logged-in user hasn't accepted policy yet
   onAuthStateChanged(auth, (user) => {
     if (user && !user.isAnonymous && localStorage.getItem(POLICY_KEY) !== '1') {
       showPolicyGate();
@@ -2250,6 +3440,7 @@ export function initCookieConsent() {
 
   if (localStorage.getItem(CONSENT_KEY) === 'accepted') return;
 
+  // Block the page until accepted
   const overlay = document.createElement('div');
   overlay.id = 'cookie-overlay';
   overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.7);backdrop-filter:blur(6px);display:flex;align-items:flex-end;justify-content:center;padding:24px;box-sizing:border-box;';
@@ -2336,247 +3527,4 @@ function showPolicyGate() {
       location.reload();
     } catch (e) { console.warn('Sign out failed:', e); }
   });
-}
-
-/* ===================== INCIDENT BANNER ===================== */
-export async function setIncidentBanner(active, message = '', type = 'warning', flaggedBy = 'dev') {
-  const user = auth.currentUser;
-  if (!user || user.uid !== OWNER_UID) return { ok: false, error: 'Admin only.' };
-  try {
-    await setDoc(doc(db, 'stats', 'incidentBanner'), {
-      active, message, type, flaggedBy,
-      updatedAt: new Date().toISOString(),
-    });
-    return { ok: true };
-  } catch (e) { return { ok: false, error: e.message }; }
-}
-
-export function initIncidentBanner() {
-  import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js').then(async ({ onSnapshot, doc: fd }) => {
-    let _lastMsg = null;
-    const _sessionKey = 'flux_banner_seen';
-    const ref = fd(db, 'stats', 'incidentBanner');
-
-    if (!document.getElementById('flux-banner-style')) {
-      const s = document.createElement('style');
-      s.id = 'flux-banner-style';
-      s.textContent = `
-        @keyframes banner-slide-in { from { transform:translateX(-110%); opacity:0; } to { transform:translateX(0); opacity:1; } }
-        @keyframes banner-slide-out { from { transform:translateX(0); opacity:1; } to { transform:translateX(-110%); opacity:0; } }
-      `;
-      document.head.appendChild(s);
-    }
-
-    const dismissBanner = (banner) => {
-      banner.style.animation = 'banner-slide-out 0.3s ease forwards';
-      setTimeout(() => banner.remove(), 300);
-    };
-
-    onSnapshot(ref, (snap) => {
-      const existing = document.getElementById('flux-incident-banner');
-      if (!snap.exists() || !snap.data().active) { existing ? dismissBanner(existing) : null; return; }
-      const d = snap.data();
-
-      const seenKey = `${_sessionKey}_${d.updatedAt}`;
-      if (d.message === _lastMsg && existing) return;
-      if (sessionStorage.getItem(seenKey)) return;
-
-      _lastMsg = d.message;
-      sessionStorage.setItem(seenKey, '1');
-      if (existing) dismissBanner(existing);
-
-      const colors = {
-        info:    { bg: '#1e40af', border: '#3b82f6', icon: 'ℹ️' },
-        warning: { bg: '#92400e', border: '#f59e0b', icon: '⚠️' },
-        error:   { bg: '#7f1d1d', border: '#ef4444', icon: '🔴' },
-      };
-      const c = colors[d.type] || colors.warning;
-      const banner = document.createElement('div');
-      banner.id = 'flux-incident-banner';
-      banner.style.cssText = `
-        position:fixed;top:0;left:0;z-index:99980;
-        background:${c.bg};
-        border-bottom:2px solid ${c.border};
-        color:white;font-family:inherit;
-        padding:0;max-width:380px;
-        box-shadow:0 4px 20px rgba(0,0,0,0.4);
-        border-radius:0 0 14px 0;
-        overflow:hidden;
-        animation:banner-slide-in 0.3s cubic-bezier(0.34,1.56,0.64,1) both;
-      `;
-      const flagLabel = d.flaggedBy === 'ai'
-        ? '<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(255,255,255,0.15);padding:1px 7px;border-radius:20px;font-size:9px;font-weight:800;letter-spacing:0.5px;text-transform:uppercase;">🤖 Flagged by AI</span>'
-        : '<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(255,255,255,0.15);padding:1px 7px;border-radius:20px;font-size:9px;font-weight:800;letter-spacing:0.5px;text-transform:uppercase;">👨‍💻 Flagged by Developer</span>';
-      const time = new Date(d.updatedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-      banner.innerHTML = `
-        <div style="padding:10px 14px 10px 12px;">
-          <div style="display:flex;align-items:flex-start;gap:10px;">
-            <span style="font-size:18px;flex-shrink:0;margin-top:1px;">${c.icon}</span>
-            <div style="flex:1;min-width:0;">
-              <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap;">
-                ${flagLabel}
-                <span style="font-size:9px;color:rgba(255,255,255,0.5);">${time}</span>
-              </div>
-              <div style="font-size:12px;line-height:1.5;color:rgba(255,255,255,0.92);">${d.message}</div>
-              <button id="incident-status-link" style="margin-top:6px;background:rgba(255,255,255,0.15);border:none;color:white;font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;cursor:pointer;font-family:inherit;letter-spacing:0.3px;">View Status Page →</button>
-            </div>
-            <button id="incident-banner-close" style="background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:16px;padding:0;flex-shrink:0;line-height:1;margin-top:-2px;">✕</button>
-          </div>
-        </div>
-      `;
-      document.body.appendChild(banner);
-
-      document.getElementById('incident-banner-close').addEventListener('click', () => dismissBanner(banner));
-      document.getElementById('incident-status-link').addEventListener('click', () => window.open('status.html', '_blank'));
-
-      setTimeout(() => {
-        if (document.getElementById('flux-incident-banner') === banner) dismissBanner(banner);
-      }, 5000);
-    });
-  });
-}
-
-/* ===================== STATUS PAGE DATA ===================== */
-const SERVICE_DESCRIPTIONS = {
-  firestore: {
-    name: 'Database (Firestore)', icon: '🔥',
-    descriptions: {
-      operational: 'All database operations are running normally.',
-      degraded: 'The Firestore database is experiencing elevated latency or intermittent errors.',
-      outage: 'The Firestore database is currently unavailable.',
-    }
-  },
-  googleAuth: {
-    name: 'Authentication (Google)', icon: '🔐',
-    descriptions: {
-      operational: 'Sign-in and authentication services are operating normally.',
-      degraded: 'Authentication services are experiencing intermittent issues.',
-      outage: 'Authentication is currently unavailable.',
-    }
-  },
-  website: {
-    name: 'Website & Interface', icon: '🌐',
-    descriptions: {
-      operational: 'The Flux website is loading normally.',
-      degraded: 'The website is experiencing slow load times or intermittent availability issues.',
-      outage: 'The Flux website is currently unreachable or not loading correctly.',
-    }
-  },
-  games: {
-    name: 'Games', icon: '🎮',
-    descriptions: {
-      operational: 'All games are loading and running normally.',
-      degraded: 'Some games may be failing to load or embed correctly.',
-      outage: 'Games are currently not loading.',
-    }
-  },
-};
-
-export async function setServiceStatus(serviceKey, status, flaggedBy = 'dev') {
-  const user = auth.currentUser;
-  if (!user || user.uid !== OWNER_UID) return { ok: false, error: 'Admin only.' };
-  try {
-    const snap = await getDoc(doc(db, 'stats', 'serviceHealth'));
-    const current = snap.exists() ? (snap.data().services || {}) : {};
-    current[serviceKey] = {
-      status,
-      message: SERVICE_DESCRIPTIONS[serviceKey]?.descriptions[status] || '',
-      flaggedBy,
-      detectedAt: new Date().toISOString(),
-    };
-    await setDoc(doc(db, 'stats', 'serviceHealth'), { services: current, updatedAt: new Date().toISOString() });
-    if (status !== 'operational') {
-      const svc = SERVICE_DESCRIPTIONS[serviceKey];
-      const type = status === 'outage' ? 'error' : 'warning';
-      const msg = `<strong>${svc?.name}</strong> is ${status === 'outage' ? 'experiencing an outage' : 'degraded'}.`;
-      await setIncidentBanner(true, msg, type, flaggedBy);
-    }
-    return { ok: true };
-  } catch (e) { return { ok: false, error: e.message }; }
-}
-
-export async function autoCheckServiceHealth() {
-  let existing = {};
-  try {
-    const snap = await getDoc(doc(db, 'stats', 'serviceHealth'));
-    existing = snap.exists() ? (snap.data().services || {}) : {};
-  } catch {}
-
-  const results = {};
-  const KEYS = ['firestore', 'googleAuth', 'website', 'games'];
-  const shouldSkip = (key) => existing[key]?.flaggedBy === 'dev';
-
-  if (shouldSkip('firestore')) { results.firestore = existing.firestore; }
-  else {
-    try {
-      const start = Date.now();
-      await getDoc(doc(db, 'stats', 'health_ping'));
-      results.firestore = { status: Date.now() - start > 4000 ? 'degraded' : 'operational', flaggedBy: 'ai' };
-    } catch { results.firestore = { status: 'outage', flaggedBy: 'ai' }; }
-  }
-
-  if (shouldSkip('googleAuth')) { results.googleAuth = existing.googleAuth; }
-  else {
-    try {
-      await Promise.race([
-        new Promise((resolve, reject) => {
-          const timer = setTimeout(() => reject(new Error('timeout')), 4000);
-          const unsub = auth.onAuthStateChanged(() => { clearTimeout(timer); unsub(); resolve(); });
-        }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000))
-      ]);
-      results.googleAuth = { status: 'operational', flaggedBy: 'ai' };
-    } catch { results.googleAuth = { status: 'degraded', flaggedBy: 'ai' }; }
-  }
-
-  results.website = shouldSkip('website') ? existing.website : { status: 'operational', flaggedBy: 'ai' };
-
-  if (shouldSkip('games')) { results.games = existing.games; }
-  else {
-    try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 5000);
-      await fetch('https://nxtcoreee3.github.io/Drive-Mad/', { method: 'HEAD', signal: ctrl.signal, mode: 'no-cors' });
-      clearTimeout(timer);
-      results.games = { status: 'operational', flaggedBy: 'ai' };
-    } catch { results.games = { status: 'degraded', flaggedBy: 'ai' }; }
-  }
-
-  const services = {};
-  for (const key of KEYS) {
-    const r = results[key];
-    if (shouldSkip(key) && existing[key]) { services[key] = existing[key]; }
-    else {
-      services[key] = {
-        status: r?.status || 'operational',
-        message: SERVICE_DESCRIPTIONS[key]?.descriptions[r?.status || 'operational'] || '',
-        flaggedBy: 'ai',
-        detectedAt: new Date().toISOString(),
-      };
-    }
-  }
-
-  const user = auth.currentUser;
-  if (user && user.uid === OWNER_UID) {
-    try {
-      let anyNewIssue = false;
-      for (const [key, svc] of Object.entries(services)) {
-        if (shouldSkip(key)) continue;
-        if (svc.status !== (existing[key]?.status) && svc.status !== 'operational') anyNewIssue = true;
-      }
-      await setDoc(doc(db, 'stats', 'serviceHealth'), { services, updatedAt: new Date().toISOString() });
-      if (anyNewIssue) {
-        const issues = Object.entries(services).filter(([, v]) => v.status !== 'operational').map(([k]) => SERVICE_DESCRIPTIONS[k]?.name).filter(Boolean);
-        if (issues.length) {
-          const msg = `Automated monitoring detected issues with: <strong>${issues.join(', ')}</strong>.`;
-          const type = Object.values(services).some(v => v.status === 'outage') ? 'error' : 'warning';
-          await setIncidentBanner(true, msg, type, 'ai');
-        }
-      }
-    } catch (e) { console.warn('Health write failed:', e); }
-  } else {
-    try { await setDoc(doc(db, 'stats', 'serviceHealth'), { services, updatedAt: new Date().toISOString() }); } catch {}
-  }
-
-  return services;
 }
