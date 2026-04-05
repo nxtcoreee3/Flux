@@ -180,6 +180,41 @@ const GAMES = [
   thumb: 'assets/block-blast.png',
   url: 'https://nxtcoreee3.github.io/Block-Blast/',
   desc: 'Place blocks, clear lines, and keep the board from filling up.'
+},
+{
+  id: 'candy-crush',
+  title: 'Candy Crush',
+  thumb: 'assets/candy-crush.png',
+  url: 'https://nxtcoreee3.github.io/Candy-Crush/',
+  desc: 'Match candies to complete levels and earn high scores.'
+},
+{
+  id: 'capybara-clicker',
+  title: 'Capybara Clicker',
+  thumb: 'assets/capybara-clicker.png',
+  url: 'https://nxtcoreee3.github.io/Capybara-Clicker/',
+  desc: 'Click to collect capybaras and upgrade your cute farm.'
+},
+{
+  id: 'cleanup-io',
+  title: 'Cleanup.io',
+  thumb: 'assets/cleanup-io.png',
+  url: 'https://nxtcoreee3.github.io/Cleanup.io/',
+  desc: 'Collect trash, clean the area, and compete with other players.'
+},
+{
+  id: 'ducklings-io',
+  title: 'Ducklings.io',
+  thumb: 'assets/ducklings-io.png',
+  url: 'https://nxtcoreee3.github.io/Ducklings.io/',
+  desc: 'Lead your ducklings, grow your flock, and dominate the pond.'
+},
+{
+  id: 'monster-tracks',
+  title: 'Monster Tracks',
+  thumb: 'assets/monster-tracks.png',
+  url: 'https://nxtcoreee3.github.io/Monster-Tracks/',
+  desc: 'Drive monster trucks through crazy tracks and perform insane stunts.'
 }
 ];
 
