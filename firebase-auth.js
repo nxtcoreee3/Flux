@@ -542,6 +542,92 @@ async function fetchVisitorsToday() {
 
 /* ===================== STATS BUTTON ===================== */
 /* ===================== DARK MODE ===================== */
+/* ===================== DEPLOYMENT UPDATE NOTIFICATION ===================== */
+export function initUpdateNotification() {
+  const CHECK_INTERVAL = 5 * 60 * 1000; // check every 5 minutes
+  const STORAGE_KEY = 'flux_build';
+  let _notifShown = false;
+
+  async function checkForUpdate() {
+    try {
+      // Fetch version.json with cache-busting
+      const res = await fetch(`version.json?t=${Date.now()}`, { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = await res.json();
+      const latestBuild = data.build;
+      const latestVersion = data.version || '';
+      if (!latestBuild) return;
+
+      const storedBuild = localStorage.getItem(STORAGE_KEY);
+
+      if (!storedBuild) {
+        // First visit — store the build number silently
+        localStorage.setItem(STORAGE_KEY, latestBuild);
+        return;
+      }
+
+      if (storedBuild !== latestBuild && !_notifShown) {
+        _notifShown = true;
+        showUpdateBanner(latestBuild, latestVersion);
+      }
+    } catch {}
+  }
+
+  function showUpdateBanner(build, version) {
+    const existing = document.getElementById('flux-update-banner');
+    if (existing) existing.remove();
+
+    const banner = document.createElement('div');
+    banner.id = 'flux-update-banner';
+    banner.style.cssText = `
+      position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);
+      z-index:9999;display:flex;align-items:center;gap:14px;
+      background:var(--panel,#fff);
+      border:1px solid var(--glass-border,rgba(0,0,0,0.08));
+      border-radius:16px;padding:14px 18px;
+      box-shadow:0 12px 40px rgba(0,0,0,0.15);
+      max-width:440px;width:calc(100vw - 48px);
+      transition:transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
+    `;
+    banner.innerHTML = `
+      <span style="font-size:22px;flex-shrink:0;">🚀</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:14px;font-weight:700;color:var(--text,#111);">New update available!</div>
+        <div style="font-size:12px;color:var(--muted,#6b7280);margin-top:2px;">
+          Build <code style="background:rgba(58,125,255,0.1);color:var(--accent,#3a7dff);padding:1px 5px;border-radius:4px;font-size:11px;">#${build}</code>
+          ${version ? `<span style="margin-left:4px;">· v${version}</span>` : ''}
+           is ready
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-shrink:0;">
+        <button id="update-refresh-btn" style="padding:8px 14px;background:var(--accent,#3a7dff);color:white;border:none;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap;">Refresh</button>
+        <button id="update-dismiss-btn" style="background:none;border:none;color:var(--muted,#9ca3af);cursor:pointer;font-size:18px;padding:0 2px;line-height:1;">✕</button>
+      </div>
+    `;
+    document.body.appendChild(banner);
+
+    // Slide up
+    requestAnimationFrame(() => {
+      banner.style.transform = 'translateX(-50%) translateY(0)';
+    });
+
+    document.getElementById('update-refresh-btn').addEventListener('click', () => {
+      localStorage.setItem(STORAGE_KEY, build);
+      window.location.reload();
+    });
+
+    document.getElementById('update-dismiss-btn').addEventListener('click', () => {
+      banner.style.transform = 'translateX(-50%) translateY(80px)';
+      setTimeout(() => banner.remove(), 400);
+      // Don't store — show again next page load until they refresh
+    });
+  }
+
+  // Check on load and periodically
+  checkForUpdate();
+  setInterval(checkForUpdate, CHECK_INTERVAL);
+}
+
 export function initDarkMode() {
   const DARK_KEY = 'flux_dark';
   const saved = localStorage.getItem(DARK_KEY);
@@ -2104,18 +2190,34 @@ export function initAuthUI(onUserChange) {
       });
     } catch {}
 
-    // Populate game select from window._FLUX_GAMES
+    // Populate game select — try window._FLUX_GAMES, fallback to fetching from gamestats
     const gameSelect = document.getElementById('mod-game-select');
-    if (gameSelect && window._FLUX_GAMES) {
+    if (gameSelect) {
+      const games = window._FLUX_GAMES || [];
       gameSelect.innerHTML = '<option value="">Select a game...</option>';
-      window._FLUX_GAMES.forEach(g => {
-        const opt = document.createElement('option');
-        opt.value = g.id; opt.textContent = g.title;
-        gameSelect.appendChild(opt);
-      });
-      // Load current compat on select change
-      gameSelect.addEventListener('change', async () => {
-        const id = gameSelect.value;
+      if (games.length) {
+        games.forEach(g => {
+          const opt = document.createElement('option');
+          opt.value = g.id; opt.textContent = g.title;
+          gameSelect.appendChild(opt);
+        });
+      } else {
+        // Fallback: fetch from gamestats collection
+        try {
+          const { collection: col, getDocs: gd } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+          const snap = await gd(col(db, 'gamestats'));
+          snap.docs.forEach(d => {
+            const opt = document.createElement('option');
+            opt.value = d.id; opt.textContent = d.data().title || d.id;
+            gameSelect.appendChild(opt);
+          });
+        } catch {}
+      }
+      // Remove old listener to avoid dupes, add fresh one
+      const newSelect = gameSelect.cloneNode(true);
+      gameSelect.parentNode.replaceChild(newSelect, gameSelect);
+      newSelect.addEventListener('change', async () => {
+        const id = newSelect.value;
         if (!id) return;
         const snap = await getDoc(doc(db, 'gamestats', id));
         const data = snap.exists() ? snap.data() : {};
@@ -2126,14 +2228,15 @@ export function initAuthUI(onUserChange) {
           b.style.color = on ? '#fff' : '#6b7280';
           b.style.borderColor = on ? '#111827' : '#e5e7eb';
         });
-        // Show current lock status
         const statusEl = document.getElementById('mod-lock-status');
-        if (data.locked) {
-          statusEl.style.color = '#ef4444';
-          statusEl.textContent = `🔒 Currently locked: "${data.lockReason}"${data.lockETA ? ` · ETA: ${data.lockETA}` : ''}`;
-        } else {
-          statusEl.style.color = '#22c55e';
-          statusEl.textContent = data.locked === false ? '🔓 Currently unlocked' : '';
+        if (statusEl) {
+          if (data.locked) {
+            statusEl.style.color = '#ef4444';
+            statusEl.textContent = `🔒 Currently locked: "${data.lockReason}"${data.lockETA ? ` · ETA: ${data.lockETA}` : ''}`;
+          } else {
+            statusEl.style.color = '#22c55e';
+            statusEl.textContent = data.locked === false ? '🔓 Currently unlocked' : '';
+          }
         }
       });
     }
