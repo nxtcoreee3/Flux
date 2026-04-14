@@ -263,14 +263,14 @@ const GAMES = [
   title: 'Subway Surfers Mexico',
   thumb: 'assets/subway-surfers-mexico.png',
   url: 'https://nxtcoreee3.github.io/Subway-Surfers-Mexico/',
-  desc: 'Run through tracks, dodge trains, and collect coins in this Mexico-themed endless runner.'
+  desc: 'Run through tracks, dodge trains, and collect coins in this Mexico-themed endless runner. (Optimized for Safari)'
 },
 {
   id: 'subway-surfers-houston',
   title: 'Subway Surfers Houston',
   thumb: 'assets/subway-surfers-houston.png',
   url: 'https://nxtcoreee3.github.io/Subway-Surfers-Houston/',
-  desc: 'Run through tracks, dodge trains, and collect coins in this Houston-themed endless runner.'
+  desc: 'Run through tracks, dodge trains, and collect coins in this Houston-themed endless runner. (Optimized for Safari)'
 }
 ];
 
