@@ -390,6 +390,22 @@ export async function setGameCompatibility(gameId, gameTitle, compatibility) {
   } catch (e) { return { ok: false, error: e.message }; }
 }
 
+export async function setGameLockdown(gameId, gameTitle, { locked, reason = '', eta = '' }) {
+  const user = auth.currentUser;
+  if (!user || user.uid !== OWNER_UID) return { ok: false, error: 'Owner only.' };
+  try {
+    await setDoc(doc(db, 'gamestats', gameId), {
+      title: gameTitle,
+      locked: locked,
+      lockReason: reason,
+      lockETA: eta,
+      lockedAt: locked ? new Date().toISOString() : null,
+      lockedBy: locked ? user.uid : null,
+    }, { merge: true });
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
 export async function rateGame(gameId, gameTitle, rating) {
   const user = auth.currentUser;
   if (!user || user.isAnonymous) return { ok: false, error: 'Sign in to rate.' };
@@ -1727,17 +1743,33 @@ export function initAuthUI(onUserChange) {
       </div>
 
       <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
-      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🎮 Game Labels</div>
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🎮 Game Management</div>
       <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px;">
         <select id="mod-game-select" style="padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;color:#111827;background:#fff;outline:none;cursor:pointer;">
           <option value="">Select a game...</option>
         </select>
+
+        <!-- Compatibility labels -->
+        <div style="font-size:10px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-top:4px;">Compatibility</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;">
           <button class="compat-btn" data-compat="ipad" style="flex:1;padding:7px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:12px;font-weight:700;color:#6b7280;">📱 iPad</button>
           <button class="compat-btn" data-compat="pc" style="flex:1;padding:7px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:12px;font-weight:700;color:#6b7280;">🖥️ PC</button>
           <button class="compat-btn" data-compat="both" style="flex:1;padding:7px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:12px;font-weight:700;color:#6b7280;">✅ Both</button>
           <button class="compat-btn" data-compat="" style="flex:1;padding:7px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:12px;font-weight:700;color:#6b7280;">✕ Clear</button>
         </div>
+
+        <!-- Lockdown -->
+        <div style="font-size:10px;color:#ef4444;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-top:4px;">🔒 Game Lockdown</div>
+        <input id="mod-lock-reason" type="text" placeholder="Reason (e.g. Game is broken, investigating...)" maxlength="120"
+          style="padding:9px 12px;border:1px solid rgba(239,68,68,0.3);border-radius:10px;font-size:13px;outline:none;box-sizing:border-box;">
+        <input id="mod-lock-eta" type="text" placeholder="ETA (e.g. Back in ~30 mins, Tomorrow)" maxlength="60"
+          style="padding:9px 12px;border:1px solid rgba(239,68,68,0.3);border-radius:10px;font-size:13px;outline:none;box-sizing:border-box;">
+        <div style="display:flex;gap:8px;">
+          <button id="mod-lock-btn" style="flex:1;padding:9px;background:#ef4444;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:13px;">🔒 Lock Game</button>
+          <button id="mod-unlock-btn" style="flex:1;padding:9px;background:#22c55e;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:13px;">🔓 Unlock Game</button>
+        </div>
+        <div id="mod-lock-status" style="font-size:12px;color:#6b7280;text-align:center;min-height:16px;"></div>
+
         <div id="mod-game-reports-wrap" style="display:none;">
           <div style="font-size:11px;color:#ef4444;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">⚠️ Open Reports</div>
           <div id="mod-game-reports-list"></div>
@@ -1979,6 +2011,36 @@ export function initAuthUI(onUserChange) {
     });
   });
 
+  // Lock / unlock game
+  document.getElementById('mod-lock-btn').addEventListener('click', async () => {
+    const select = document.getElementById('mod-game-select');
+    const gameId = select.value;
+    const gameTitle = select.options[select.selectedIndex]?.text || '';
+    const reason = document.getElementById('mod-lock-reason').value.trim();
+    const eta = document.getElementById('mod-lock-eta').value.trim();
+    const statusEl = document.getElementById('mod-lock-status');
+    if (!gameId) { statusEl.style.color='#ef4444'; statusEl.textContent='Select a game first.'; return; }
+    if (!reason) { statusEl.style.color='#ef4444'; statusEl.textContent='Enter a reason for locking.'; return; }
+    const result = await setGameLockdown(gameId, gameTitle, { locked: true, reason, eta });
+    statusEl.style.color = result.ok ? '#ef4444' : '#ef4444';
+    statusEl.textContent = result.ok ? `🔒 ${gameTitle} is now locked` : result.error;
+    if (result.ok) {
+      document.getElementById('mod-lock-reason').value = '';
+      document.getElementById('mod-lock-eta').value = '';
+    }
+  });
+
+  document.getElementById('mod-unlock-btn').addEventListener('click', async () => {
+    const select = document.getElementById('mod-game-select');
+    const gameId = select.value;
+    const gameTitle = select.options[select.selectedIndex]?.text || '';
+    const statusEl = document.getElementById('mod-lock-status');
+    if (!gameId) { statusEl.style.color='#ef4444'; statusEl.textContent='Select a game first.'; return; }
+    const result = await setGameLockdown(gameId, gameTitle, { locked: false });
+    statusEl.style.color = result.ok ? '#22c55e' : '#ef4444';
+    statusEl.textContent = result.ok ? `🔓 ${gameTitle} is now unlocked` : result.error;
+  });
+
   // Admin abuse buttons — toggle on/off
   const _activeEffects = new Set();
   modModal.querySelectorAll('.abuse-btn').forEach(btn => {
@@ -2055,15 +2117,24 @@ export function initAuthUI(onUserChange) {
       gameSelect.addEventListener('change', async () => {
         const id = gameSelect.value;
         if (!id) return;
-        const { fetchAllGameStats } = await import('./firebase-auth.js').catch(()=>({}));
         const snap = await getDoc(doc(db, 'gamestats', id));
-        const compat = snap.exists() ? snap.data().compatibility || '' : '';
+        const data = snap.exists() ? snap.data() : {};
+        const compat = data.compatibility || '';
         modModal.querySelectorAll('.compat-btn').forEach(b => {
           const on = b.dataset.compat === compat && compat !== '';
           b.style.background = on ? '#111827' : '#fff';
           b.style.color = on ? '#fff' : '#6b7280';
           b.style.borderColor = on ? '#111827' : '#e5e7eb';
         });
+        // Show current lock status
+        const statusEl = document.getElementById('mod-lock-status');
+        if (data.locked) {
+          statusEl.style.color = '#ef4444';
+          statusEl.textContent = `🔒 Currently locked: "${data.lockReason}"${data.lockETA ? ` · ETA: ${data.lockETA}` : ''}`;
+        } else {
+          statusEl.style.color = '#22c55e';
+          statusEl.textContent = data.locked === false ? '🔓 Currently unlocked' : '';
+        }
       });
     }
 

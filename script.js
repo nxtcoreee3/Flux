@@ -3,7 +3,7 @@
    favorites (cloud+local), dark mode, toasts, recently played, new badge, stats button
 */
 
-import { initAuthUI, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, fetchAllGameStats, setCurrentlyPlaying, clearCurrentlyPlaying, rateGame, getUserRating, reportGame, checkFirestoreHealth, fetchGameDetail, getAiGameDescription, getGameReviews, submitReview, addReviewComment, likeReview, deleteReview, fetchGamePricing, getUnlockedGames, unlockGame, SPIN_SEGMENTS, getLastSpin, spinWheel, giftPointsToUser, redeemCode, createRewardCode, getRewardCodes, deactivateRewardCode, initIncidentBanner, setServiceStatus, autoCheckServiceHealth, setIncidentBanner, checkNoAds, purchaseNoAds, NO_ADS_COST } from './firebase-auth.js';
+import { initAuthUI, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, fetchAllGameStats, setCurrentlyPlaying, clearCurrentlyPlaying, rateGame, getUserRating, reportGame, checkFirestoreHealth, fetchGameDetail, getAiGameDescription, getGameReviews, submitReview, addReviewComment, likeReview, deleteReview, fetchGamePricing, getUnlockedGames, unlockGame, SPIN_SEGMENTS, getLastSpin, spinWheel, giftPointsToUser, redeemCode, createRewardCode, getRewardCodes, deactivateRewardCode, initIncidentBanner, setServiceStatus, autoCheckServiceHealth, setIncidentBanner, checkNoAds, purchaseNoAds, NO_ADS_COST, setGameLockdown } from './firebase-auth.js';
 
 const GAMES = [
   {
@@ -263,14 +263,14 @@ const GAMES = [
   title: 'Subway Surfers Mexico',
   thumb: 'assets/subway-surfers-mexico.png',
   url: 'https://nxtcoreee3.github.io/Subway-Surfers-Mexico/',
-  desc: 'Run through tracks, dodge trains, and collect coins in this Mexico-themed endless runner. (Optimized for Safari)'
+  desc: 'Run through tracks, dodge trains, and collect coins in this Mexico-themed endless runner.'
 },
 {
   id: 'subway-surfers-houston',
   title: 'Subway Surfers Houston',
   thumb: 'assets/subway-surfers-houston.png',
   url: 'https://nxtcoreee3.github.io/Subway-Surfers-Houston/',
-  desc: 'Run through tracks, dodge trains, and collect coins in this Houston-themed endless runner. (Optimized for Safari)'
+  desc: 'Run through tracks, dodge trains, and collect coins in this Houston-themed endless runner.'
 }
 ];
 
@@ -451,6 +451,10 @@ function createCard(game) {
   const compat = stats.compatibility || '';
   const avgRating = stats.ratingCount ? (stats.ratingTotal / stats.ratingCount).toFixed(1) : null;
 
+  // Mod lockdown — owner can still play
+  const isModLocked = stats.locked === true;
+  const isOwnerView = window._fluxIsOwner === true;
+
   const pricing = _gamePricing[game.id] || { price: 0, discount: 0 };
   const isExpired = pricing.discountExpiry && new Date(pricing.discountExpiry) < new Date();
   const activeDiscount = (!isExpired && pricing.discount > 0) ? pricing.discount : 0;
@@ -485,23 +489,29 @@ function createCard(game) {
     ${isNew && !isHot ? '<span class="new-badge">✨ NEW</span>' : ''}
     ${saleBadge}
     ${lockOverlay}
-    <img class="thumb" src="${game.thumb}" alt="${game.title} thumbnail" loading="lazy">
-    <div class="card-body" style="cursor:pointer;" title="View details">
+    ${isModLocked && !isOwnerView ? `<div class="card-modlock-overlay" style="position:absolute;inset:0;z-index:5;background:rgba(239,68,68,0.15);border-radius:inherit;border:2px solid rgba(239,68,68,0.4);pointer-events:none;"></div>` : ''}
+    <img class="thumb" src="${game.thumb}" alt="${game.title} thumbnail" loading="lazy" style="${isModLocked && !isOwnerView ? 'opacity:0.45;filter:grayscale(0.3);' : ''}">
+    <div class="card-body" style="cursor:pointer;${isModLocked && !isOwnerView ? 'opacity:0.5;' : ''}" title="View details">
       <h3 class="title">${game.title}</h3>
       <div class="meta">${game.desc || ''}</div>
       <div style="display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap;">
         ${compatBadge}
         ${ratingHTML}
+        ${isModLocked && !isOwnerView ? '<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(239,68,68,0.1);color:#ef4444;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;border:1px solid rgba(239,68,68,0.2);">🔒 Temporarily unavailable</span>' : ''}
+        ${isModLocked && isOwnerView ? '<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(239,68,68,0.1);color:#ef4444;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;border:1px solid rgba(239,68,68,0.2);">🔒 Locked (admin view)</span>' : ''}
       </div>
     </div>
     <div class="card-foot">
       <div style="display:flex;gap:8px;align-items:center">
         <button class="favorite" title="Toggle favourite" aria-pressed="${isFav(game.id)}">${isFav(game.id) ? '★' : '☆'}</button>
-        <button class="rate-btn" title="Rate game" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--muted);">☆ Rate</button>
+        ${!isModLocked || isOwnerView ? `<button class="rate-btn" title="Rate game" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--muted);">☆ Rate</button>` : ''}
         <button class="report-btn" title="Report game" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--muted);">⚑</button>
       </div>
       <div style="display:flex;gap:8px;align-items:center">
-        <button class="play-btn" data-url="${game.url}" data-title="${game.title}">${isLocked ? `🔒 ${finalPrice} pts` : 'Play'}</button>
+        ${isModLocked && !isOwnerView
+          ? `<button class="modlock-info-btn" style="padding:7px 14px;background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.3);border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;">Get Info</button>`
+          : `<button class="play-btn" data-url="${game.url}" data-title="${game.title}">${isLocked ? `🔒 ${finalPrice} pts` : 'Play'}</button>`
+        }
       </div>
     </div>
   `;
@@ -517,21 +527,27 @@ function createCard(game) {
   });
   favBtn.classList.toggle('active', isFav(game.id));
 
-  div.querySelector('.rate-btn').addEventListener('click', (e) => { e.stopPropagation(); showRatingModal(game); });
-  div.querySelector('.report-btn').addEventListener('click', (e) => { e.stopPropagation(); showReportModal(game); });
+  div.querySelector('.rate-btn')?.addEventListener('click', (e) => { e.stopPropagation(); showRatingModal(game); });
+  div.querySelector('.report-btn')?.addEventListener('click', (e) => { e.stopPropagation(); showReportModal(game); });
 
   // Click card body → open detail view
-  div.querySelector('.card-body').addEventListener('click', (e) => { e.stopPropagation(); if (!window._fluxBanned) openGameDetail(game); });
+  div.querySelector('.card-body')?.addEventListener('click', (e) => { e.stopPropagation(); if (!window._fluxBanned) openGameDetail(game); });
 
-  // Click lock overlay → unlock modal
+  // Click lock overlay → unlock modal (pricing lock)
   div.querySelector('.card-lock-overlay')?.addEventListener('click', (e) => {
     e.stopPropagation();
     showUnlockModal(game, finalPrice, activeDiscount, pricing.price);
   });
 
-  div.querySelector('.play-btn').addEventListener('click', (e) => {
+  // Mod lock info button
+  div.querySelector('.modlock-info-btn')?.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (window._fluxBanned) return; // banned users cannot play
+    showModLockInfoModal(game, stats);
+  });
+
+  div.querySelector('.play-btn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (window._fluxBanned) return;
     if (isLocked) { showUnlockModal(game, finalPrice, activeDiscount, pricing.price); return; }
     addRecent(game.id);
     renderRecentSection();
@@ -639,6 +655,49 @@ function showReportModal(game) {
       if (result.ok) setTimeout(() => modal.remove(), 1500);
     });
   });
+}
+
+function showModLockInfoModal(game, stats) {
+  const existing = document.getElementById('modlock-info-modal');
+  if (existing) existing.remove();
+
+  const lockedAt = stats.lockedAt
+    ? new Date(stats.lockedAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : 'Unknown';
+
+  const modal = document.createElement('div');
+  modal.id = 'modlock-info-modal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:500;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);padding:24px;';
+  modal.innerHTML = `
+    <div style="background:var(--panel);border-radius:20px;padding:28px;width:100%;max-width:380px;box-shadow:0 30px 80px rgba(0,0,0,0.2);position:relative;text-align:center;">
+      <button id="modlock-close" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted);">✕</button>
+      <div style="width:56px;height:56px;border-radius:50%;background:rgba(239,68,68,0.1);border:2px solid rgba(239,68,68,0.3);display:flex;align-items:center;justify-content:center;font-size:24px;margin:0 auto 16px;">🔒</div>
+      <h3 style="font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--text);margin:0 0 6px;">${game.title}</h3>
+      <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(239,68,68,0.1);color:#ef4444;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;margin-bottom:20px;">🔒 Temporarily Unavailable</div>
+
+      <div style="background:var(--bg);border-radius:12px;padding:16px;text-align:left;display:flex;flex-direction:column;gap:12px;margin-bottom:20px;">
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Reason</div>
+          <div style="font-size:14px;color:var(--text);line-height:1.5;">${stats.lockReason || 'No reason provided.'}</div>
+        </div>
+        ${stats.lockETA ? `<div>
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Estimated Return</div>
+          <div style="font-size:14px;color:#22c55e;font-weight:600;">${stats.lockETA}</div>
+        </div>` : ''}
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Locked Since</div>
+          <div style="font-size:13px;color:var(--muted);">${lockedAt}</div>
+        </div>
+      </div>
+
+      <p style="font-size:12px;color:var(--muted);margin:0 0 16px;">We're working on it. Check back soon!</p>
+      <button id="modlock-close-btn" style="width:100%;padding:11px;background:var(--accent);color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">Got it</button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  document.getElementById('modlock-close').addEventListener('click', () => modal.remove());
+  document.getElementById('modlock-close-btn').addEventListener('click', () => modal.remove());
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
 }
 
 /* ===================== RENDER ===================== */
@@ -871,6 +930,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   initAuthUI(async (user) => {
     window._currentUserUid = user?.uid || null;
+    window._fluxIsOwner = user?.uid === 'zEy6TO5ligf2um4rssIZs9C9X7f2';
     await refreshFavsCache();
     if (user && !user.isAnonymous) {
       trackLoginStreak();
