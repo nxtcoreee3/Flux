@@ -900,54 +900,6 @@ export async function searchProfiles(term) {
   } catch { return []; }
 }
 
-export async function syncProfileAvatar(force = false) {
-  const user = auth.currentUser;
-  if (!user || user.isAnonymous) return false;
-  try {
-    const profileRef = doc(db, 'profiles', user.uid);
-    const snap = await getDoc(profileRef);
-    if (!snap.exists()) return false;
-    const photo = user.photoURL;
-    if (!photo) return false;
-    if (!force && snap.data().avatarURL === photo) return false;
-    await updateDoc(profileRef, { avatarURL: photo });
-    return true;
-  } catch { return false; }
-}
-
-export async function reportUser(targetUid, reason, context = '') {
-  const user = auth.currentUser;
-  if (!user || user.isAnonymous) return { ok: false, error: 'Sign in to report.' };
-  try {
-    const { addDoc, collection } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-    await addDoc(collection(db, 'userReports'), {
-      reportedUid: targetUid,
-      reason,
-      context,
-      reportedBy: user.uid,
-      reportedAt: new Date().toISOString(),
-      status: 'open'
-    });
-    return { ok: true };
-  } catch (e) { return { ok: false, error: e.message }; }
-}
-
-export async function fetchUserReports() {
-  try {
-    const { collection, query, where, getDocs } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-    const q = query(collection(db, 'userReports'), where('status', '==', 'open'));
-    const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  } catch { return []; }
-}
-
-export async function dismissUserReport(reportId) {
-  try {
-    await updateDoc(doc(db, 'userReports', reportId), { status: 'dismissed' });
-    return { ok: true };
-  } catch (e) { return { ok: false, error: e.message }; }
-}
-
 export async function isUsernameTaken(username) {
   const p = await getProfileByUsername(username);
   return p !== null;
@@ -4094,28 +4046,5 @@ function showPolicyGate() {
       overlay.remove();
       location.reload();
     } catch (e) { console.warn('Sign out failed:', e); }
-  });
-}
-export function watchUnreadMessages(uid, callback) {
-  import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({ collection, query, where, onSnapshot }) => {
-    const q = query(collection(db, 'conversations'), where('members', 'array-contains', uid));
-    return onSnapshot(q, (snap) => {
-      let total = 0;
-      let latest = null;
-      snap.docs.forEach(d => {
-        const data = d.data();
-        const unreadCount = data.unread?.[uid] || 0;
-        total += unreadCount;
-        if (unreadCount > 0) {
-          latest = {
-            convoId: d.id,
-            text: data.lastMessage,
-            senderUid: data.type === 'dm' ? data.members.find(m => m !== uid) : data.from,
-            type: data.type
-          };
-        }
-      });
-      callback(total, latest);
-    });
   });
 }

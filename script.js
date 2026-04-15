@@ -3,7 +3,7 @@
    favorites (cloud+local), dark mode, toasts, recently played, new badge, stats button
 */
 
-import { initAuthUI, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, fetchAllGameStats, setCurrentlyPlaying, clearCurrentlyPlaying, rateGame, getUserRating, reportGame, checkFirestoreHealth, fetchGameDetail, getAiGameDescription, getGameReviews, submitReview, addReviewComment, likeReview, deleteReview, fetchGamePricing, getUnlockedGames, unlockGame, SPIN_SEGMENTS, getLastSpin, spinWheel, giftPointsToUser, redeemCode, createRewardCode, getRewardCodes, deactivateRewardCode, initIncidentBanner, setServiceStatus, autoCheckServiceHealth, setIncidentBanner, checkNoAds, purchaseNoAds, NO_ADS_COST, setGameLockdown, initUpdateNotification, watchUnreadMessages, getProfile } from './firebase-auth.js';
+import { initAuthUI, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, fetchAllGameStats, setCurrentlyPlaying, clearCurrentlyPlaying, rateGame, getUserRating, reportGame, checkFirestoreHealth, fetchGameDetail, getAiGameDescription, getGameReviews, submitReview, addReviewComment, likeReview, deleteReview, fetchGamePricing, getUnlockedGames, unlockGame, SPIN_SEGMENTS, getLastSpin, spinWheel, giftPointsToUser, redeemCode, createRewardCode, getRewardCodes, deactivateRewardCode, initIncidentBanner, setServiceStatus, autoCheckServiceHealth, setIncidentBanner, checkNoAds, purchaseNoAds, NO_ADS_COST, setGameLockdown, initUpdateNotification } from './firebase-auth.js';
 
 const GAMES = [
   {
@@ -937,30 +937,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (user && !user.isAnonymous) {
       trackLoginStreak();
       trackTimeOnSite();
-      
-      // Global message listener
-      let totalRead = 0;
-      watchUnreadMessages(user.uid, async (total, latest) => {
-        // Only notify if unread count increased
-        if (total > totalRead && latest && !location.pathname.includes('messages.html')) {
-          const sender = await getProfile(latest.senderUid);
-          const senderName = sender?.displayName || sender?.username || 'Someone';
-          const senderAvatar = sender?.avatarURL || '';
-          
-          showNotificationToast(
-            `New ${latest.type === 'dm' ? 'message' : 'group message'} from ${senderName}`,
-            latest.text,
-            senderAvatar,
-            'messages.html'
-          );
-          
-          // Play subtle sound if approved
-          try { new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3').play(); } catch(e){}
-        }
-        totalRead = total;
-        updateGlobalUnreadBadge(total);
-      });
-
       // Re-check no-ads status now that we're signed in
       if (!_adsDisabled) {
         const noAds = await checkNoAds();
@@ -2151,74 +2127,3 @@ window.openRedeemCode = function () {
     }
   });
 };
-
-function updateGlobalUnreadBadge(total) {
-  let navLink = null;
-  document.querySelectorAll('#main-nav a').forEach(a => {
-    if (a.getAttribute('href') === 'messages.html') navLink = a;
-  });
-  
-  if (!navLink) return;
-
-  let badge = navLink.querySelector('.global-unread-badge');
-  if (!badge) {
-    badge = document.createElement('span');
-    badge.className = 'global-unread-badge';
-    badge.style.cssText = `
-      margin-left: 6px; background: #ef4444; color: white;
-      font-size: 10px; font-weight: 800; padding: 2px 6px;
-      border-radius: 20px; display: none; align-items: center;
-      justify-content: center; min-width: 18px; height: 18px;
-    `;
-    navLink.appendChild(badge);
-  }
-  
-  badge.textContent = total;
-  badge.style.display = total > 0 ? 'inline-flex' : 'none';
-}
-
-function showNotificationToast(title, text, avatar, link) {
-  const container = document.getElementById('toast-container') || document.body;
-  const toast = document.createElement('div');
-  toast.style.cssText = `
-    position: fixed; top: 20px; right: 20px; z-index: 10000;
-    width: 300px; background: #fff; border-radius: 16px;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.15); border: 1px solid rgba(0,0,0,0.05);
-    padding: 12px; display: flex; gap: 12px; align-items: center;
-    cursor: pointer; animation: toastSlideIn 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
-    font-family: 'Inter', sans-serif;
-  `;
-  
-  const avatarHTML = avatar 
-    ? `<img src="${avatar}" style="width:44px;height:44px;border-radius:12px;object-fit:cover;flex-shrink:0;">`
-    : `<div style="width:44px;height:44px;border-radius:12px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-size:18px;font-weight:700;flex-shrink:0;">💬</div>`;
-
-  toast.innerHTML = `
-    ${avatarHTML}
-    <div style="flex:1;min-width:0;">
-      <div style="font-size:13px;font-weight:700;color:#111827;margin-bottom:2px;">${title}</div>
-      <div style="font-size:12px;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${text}</div>
-    </div>
-  `;
-  
-  toast.addEventListener('click', () => { window.location.href = link; });
-  
-  const style = document.createElement('style');
-  style.textContent = `
-    @keyframes toastSlideIn {
-      from { transform: translateX(100%) scale(0.9); opacity: 0; }
-      to { transform: translateX(0) scale(1); opacity: 1; }
-    }
-    @keyframes toastSlideOut {
-      from { transform: translateX(0) scale(1); opacity: 1; }
-      to { transform: translateX(100%) scale(0.9); opacity: 0; }
-    }
-  `;
-  document.head.appendChild(style);
-  
-  container.appendChild(toast);
-  setTimeout(() => {
-    toast.style.animation = 'toastSlideOut 0.3s forwards';
-    setTimeout(() => toast.remove(), 300);
-  }, 5000);
-}

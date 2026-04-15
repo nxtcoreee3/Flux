@@ -4,7 +4,7 @@ import {
   getProfile, searchProfiles, renderBadges,
   initAuthUI, initServerStatus, initBroadcast,
   initChaos, initJumpscare, initPresence, initCookieConsent,
-  initDarkMode, initChatLock, fetchLeaderboard, reportUser
+  initDarkMode, initChatLock, fetchLeaderboard
 } from './firebase-auth.js';
 
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -188,8 +188,8 @@ function renderMessageSync(msg, currentUser) {
     : '';
 
   const avatarHTML = msg.avatarURL
-    ? `<img class="chat-msg-avatar" src="${msg.avatarURL}" style="width:28px;height:28px;border-radius:8px;object-fit:cover;margin-${isOwn?'left':'right'}:8px;flex-shrink:0;">`
-    : `<div class="chat-msg-avatar-placeholder" style="width:28px;height:28px;border-radius:8px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:12px;margin-${isOwn?'left':'right'}:8px;flex-shrink:0;">${(msg.displayName || msg.username || '?')[0].toUpperCase()}</div>`;
+    ? `<img class="chat-msg-avatar" src="${msg.avatarURL}" alt="">`
+    : `<div class="chat-msg-avatar-placeholder">${(msg.displayName || msg.username || '?')[0].toUpperCase()}</div>`;
 
   // Use baked-in badges for instant render
   const badgesHTML = renderBadges(msg.badges || [], msg.roles || []);
@@ -198,38 +198,19 @@ function renderMessageSync(msg, currentUser) {
   div.className = 'chat-msg';
   div.dataset.id = msg.id;
   div.dataset.uid = msg.uid;
-  div.style.cssText = `display:flex;align-items:flex-end;margin-bottom:12px;flex-direction:${isOwn?'row-reverse':'row'}`;
-  
   div.innerHTML = `
     ${avatarHTML}
-    <div class="chat-msg-body" style="max-width:85%;position:relative;">
-      <div class="chat-msg-meta" style="display:flex;align-items:center;gap:6px;margin-bottom:2px;${isOwn?'flex-direction:row-reverse;':''}">
-        <a class="chat-msg-name" href="profile.html?user=${msg.username}" style="font-size:11px;font-weight:700;color:var(--text);text-decoration:none;">@${msg.username}</a>
+    <div class="chat-msg-body">
+      <div class="chat-msg-meta">
+        <a class="chat-msg-name" href="profile.html?user=${msg.username}">@${msg.username}</a>
         <span class="msg-badges">${badgesHTML}</span>
-        <span class="chat-msg-time" style="font-size:9px;color:var(--muted);">${time}</span>
+        <span class="chat-msg-time">${time}</span>
+        ${(isAdmin || isOwn) ? `<button class="chat-msg-delete" title="Delete">✕</button>` : ''}
       </div>
       <div class="msg-playing"></div>
-      <div class="chat-msg-bubble" style="padding:10px 14px;border-radius:18px;position:relative;${isOwn?'background:var(--accent);color:white;border-bottom-right-radius:4px;':'background:var(--panel);color:var(--text);border:1px solid var(--glass-border);border-bottom-left-radius:4px;'}">
-        <div class="chat-msg-text" style="font-size:13px;line-height:1.4;word-break:break-word;">${escapeHtml(msg.text)}</div>
-        <div class="msg-actions" style="position:absolute;top:-24px;${isOwn?'right:0;':'left:0;'}display:none;gap:4px;background:var(--panel);padding:2px 6px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);border:1px solid var(--glass-border);z-index:10;">
-          <button class="msg-report" style="background:none;border:none;cursor:pointer;font-size:10px;padding:2px;" title="Report">🚩</button>
-          ${(isAdmin || isOwn) ? `<button class="chat-msg-delete" style="background:none;border:none;cursor:pointer;font-size:10px;padding:2px;" title="Delete">🗑️</button>` : ''}
-        </div>
-      </div>
+      <div class="chat-msg-text">${escapeHtml(msg.text)}</div>
     </div>
   `;
-
-  div.addEventListener('mouseenter', () => div.querySelector('.msg-actions').style.display = 'flex');
-  div.addEventListener('mouseleave', () => div.querySelector('.msg-actions').style.display = 'none');
-
-  div.querySelector('.msg-report')?.addEventListener('click', async () => {
-    const reason = prompt('Why are you reporting this user?');
-    if (reason) {
-      await reportUser(msg.uid, reason, `Social Chat Context: ${msg.text} (Msg: ${msg.id})`);
-      alert('Report sent to moderators.');
-      div.style.opacity = '0.4';
-    }
-  });
 
   div.querySelector('.chat-msg-delete')?.addEventListener('click', () => deleteMessage(msg.id));
   return div;

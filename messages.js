@@ -4,7 +4,7 @@ import {
   getProfile, getProfileByUsername, renderBadges,
   initAuthUI, initServerStatus, initBroadcast,
   initChaos, initJumpscare, initPresence, initCookieConsent,
-  initDarkMode, initChatLock, reportUser, syncProfileAvatar
+  initDarkMode, initChatLock
 } from './firebase-auth.js';
 
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -305,7 +305,6 @@ function loadConversationMessages(convoId, name, isGroup) {
     </div>
     <div id="messages-list" class="messages-list"><div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;"><div style="display:flex;justify-content:center;padding:20px;"><img src="assets/loading.gif" style="width:80px;height:auto;" alt="Loading..."></div></div></div>
     <div class="message-input-bar">
-      <button id="gif-btn" class="gif-btn" style="background:none;border:none;font-size:18px;cursor:pointer;padding:0 8px;">🎬</button>
       <input id="msg-input" type="text" placeholder="Message..." maxlength="1000" autocomplete="off" class="msg-input">
       <button id="msg-send" class="msg-send-btn">➤</button>
     </div>
@@ -322,7 +321,6 @@ function loadConversationMessages(convoId, name, isGroup) {
   document.getElementById('msg-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   });
-  document.getElementById('gif-btn').addEventListener('click', showGifPicker);
 
   // Mark as read
   updateDoc(doc(db, 'conversations', convoId), { [`unread.${_currentUser.uid}`]: 0 }).catch(() => {});
@@ -349,52 +347,13 @@ function renderMessage(msg) {
   const time = msg.sentAt?.toDate
     ? msg.sentAt.toDate().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
     : '';
-
-  const avatarHTML = msg.senderAvatar
-    ? `<img src="${msg.senderAvatar}" style="width:28px;height:28px;border-radius:8px;object-fit:cover;margin-${isOwn?'left':'right'}:8px;flex-shrink:0;">`
-    : `<div style="width:28px;height:28px;border-radius:8px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-size:12px;font-weight:700;margin-${isOwn?'left':'right'}:8px;flex-shrink:0;">${(msg.username||'?')[0].toUpperCase()}</div>`;
-
   const div = document.createElement('div');
   div.className = `message-row ${isOwn ? 'own' : 'other'}`;
-  div.style.cssText = `display:flex;align-items:flex-end;margin-bottom:12px;flex-direction:${isOwn?'row-reverse':'row'}`;
-  
-  const content = msg.type === 'gif'
-    ? `<img src="${msg.text}" style="max-width:200px;border-radius:12px;display:block;">`
-    : escapeHtml(msg.text);
-
   div.innerHTML = `
-    ${avatarHTML}
-    <div class="message-body" style="max-width:70%;group;">
-      ${!isOwn ? `<div style="font-size:10px;color:var(--muted);margin-bottom:2px;padding-left:2px;">@${escapeHtml(msg.username || '')}</div>` : ''}
-      <div class="message-bubble ${isOwn ? 'bubble-own' : 'bubble-other'}" style="position:relative;padding:10px 14px;border-radius:18px;${isOwn?'background:var(--accent);color:white;border-bottom-right-radius:4px;':'background:var(--panel);color:var(--text);border-bottom-left-radius:4px;'}">
-        ${content}
-        <div class="msg-actions" style="position:absolute;top:-20px;${isOwn?'right:0;':'left:0;'}display:none;gap:4px;background:var(--panel);padding:2px 6px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);border:1px solid var(--glass-border);z-index:10;">
-          <button class="msg-report" style="background:none;border:none;cursor:pointer;font-size:10px;padding:2px;">🚩</button>
-          ${isOwn ? `<button class="msg-delete" style="background:none;border:none;cursor:pointer;font-size:10px;padding:2px;">🗑️</button>` : ''}
-        </div>
-      </div>
-      <div style="font-size:9px;color:var(--muted);margin-top:2px;${isOwn ? 'text-align:right;' : ''}">${time}</div>
-    </div>
+    ${!isOwn ? `<div style="font-size:11px;color:var(--muted);margin-bottom:3px;padding-left:4px;">@${escapeHtml(msg.username || '')}</div>` : ''}
+    <div class="message-bubble ${isOwn ? 'bubble-own' : 'bubble-other'}">${escapeHtml(msg.text)}</div>
+    <div style="font-size:10px;color:var(--muted);margin-top:3px;${isOwn ? 'text-align:right;' : ''}">${time}</div>
   `;
-
-  div.addEventListener('mouseenter', () => div.querySelector('.msg-actions').style.display = 'flex');
-  div.addEventListener('mouseleave', () => div.querySelector('.msg-actions').style.display = 'none');
-  
-  div.querySelector('.msg-report')?.addEventListener('click', async () => {
-    const reason = prompt('Why are you reporting this message?');
-    if (reason) {
-      await reportUser(msg.uid, reason, `DM Context: ${msg.text} (Msg: ${msg.id}, Convo: ${_activeConvoId})`);
-      alert('Report sent to moderators.');
-      div.style.opacity = '0.3';
-    }
-  });
-
-  div.querySelector('.msg-delete')?.addEventListener('click', async () => {
-    if (confirm('Delete this message?')) {
-      await deleteMessage(_activeConvoId, msg.id);
-    }
-  });
-
   return div;
 }
 
@@ -429,9 +388,7 @@ async function sendMessage() {
       uid: _currentUser.uid,
       username: _currentProfile.username,
       displayName: _currentProfile.displayName,
-      senderAvatar: _currentProfile.avatarURL || '',
       text,
-      type: 'text',
       sentAt: serverTimestamp(),
     });
     const convoRef = doc(db, 'conversations', _activeConvoId);
@@ -446,12 +403,6 @@ async function sendMessage() {
 
   input.disabled = false;
   input.focus();
-}
-
-async function deleteMessage(convoId, msgId) {
-  try {
-    await deleteDoc(doc(db, 'conversations', convoId, 'messages', msgId));
-  } catch (e) { console.warn('Delete failed:', e); }
 }
 
 /* ── Open DM from URL ── */
@@ -644,69 +595,9 @@ function showNewGroupModal() {
   });
 }
 
-/* ── GIF Picker ── */
-async function showGifPicker() {
-  const existing = document.getElementById('gif-picker-modal');
-  if (existing) { existing.remove(); return; }
-  
-  const modal = document.createElement('div');
-  modal.id = 'gif-picker-modal';
-  modal.style.cssText = 'position:fixed;bottom:80px;right:20px;z-index:600;width:300px;background:var(--panel);border-radius:20px;padding:16px;box-shadow:0 10px 40px rgba(0,0,0,0.2);border:1px solid var(--glass-border);';
-  modal.innerHTML = `
-    <h4 style="font-family:'Bebas Neue',sans-serif;font-size:20px;margin:0 0 10px;color:var(--text);">GIFs (Tenor)</h4>
-    <input id="gif-search" type="text" placeholder="Search GIFs..." style="width:100%;padding:8px;border-radius:10px;border:1px solid var(--glass-border);background:var(--bg);color:var(--text);margin-bottom:10px;">
-    <div id="gif-results" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-height:300px;overflow-y:auto;"></div>
-  `;
-  document.body.appendChild(modal);
-  
-  const search = document.getElementById('gif-search');
-  const results = document.getElementById('gif-results');
-  
-  const runSearch = async (term) => {
-    results.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;"><img src="assets/loading.gif" style="width:40px;height:auto;"></div>';
-    try {
-      const resp = await fetch(`https://tenor.googleapis.com/v2/search?q=${term || 'trending'}&key=LIVDSRZULEUB&limit=10&client_key=flux_app`);
-      const data = await resp.json();
-      results.innerHTML = '';
-      data.results.forEach(g => {
-        const img = document.createElement('img');
-        img.src = g.media_formats.tinygif.url;
-        img.style.cssText = 'width:100%;height:100px;object-fit:cover;border-radius:8px;cursor:pointer;';
-        img.addEventListener('click', async () => {
-          await sendGif(g.media_formats.gif.url);
-          modal.remove();
-        });
-        results.appendChild(img);
-      });
-    } catch { results.innerHTML = '<div style="grid-column:1/-1;padding:10px;font-size:12px;color:var(--muted);">Failed to load GIFs.</div>'; }
-  };
-  
-  let timer;
-  search.addEventListener('input', () => {
-    clearTimeout(timer);
-    timer = setTimeout(() => runSearch(search.value.trim()), 500);
-  });
-  
-  runSearch(''); // trending
-}
-
-async function sendGif(url) {
-  if (!_activeConvoId || !_currentProfile) return;
-  try {
-    await addDoc(collection(db, 'conversations', _activeConvoId, 'messages'), {
-      uid: _currentUser.uid,
-      username: _currentProfile.username,
-      displayName: _currentProfile.displayName,
-      senderAvatar: _currentProfile.avatarURL || '',
-      text: url,
-      type: 'gif',
-      sentAt: serverTimestamp(),
-    });
-  } catch (e) { console.warn('GIF Send failed:', e); }
-}
-
 function escapeHtml(str = '') {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
 
 setTimeout(() => { if(window.hideGlobalLoader) window.hideGlobalLoader(); }, 600);
