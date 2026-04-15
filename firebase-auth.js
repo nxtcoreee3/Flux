@@ -1,4 +1,4 @@
-/* firebase-auth.js — Flux
+/* firebase-auth.js - Flux
    Core Firebase initialization, authentication, and global services
 */
 
@@ -175,7 +175,6 @@ export function initPresence() {
 
   // Start listening for Media Blasts
   initMediaBlast(sessionId);
-}
 
   let _lastSeenRefresh = {};
   let _refreshListenerAttached = false;
