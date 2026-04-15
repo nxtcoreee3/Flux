@@ -479,6 +479,7 @@ function showNewChatModal() {
     clearTimeout(timer);
     const val = e.target.value.trim();
     if (!val) { document.getElementById('new-chat-results').innerHTML = ''; return; }
+    document.getElementById('new-chat-results').innerHTML = '<div style="padding:16px;text-align:center;"><img src="assets/loading.gif" style="width:40px;height:auto;opacity:0.6;"></div>';
     timer = setTimeout(async () => {
       const { searchProfiles } = await import('./firebase-auth.js');
       const results = await searchProfiles(val);

@@ -139,8 +139,14 @@
         <div id="iframe-wrap" class="iframe-wrap">
           <iframe id="game-iframe" src="" frameborder="0" allow="autoplay; fullscreen" sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
         </div>
-        <div id="embed-warning" class="embed-warning hidden">
-          This site prevents embedding. <a id="open-fallback" href="#" target="_blank" rel="noopener">Open in a new tab</a>
+        <div id="embed-warning" class="embed-warning hidden" style="text-align:center;">
+          <div style="font-size:24px;margin-bottom:8px;">🕒</div>
+          <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px;">Taking a while to load?</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">This site might be blocking embedding or just slow.</div>
+          <div style="display:flex;gap:8px;justify-content:center;">
+            <button id="keep-waiting" style="padding:6px 12px;background:var(--accent);color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">Keep Waiting</button>
+            <a href="social.html" style="padding:6px 12px;background:rgba(0,0,0,0.05);color:var(--text);border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;">Report to Admin</a>
+          </div>
         </div>
       </div>
     </aside>

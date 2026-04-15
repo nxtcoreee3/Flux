@@ -1475,7 +1475,6 @@ function openFullscreen(url, title) {
     <div id="fs-bar" style="position:absolute;top:0;left:0;right:0;z-index:2;display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(to bottom,rgba(0,0,0,0.75),transparent);transition:opacity 0.3s;">
       <button id="fs-exit" style="background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.2);color:white;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;cursor:pointer;backdrop-filter:blur(4px);">✕ Exit</button>
       <span style="font-size:13px;font-weight:600;color:rgba(255,255,255,0.85);flex:1;">${title}</span>
-      <button id="fs-newtab" style="display:none;background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.2);color:white;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;backdrop-filter:blur(4px);">↗ Open in New Tab</button>
     </div>
     <div id="fs-loading-bg" style="position:absolute;inset:0;background:#fff url('assets/loading.gif') center center / 250px no-repeat;z-index:1;"></div>
     <iframe id="fs-iframe" src="${url}" style="flex:1;border:0;width:100%;height:100%;opacity:0;transition:opacity 0.4s ease;position:relative;z-index:2;" allow="autoplay; fullscreen" sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
@@ -1490,14 +1489,12 @@ function openFullscreen(url, title) {
   const bar = fs.querySelector('#fs-bar');
   const fsIframe = fs.querySelector('#fs-iframe');
   const fsWarn = fs.querySelector('#fs-embed-warn');
-  const fsNewTab = fs.querySelector('#fs-newtab');
   let barTimer;
   const showBar = () => { bar.style.opacity = '1'; clearTimeout(barTimer); barTimer = setTimeout(() => { bar.style.opacity = '0'; }, 3000); };
   showBar();
   fs.addEventListener('mousemove', showBar);
   fs.addEventListener('touchstart', showBar, { passive: true });
   fs.querySelector('#fs-exit').addEventListener('click', () => fs.remove());
-  fsNewTab.addEventListener('click', () => window.open(url, '_blank', 'noopener'));
   fs.querySelector('#fs-fallback-btn').addEventListener('click', () => { fsWarn.style.display = 'none'; });
   // Detect embed failure
   let fsLoaded = false;
@@ -1510,7 +1507,6 @@ function openFullscreen(url, title) {
   setTimeout(() => {
     if (!fsLoaded) {
       fsWarn.style.display = 'flex';
-      fsNewTab.style.display = '';
       const lbg = fs.querySelector('#fs-loading-bg');
       if (lbg) lbg.style.display = 'none';
     }
@@ -1546,6 +1542,12 @@ function openPlayModal(url, title) {
     tools.insertBefore(fsBtn, tools.firstChild);
   }
   if (fsBtn) { fsBtn.style.display = ''; fsBtn.onclick = () => { closeModal(); openFullscreen(url, title); }; }
+
+  // Wire keep-waiting button in play modal
+  const keepWaitingBtn = embedWarning?.querySelector('#keep-waiting') || embedWarning?.querySelector('#keep-waiting-2');
+  if (keepWaitingBtn) {
+    keepWaitingBtn.onclick = () => { embedWarning.classList.add('hidden'); };
+  }
 
   const closeModal = () => { modal.setAttribute('aria-hidden', 'true'); if (iframe) iframe.src = 'about:blank'; clearCurrentlyPlaying(); };
   if (closeBtn) closeBtn.onclick = closeModal;

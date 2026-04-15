@@ -229,7 +229,6 @@
       <header class="modal-header">
         <div id="modal-title-2"><div style="display:flex;justify-content:center;padding:20px;"><img src="assets/loading.gif" style="width:80px;height:auto;" alt="Loading..."></div></div>
         <div class="modal-tools">
-          <button id="open-tab-2" class="tool-btn">Open in new tab</button>
           <button id="close-modal-2" class="tool-btn" aria-label="Close">✕</button>
         </div>
       </header>
@@ -237,8 +236,14 @@
         <div id="iframe-wrap-2" class="iframe-wrap">
           <iframe id="game-iframe-2" src="" frameborder="0" allow="autoplay; fullscreen" sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
         </div>
-        <div id="embed-warning-2" class="embed-warning hidden">
-          This site prevents embedding. <a id="open-fallback-2" href="#" target="_blank" rel="noopener">Open in a new tab</a>
+        <div id="embed-warning-2" class="embed-warning hidden" style="text-align:center;">
+          <div style="font-size:24px;margin-bottom:8px;">🕒</div>
+          <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px;">Taking a while to load?</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">This site might be blocking embedding or just slow.</div>
+          <div style="display:flex;gap:8px;justify-content:center;">
+            <button id="keep-waiting-2" style="padding:6px 12px;background:var(--accent);color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">Keep Waiting</button>
+            <a href="social.html" style="padding:6px 12px;background:rgba(0,0,0,0.05);color:var(--text);border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;">Report to Admin</a>
+          </div>
         </div>
       </div>
     </aside>

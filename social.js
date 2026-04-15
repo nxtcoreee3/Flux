@@ -299,7 +299,7 @@ function initSearch() {
       document.getElementById('search-results').innerHTML = '<div class="search-empty">Type to search for players</div>';
       return;
     }
-    document.getElementById('search-results').innerHTML = '<div class="search-empty">Searching...</div>';
+    document.getElementById('search-results').innerHTML = '<div class="search-empty"><img src="assets/loading.gif" style="width:40px;height:auto;opacity:0.6;"></div>';
     _timer = setTimeout(() => runSearch(val), 350);
   });
 }

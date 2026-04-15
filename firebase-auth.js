@@ -1,6 +1,19 @@
-/* firebase-auth.js
-   Handles Firebase Authentication + Firestore favorites + Live visitor counter + Stats button
 */
+
+window.hideGlobalLoader = () => {
+  const loader = document.getElementById('global-page-loader');
+  if (loader) {
+    loader.style.opacity = '0';
+    setTimeout(() => loader.remove(), 400);
+  }
+};
+
+// Safety net: forcibly hide loader after 4.5 seconds regardless of app state
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    if (window.hideGlobalLoader) window.hideGlobalLoader();
+  }, 4500);
+});
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
@@ -89,53 +102,45 @@ export function initPresence() {
   const presenceRef = ref(rtdb, `presence/${sessionId}`);
   const connectedRef = ref(rtdb, '.info/connected');
 
-  // Build the presence payload — enriched with uid/username once auth resolves
-  const buildPayload = () => {
+  const updatePresenceRecord = async () => {
     const user = auth.currentUser;
-    return {
+    const payload = {
       online: true,
       timestamp: serverTimestamp(),
       uid: (user && !user.isAnonymous) ? user.uid : null,
-      username: null, // filled in below after profile loads
-      currentlyPlaying: null,
+      username: null,
+      currentlyPlaying: window._fluxCurrentlyPlaying || null,
       sessionId: sessionId,
     };
-  };
 
-  // Always listen to session-specific refresh
-  onValue(ref(rtdb, `forceRefresh/${sessionId}`), (snap) => {
-    if (!snap.exists()) return;
-    _handleRefresh(snap.val()?.triggeredAt, 'session');
-  });
-
-  onValue(connectedRef, async (snap) => {
-    if (snap.val() === true) {
-      const payload = buildPayload();
-      // Try to attach username from Firestore profile
+    if (user && !user.isAnonymous) {
       try {
-        const user = auth.currentUser;
-        if (user && !user.isAnonymous) {
-          const pSnap = await getDoc(doc(db, 'profiles', user.uid));
-          if (pSnap.exists()) {
-            payload.username = pSnap.data().username || null;
-            payload.currentlyPlaying = pSnap.data().currentlyPlaying || null;
-          }
+        const pSnap = await getDoc(doc(db, 'profiles', user.uid));
+        if (pSnap.exists()) {
+          payload.username = pSnap.data().username || null;
+          payload.currentlyPlaying = pSnap.data().currentlyPlaying || payload.currentlyPlaying;
         }
       } catch {}
-      set(presenceRef, payload);
+    }
+    set(presenceRef, payload);
+  };
+
+  onValue(connectedRef, (snap) => {
+    if (snap.val() === true) {
+      updatePresenceRecord();
       onDisconnect(presenceRef).remove();
     }
   });
 
+  // CRITICAL: Re-check/update presence whenever the auth state changes (Guest -> User)
+  onAuthStateChanged(auth, () => {
+    updatePresenceRecord();
+  });
+
   // Keep presence payload fresh when currentlyPlaying changes
   window._fluxUpdatePresence = async (currentlyPlaying) => {
-    try {
-      const user = auth.currentUser;
-      if (!user || user.isAnonymous) return;
-      const pSnap = await getDoc(doc(db, 'profiles', user.uid));
-      const username = pSnap.exists() ? pSnap.data().username : null;
-      set(presenceRef, { online: true, timestamp: serverTimestamp(), uid: user.uid, username, currentlyPlaying: currentlyPlaying || null, sessionId });
-    } catch {}
+    window._fluxCurrentlyPlaying = currentlyPlaying;
+    updatePresenceRecord();
   };
 
   onValue(ref(rtdb, 'presence'), (snap) => {
@@ -146,6 +151,19 @@ export function initPresence() {
     // update the eye button count
     const badge = document.getElementById('stats-btn-count');
     if (badge) badge.textContent = _onlineCount;
+    // mod panel summary
+    const modSum = document.getElementById('mod-online-summary');
+    if (modSum) {
+      const list = Object.values(snap.val() || {});
+      const named = list.filter(s => s.uid).length;
+      modSum.textContent = `${list.length} sessions — ${named} signed in, ${list.length - named} anonymous`;
+    }
+    if (_onlineCount > 0) updatePeakOnline(_onlineCount);
+  }, (err) => {
+    console.error("Presence read error:", err);
+    const footCount = document.getElementById('visitor-count');
+    if (footCount) footCount.textContent = "?";
+  });
     // update the footer visitor count
     const footCount = document.getElementById('visitor-count');
     if (footCount) footCount.textContent = _onlineCount;
@@ -796,8 +814,10 @@ export function getCurrentUser() { return auth.currentUser; }
 export async function loadCloudFavs() {
   // Wait up to 5s for auth to resolve
   const user = await new Promise((resolve) => {
-    if (auth.currentUser !== null) { resolve(auth.currentUser); return; }
-    const unsub = onAuthStateChanged(auth, (u) => { unsub(); resolve(u); });
+    let resolved = false;
+    const timer = setTimeout(() => { if (!resolved) { resolved = true; resolve(auth.currentUser); } }, 3500);
+    if (auth.currentUser !== null) { resolved = true; clearTimeout(timer); resolve(auth.currentUser); return; }
+    const unsub = onAuthStateChanged(auth, (u) => { if (!resolved) { resolved = true; clearTimeout(timer); unsub(); resolve(u); } });
   });
   if (!user || user.isAnonymous) return null;
   try {
