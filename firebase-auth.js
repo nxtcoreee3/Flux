@@ -77,8 +77,18 @@ export async function checkFirestoreHealth() {
   }
 }
 
-/* ===================== LIVE PRESENCE ===================== */
+/* ===================== GLOBAL CONSTANTS & STATE ===================== */
+const OWNER_UID = 'zEy6TO5ligf2um4rssIZs9C9X7f2';
+const ADMIN_UID = 'zEy6TO5ligf2um4rssIZs9C9X7f2'; // Usually same as owner
+
 let _onlineCount = 0;
+let _serverOffset = 0;
+
+// Initialize server time offset tracking immediately
+if (typeof rtdb !== 'undefined' || rtdb) {
+  const offsetRef = ref(rtdb, '.info/serverTimeOffset');
+  onValue(offsetRef, (snap) => { _serverOffset = snap.val() || 0; });
+}
 
 async function updatePeakOnline(count) {
   try {
@@ -906,7 +916,7 @@ export async function saveCloudFavs(favs) {
 }
 
 /* ===================== PROFILE SYSTEM ===================== */
-const OWNER_UID  = 'zEy6TO5ligf2um4rssIZs9C9X7f2';
+// OWNER_UID moved to top level
 const OWNER_USERNAME = 'nxtcoreee3';
 
 export async function getProfile(uid) {
@@ -1738,7 +1748,6 @@ export function initAuthUI(onUserChange) {
   });
 
   // Mod modal
-  const ADMIN_UID = 'zEy6TO5ligf2um4rssIZs9C9X7f2';
   const modModal = document.createElement('div');
   modModal.id = 'mod-modal';
   modModal.style.cssText = 'display:none;position:fixed;inset:0;z-index:500;align-items:center;justify-content:center;background:rgba(0,0,0,0.4);backdrop-filter:blur(4px);';
@@ -3375,7 +3384,6 @@ export async function autoCheckServiceHealth() {
 }
 
 export function initServerStatus() {
-  const ADMIN_UID = 'zEy6TO5ligf2um4rssIZs9C9X7f2';
 
   const ERROR_CODES = [
     { code: 'ERR_INTERNAL_0x4F2A', trace: 'flux.core.js', func: 'handleRequest' },
@@ -4293,20 +4301,17 @@ export function initMediaBlast(sessionId) {
   
   const globalRef = ref(rtdb, 'broadcastMedia/all');
   const sessionRef = ref(rtdb, `broadcastMedia/sessions/${sessionId}`);
-  const offsetRef = ref(rtdb, '.info/serverTimeOffset');
-  
-  let _serverOffset = 0;
-  onValue(offsetRef, (snap) => { _serverOffset = snap.val() || 0; });
 
-  let _lastBid = null;
+  let _lastBid = localStorage.getItem('flux_last_blast_bid');
 
   const handleMedia = (snap) => {
     if (!snap.exists()) return;
     const data = snap.val();
     
-    // Prevent double-triggering for the same blast
+    // Prevent double-triggering (persisted via localStorage)
     if (data.bid && data.bid === _lastBid) return;
     _lastBid = data.bid;
+    localStorage.setItem('flux_last_blast_bid', _lastBid);
 
     // Ignore stale triggers (drift-safe check using serverTimeOffset)
     const serverNow = Date.now() + _serverOffset;
