@@ -1820,7 +1820,16 @@ export function initAuthUI(onUserChange) {
       <!-- ── MEDIA BLAST ── -->
       <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🖼️ Media Blast</div>
       <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">
-        <input id="mod-media-url" type="text" placeholder="GIF or Image URL..."
+        <label style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:80px;border:2px dashed #e5e7eb;border-radius:12px;cursor:pointer;background:#f9fafb;transition:all 0.2s;" onmouseover="this.style.borderColor='#3a7dff';this.style.background='#f0f4ff'" onmouseout="this.style.borderColor='#e5e7eb';this.style.background='#f9fafb'">
+          <span style="font-size:24px;margin-bottom:4px;">📂</span>
+          <span style="font-size:11px;color:#6b7280;font-weight:600;">Click to upload Image/GIF</span>
+          <input id="mod-media-file" type="file" accept="image/*" style="display:none;">
+        </label>
+        <div id="mod-media-preview-wrap" style="display:none;position:relative;border-radius:12px;overflow:hidden;border:1px solid rgba(0,0,0,0.1);">
+          <img id="mod-media-preview" src="" style="width:100%;height:100px;object-fit:cover;display:block;">
+          <button id="mod-media-clear-btn" style="position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,0.6);color:white;border:none;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;">✕</button>
+        </div>
+        <input id="mod-media-url" type="text" placeholder="...or paste Image URL"
           style="padding:10px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;outline:none;box-sizing:border-box;">
         <button id="mod-media-blast-all-btn" style="padding:11px;background:#ef4444;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">🔥 Blast Everyone</button>
       </div>
@@ -2428,9 +2437,12 @@ export function initAuthUI(onUserChange) {
           btn.addEventListener('click', async () => {
             const sid = btn.dataset.sid;
             const name = btn.dataset.name;
-            const url = document.getElementById('mod-media-url').value.trim();
+            const previewImg = document.getElementById('mod-media-preview');
+            const urlInput = document.getElementById('mod-media-url');
+            const url = (previewImg && previewImg.src && previewImg.src.startsWith('data:')) ? previewImg.src : urlInput.value.trim();
             const modMsg = document.getElementById('mod-msg');
-            if (!url) { alert('Paste a GIF URL first!'); return; }
+            
+            if (!url) { alert('Upload a file or paste a URL first!'); return; }
             if (!sid) return;
 
             btn.textContent = '…'; btn.disabled = true;
@@ -2473,22 +2485,55 @@ export function initAuthUI(onUserChange) {
 
 
     document.getElementById('mod-media-blast-all-btn')?.addEventListener('click', async () => {
-      const url = document.getElementById('mod-media-url').value.trim();
+      const previewImg = document.getElementById('mod-media-preview');
+      const urlInput = document.getElementById('mod-media-url');
+      const url = (previewImg && previewImg.src && previewImg.src.startsWith('data:')) ? previewImg.src : urlInput.value.trim();
       const modMsg = document.getElementById('mod-msg');
       const btn = document.getElementById('mod-media-blast-all-btn');
-      if (!url) { modMsg.style.color='#ef4444'; modMsg.textContent='Paste a GIF URL first!'; modMsg.style.display='block'; setTimeout(()=>modMsg.style.display='none',2500); return; }
+      
+      if (!url) { modMsg.style.color='#ef4444'; modMsg.textContent='Upload a file or paste a URL first!'; modMsg.style.display='block'; setTimeout(()=>modMsg.style.display='none',2500); return; }
       
       btn.textContent = '…'; btn.disabled = true;
       try {
         await set(ref(rtdb, 'broadcastMedia/all'), { url, timestamp: Date.now() });
-        modMsg.style.color = '#ef4444';
-        modMsg.textContent = '🔥 GLOBAL BLAST DEPLOYED!';
-        modMsg.style.display = 'block';
-        setTimeout(() => modMsg.style.display = 'none', 3000);
-      } catch (err) {
-        console.error(err);
-      }
+        if (modMsg) {
+          modMsg.style.color = '#ef4444';
+          modMsg.textContent = '🔥 GLOBAL BLAST DEPLOYED!';
+          modMsg.style.display = 'block';
+          setTimeout(() => modMsg.style.display = 'none', 3000);
+        }
+      } catch (err) { console.error(err); }
       btn.textContent = '🔥 Blast Everyone'; btn.disabled = false;
+    });
+
+    // File Upload Handlers
+    document.getElementById('mod-media-file')?.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      if (file.size > 8 * 1024 * 1024) { alert('File too large! Max 8MB'); e.target.value = ''; return; }
+      const reader = new FileReader();
+      reader.onload = (re) => {
+        const previewWrap = document.getElementById('mod-media-preview-wrap');
+        const previewImg = document.getElementById('mod-media-preview');
+        const urlInput = document.getElementById('mod-media-url');
+        if (previewWrap && previewImg) {
+          previewImg.src = re.target.result;
+          previewWrap.style.display = 'block';
+          if (urlInput) urlInput.style.display = 'none';
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+
+    document.getElementById('mod-media-clear-btn')?.addEventListener('click', () => {
+      const fileInput = document.getElementById('mod-media-file');
+      const previewWrap = document.getElementById('mod-media-preview-wrap');
+      const previewImg = document.getElementById('mod-media-preview');
+      const urlInput = document.getElementById('mod-media-url');
+      if (fileInput) fileInput.value = '';
+      if (previewWrap) previewWrap.style.display = 'none';
+      if (previewImg) previewImg.src = '';
+      if (urlInput) { urlInput.style.display = 'block'; urlInput.value = ''; }
     });
 
     document.getElementById('mod-banner-show-btn')?.addEventListener('click', async () => {
@@ -4152,13 +4197,15 @@ export function initMediaBlast(sessionId) {
   const handleMedia = (snap) => {
     if (!snap.exists()) return;
     const data = snap.val();
-    // Ignore stale triggers (older than 30s)
-    if (Date.now() - (data.timestamp || 0) > 30000) return;
+    // Ignore stale triggers (increased tolerance to 120s to fix clock sync issues)
+    const drift = Math.abs(Date.now() - (data.timestamp || 0));
+    if (drift > 120000) return;
+    
     showMediaBlast(data.url);
   };
 
-  onValue(globalRef, handleMedia);
-  onValue(sessionRef, handleMedia);
+  onValue(globalRef, handleMedia, (err) => console.error("Global Media Blast Error:", err));
+  onValue(sessionRef, handleMedia, (err) => console.error("Session Media Blast Error:", err));
 }
 
 function showMediaBlast(url) {
