@@ -1440,7 +1440,22 @@ function showBanOverlay(reason, bannedAt) {
   window._fluxBanned = true;
 }
 
-export function initAuthUI(onUserChange) {
+export async function initAuthUI(onUserChange) {
+  window.hideGlobalLoader = () => {
+    const loader = document.getElementById('global-page-loader');
+    if (loader) {
+      loader.style.opacity = '0';
+      setTimeout(() => loader.remove(), 400);
+    }
+  };
+
+  // Safety net: forcibly hide loader after 3 seconds of page load to prevent permanent white screens
+  window.addEventListener('load', () => {
+    setTimeout(() => {
+      if (window.hideGlobalLoader) window.hideGlobalLoader();
+    }, 3500);
+  });
+
   // Handle redirect result from GitHub/Google sign-in on Safari
   import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js").then(({ getRedirectResult }) => {
     getRedirectResult(auth).catch(() => {});
@@ -2697,6 +2712,10 @@ export function initAuthUI(onUserChange) {
   }
 
   onAuthChange(async (user) => {
+    window._currentUserUid = user?.uid || null;
+    window._fluxIsOwner = user?.uid === ADMIN_UID;
+    window._fluxBanned = false; // reset on change
+
     if (user) {
       authBtn.style.display = 'none';
       userDisplay.style.display = 'flex';
@@ -2717,6 +2736,7 @@ export function initAuthUI(onUserChange) {
 
         // ── BAN CHECK ── show overlay and block everything if banned
         if (profile && profile.isBanned) {
+          window._fluxBanned = true;
           showBanOverlay(profile.banReason || '', profile.bannedAt || '');
           // Still show their name/avatar so they know they're logged in
           if (name) name.textContent = profile.displayName || profile.username || user.displayName || user.email;
@@ -2818,6 +2838,7 @@ export function initAuthUI(onUserChange) {
     }
     if (onUserChange) onUserChange(user);
   });
+
 }
 
 /* ===================== SERVER STATUS ===================== */
