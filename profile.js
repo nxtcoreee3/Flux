@@ -589,3 +589,6 @@ function renderNotFound(msg) {
     </div>
   `;
 }
+
+
+setTimeout(() => { if(window.hideGlobalLoader) window.hideGlobalLoader(); }, 600);

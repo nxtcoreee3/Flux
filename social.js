@@ -380,7 +380,7 @@ async function initLeaderboard() {
   const card = document.getElementById('leaderboard-card');
   if (!card) return;
 
-  card.innerHTML = '<div style="padding:16px;color:var(--muted);font-size:13px;text-align:center;">Loading...</div>';
+  card.innerHTML = '<div style="padding:16px;color:var(--muted);font-size:13px;text-align:center;"><div style="display:flex;justify-content:center;padding:20px;"><img src="assets/loading.gif" style="width:80px;height:auto;" alt="Loading..."></div></div>';
 
   const { points, streaks } = await fetchLeaderboard();
 
@@ -540,3 +540,6 @@ async function initRecommended() {
 function escapeHtml(str) {
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+
+setTimeout(() => { if(window.hideGlobalLoader) window.hideGlobalLoader(); }, 600);

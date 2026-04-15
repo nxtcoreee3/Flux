@@ -252,6 +252,10 @@
   </style>
 </head>
 <body>
+  <div id="global-page-loader" style="position:fixed;inset:0;background:#ffffff;z-index:9999999;display:flex;justify-content:center;align-items:center;transition:opacity 0.4s ease;pointer-events:none;">
+    <img src="assets/loading.gif" style="width:250px;height:auto;" alt="Loading...">
+  </div>
+
   <header class="topbar">
     <div class="brand">
       <a href="index.html" class="logo"><img src="assets/logo.png" alt="Flux" style="height:32px;vertical-align:middle;margin-right:6px;"> FLUX</a>
@@ -275,7 +279,7 @@
 
   <main style="max-width:720px;margin:0 auto;padding:24px 16px;">
     <div id="profile-root">
-      <div class="profile-loading">Loading profile...</div>
+      <div class="profile-loading"><div style="display:flex;justify-content:center;padding:20px;"><img src="assets/loading.gif" style="width:80px;height:auto;" alt="Loading..."></div></div>
     </div>
   </main>
 
@@ -300,5 +304,11 @@
   </footer>
 
   <script type="module" src="profile.js"></script>
+
+<script>
+  window.addEventListener('load', () => {
+    setTimeout(() => { const loader = document.getElementById('global-page-loader'); if(loader) { loader.style.opacity = '0'; setTimeout(() => loader.remove(), 400); } }, 400);
+  });
+</script>
 </body>
 </html>

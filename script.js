@@ -842,7 +842,7 @@ function showNoAdsModal() {
     <div style="background:#fff;border-radius:20px;padding:28px 24px;width:100%;max-width:340px;box-shadow:0 30px 80px rgba(0,0,0,0.2);position:relative;">
       <button id="no-ads-close-x" style="position:absolute;top:12px;right:12px;background:none;border:none;font-size:18px;cursor:pointer;color:#9ca3af;">✕</button>
       <div id="no-ads-body">
-        <div style="text-align:center;padding:20px 0;color:#9ca3af;font-size:13px;">Loading...</div>
+        <div style="text-align:center;padding:20px 0;color:#9ca3af;font-size:13px;"><div style="display:flex;justify-content:center;padding:20px;"><img src="assets/loading.gif" style="width:80px;height:auto;" alt="Loading..."></div></div>
       </div>
     </div>
   `;
@@ -910,6 +910,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initCookieConsent();
   initDarkMode();
   initUpdateNotification();
+  if(window.hideGlobalLoader) window.hideGlobalLoader();
   initFirestoreHealthCheck();
   initIncidentBanner();
   initStatsButton();
@@ -1476,8 +1477,9 @@ function openFullscreen(url, title) {
       <span style="font-size:13px;font-weight:600;color:rgba(255,255,255,0.85);flex:1;">${title}</span>
       <button id="fs-newtab" style="display:none;background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.2);color:white;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;backdrop-filter:blur(4px);">↗ Open in New Tab</button>
     </div>
-    <iframe id="fs-iframe" src="${url}" style="flex:1;border:0;width:100%;height:100%;" allow="autoplay; fullscreen" sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
-    <div id="fs-embed-warn" style="display:none;position:absolute;inset:0;z-index:3;display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;background:rgba(0,0,0,0.85);">
+    <div id="fs-loading-bg" style="position:absolute;inset:0;background:#fff url('assets/loading.gif') center center / 250px no-repeat;z-index:1;"></div>
+    <iframe id="fs-iframe" src="${url}" style="flex:1;border:0;width:100%;height:100%;opacity:0;transition:opacity 0.4s ease;position:relative;z-index:2;" allow="autoplay; fullscreen" sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
+    <div id="fs-embed-warn" style="display:none;position:absolute;inset:0;z-index:3;align-items:center;justify-content:center;flex-direction:column;gap:12px;background:rgba(0,0,0,0.85);">
       <span style="font-size:32px;">🚫</span>
       <span style="color:white;font-size:15px;font-weight:600;">This game can't be embedded.</span>
       <button id="fs-fallback-btn" style="background:#3a7dff;color:white;border:none;border-radius:10px;padding:10px 22px;font-size:14px;font-weight:700;cursor:pointer;">↗ Open in New Tab</button>
@@ -1498,11 +1500,18 @@ function openFullscreen(url, title) {
   fs.querySelector('#fs-fallback-btn').addEventListener('click', () => window.open(url, '_blank', 'noopener'));
   // Detect embed failure
   let fsLoaded = false;
-  fsIframe.addEventListener('load', () => { fsLoaded = true; }, { once: true });
+  fsIframe.addEventListener('load', () => { 
+    fsLoaded = true; 
+    fsIframe.style.opacity = '1'; 
+    const lbg = fs.querySelector('#fs-loading-bg');
+    if (lbg) lbg.style.display = 'none';
+  }, { once: true });
   setTimeout(() => {
     if (!fsLoaded) {
       fsWarn.style.display = 'flex';
       fsNewTab.style.display = '';
+      const lbg = fs.querySelector('#fs-loading-bg');
+      if (lbg) lbg.style.display = 'none';
     }
   }, 2200);
   const escHandler = (e) => { if (e.key === 'Escape') { fs.remove(); window.removeEventListener('keydown', escHandler); } };
@@ -1546,8 +1555,21 @@ function openPlayModal(url, title) {
     embedWarning?.classList.add('hidden');
     if (fsBtn) fsBtn.style.display = '';
     iframe.src = url;
+    iframe.style.opacity = '0';
+    iframe.style.transition = 'opacity 0.4s ease';
+    if (iframe.parentElement) {
+      iframe.parentElement.style.background = "#fff url('assets/loading.gif') center center / 250px no-repeat";
+    }
+
     let loaded = false;
-    iframe.addEventListener('load', () => { loaded=true; embedWarning?.classList.add('hidden'); }, { once:true });
+    iframe.addEventListener('load', () => { 
+      loaded=true; 
+      embedWarning?.classList.add('hidden'); 
+      iframe.style.opacity = '1';
+      if (iframe.parentElement) {
+        iframe.parentElement.style.background = ""; // remove loading gif once loaded
+      }
+    }, { once:true });
     setTimeout(() => {
       if (!loaded) {
         embedWarning?.classList.remove('hidden');
@@ -1684,6 +1706,8 @@ async function openGameDetail(game) {
   const isLocked = finalPrice > 0 && !_unlockedGames.includes(game.id);
   const stats = _allGameStats[game.id] || {};
   const avgRating = stats.ratingCount ? (stats.ratingTotal/stats.ratingCount).toFixed(1) : null;
+  const isModLocked = stats.locked === true;
+  const isOwnerView = window._fluxIsOwner === true;
 
   overlay.innerHTML = `
     <div style="background:var(--panel,#fff);border-radius:24px;width:100%;max-width:700px;max-height:90vh;overflow-y:auto;box-shadow:0 30px 80px rgba(0,0,0,0.3);display:flex;flex-direction:column;">
@@ -1705,9 +1729,11 @@ async function openGameDetail(game) {
           <div id="gd-ai-desc" style="font-size:14px;color:var(--text,#111);line-height:1.7;background:var(--bg,#f9fafb);border-radius:12px;padding:14px 16px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));">${game.desc} <span style="color:var(--muted,#9ca3af);font-size:12px;">✨ Enhancing...</span></div>
         </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
-          ${isLocked
-            ? `<button id="gd-unlock-btn" style="flex:1;min-width:140px;padding:12px 20px;background:linear-gradient(135deg,#f59e0b,#ef4444);color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;">🔒 Unlock for ${finalPrice} pts</button>`
-            : `<button id="gd-play-btn" style="flex:1;min-width:140px;padding:12px 20px;background:var(--accent,#3a7dff);color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;">▶ Play Now</button>`}
+          ${isModLocked && !isOwnerView
+            ? `<button id="gd-modlock-info" style="flex:1;min-width:140px;padding:12px 20px;background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.3);border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;">🔒 Temporarily Unavailable (Get Info)</button>`
+            : isLocked
+              ? `<button id="gd-unlock-btn" style="flex:1;min-width:140px;padding:12px 20px;background:linear-gradient(135deg,#f59e0b,#ef4444);color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;">🔒 Unlock for ${finalPrice} pts</button>`
+              : `<button id="gd-play-btn" style="flex:1;min-width:140px;padding:12px 20px;background:var(--accent,#3a7dff);color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;">▶ Play Now</button>`}
           <button id="gd-fav-btn" style="padding:12px 20px;border:1px solid var(--glass-border,rgba(0,0,0,0.1));border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;background:var(--bg,#f9fafb);color:var(--text,#111);">${isFav(game.id) ? '★ Favourited' : '☆ Favourite'}</button>
         </div>
         <div>
@@ -1723,7 +1749,7 @@ async function openGameDetail(game) {
               <button id="gd-submit-review" style="padding:7px 16px;background:var(--accent,#3a7dff);color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">Submit</button>
             </div>
           </div>
-          <div id="gd-reviews-list" style="display:flex;flex-direction:column;gap:12px;"><div style="text-align:center;color:var(--muted,#6b7280);font-size:13px;padding:16px;">Loading reviews...</div></div>
+          <div id="gd-reviews-list" style="display:flex;flex-direction:column;gap:12px;"><div style="text-align:center;color:var(--muted,#6b7280);font-size:13px;padding:16px;"><div style="display:flex;justify-content:center;padding:20px;"><img src="assets/loading.gif" style="width:80px;height:auto;" alt="Loading..."></div></div></div>
         </div>
       </div>
     </div>`;
@@ -1740,6 +1766,7 @@ async function openGameDetail(game) {
     openPlayModal(game.url, game.title);
   });
   document.getElementById('gd-unlock-btn')?.addEventListener('click', () => { close(); showUnlockModal(game, finalPrice, activeDiscount, pricing.price); });
+  document.getElementById('gd-modlock-info')?.addEventListener('click', () => { close(); showModLockInfoModal(game, stats); });
 
   const favBtn = document.getElementById('gd-fav-btn');
   favBtn.addEventListener('click', async () => {

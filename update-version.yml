@@ -15,7 +15,7 @@ jobs:
 
       - name: Update version.json
         run: |
-          BUILD="${{ github.run_number }}"
+          BUILD=$(echo "${{ github.sha }}" | cut -c1-7)
           DEPLOYED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           # Read current version or default to 1.0.0
           if [ -f version.json ]; then
@@ -31,5 +31,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add version.json
-          git diff --staged --quiet || git commit -m "chore: update build number [${{ github.run_number }}]"
+          git diff --staged --quiet || git commit -m "chore: update build number [$(echo "${{ github.sha }}" | cut -c1-7)]"
           git push

@@ -127,7 +127,7 @@ function initMessagesUI() {
 function loadConversations() {
   const list = document.getElementById('convo-list');
   if (!list) return;
-  list.innerHTML = '<div style="padding:16px;color:var(--muted);font-size:13px;text-align:center;">Loading...</div>';
+  list.innerHTML = '<div style="padding:16px;color:var(--muted);font-size:13px;text-align:center;"><div style="display:flex;justify-content:center;padding:20px;"><img src="assets/loading.gif" style="width:80px;height:auto;" alt="Loading..."></div></div>';
 
   const q = query(
     collection(db, 'conversations'),
@@ -157,7 +157,7 @@ function loadConversations() {
 function loadRequests() {
   const list = document.getElementById('convo-list');
   if (!list) return;
-  list.innerHTML = '<div style="padding:16px;color:var(--muted);font-size:13px;text-align:center;">Loading...</div>';
+  list.innerHTML = '<div style="padding:16px;color:var(--muted);font-size:13px;text-align:center;"><div style="display:flex;justify-content:center;padding:20px;"><img src="assets/loading.gif" style="width:80px;height:auto;" alt="Loading..."></div></div>';
 
   const q = query(
     collection(db, 'conversations'),
@@ -303,7 +303,7 @@ function loadConversationMessages(convoId, name, isGroup) {
       <button id="back-btn" class="back-btn">←</button>
       <div style="font-size:15px;font-weight:700;color:var(--text);flex:1;">${escapeHtml(name)}</div>
     </div>
-    <div id="messages-list" class="messages-list"><div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">Loading messages...</div></div>
+    <div id="messages-list" class="messages-list"><div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;"><div style="display:flex;justify-content:center;padding:20px;"><img src="assets/loading.gif" style="width:80px;height:auto;" alt="Loading..."></div></div></div>
     <div class="message-input-bar">
       <input id="msg-input" type="text" placeholder="Message..." maxlength="1000" autocomplete="off" class="msg-input">
       <button id="msg-send" class="msg-send-btn">➤</button>
@@ -597,3 +597,6 @@ function showNewGroupModal() {
 function escapeHtml(str = '') {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+
+setTimeout(() => { if(window.hideGlobalLoader) window.hideGlobalLoader(); }, 600);

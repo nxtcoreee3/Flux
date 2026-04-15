@@ -121,6 +121,10 @@
   </style>
 </head>
 <body>
+  <div id="global-page-loader" style="position:fixed;inset:0;background:#ffffff;z-index:9999999;display:flex;justify-content:center;align-items:center;transition:opacity 0.4s ease;pointer-events:none;">
+    <img src="assets/loading.gif" style="width:250px;height:auto;" alt="Loading...">
+  </div>
+
   <header class="topbar">
     <div class="brand">
       <a href="index.html" class="logo"><img src="assets/logo.png" alt="Flux" style="height:32px;vertical-align:middle;margin-right:6px;"> FLUX</a>
@@ -223,7 +227,7 @@
     <div class="modal-backdrop" data-close></div>
     <aside class="modal-panel" role="dialog" aria-modal="true" aria-label="Play game">
       <header class="modal-header">
-        <div id="modal-title-2">Loading...</div>
+        <div id="modal-title-2"><div style="display:flex;justify-content:center;padding:20px;"><img src="assets/loading.gif" style="width:80px;height:auto;" alt="Loading..."></div></div>
         <div class="modal-tools">
           <button id="open-tab-2" class="tool-btn">Open in new tab</button>
           <button id="close-modal-2" class="tool-btn" aria-label="Close">✕</button>
@@ -241,5 +245,11 @@
   </div>
 
   <script type="module" src="script.js"></script>
+
+<script>
+  window.addEventListener('load', () => {
+    setTimeout(() => { const loader = document.getElementById('global-page-loader'); if(loader) { loader.style.opacity = '0'; setTimeout(() => loader.remove(), 400); } }, 400);
+  });
+</script>
 </body>
 </html>

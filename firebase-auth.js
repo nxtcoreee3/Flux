@@ -98,8 +98,15 @@ export function initPresence() {
       uid: (user && !user.isAnonymous) ? user.uid : null,
       username: null, // filled in below after profile loads
       currentlyPlaying: null,
+      sessionId: sessionId,
     };
   };
+
+  // Always listen to session-specific refresh
+  onValue(ref(rtdb, `forceRefresh/${sessionId}`), (snap) => {
+    if (!snap.exists()) return;
+    _handleRefresh(snap.val()?.triggeredAt, 'session');
+  });
 
   onValue(connectedRef, async (snap) => {
     if (snap.val() === true) {
@@ -127,7 +134,7 @@ export function initPresence() {
       if (!user || user.isAnonymous) return;
       const pSnap = await getDoc(doc(db, 'profiles', user.uid));
       const username = pSnap.exists() ? pSnap.data().username : null;
-      set(presenceRef, { online: true, timestamp: serverTimestamp(), uid: user.uid, username, currentlyPlaying: currentlyPlaying || null });
+      set(presenceRef, { online: true, timestamp: serverTimestamp(), uid: user.uid, username, currentlyPlaying: currentlyPlaying || null, sessionId });
     } catch {}
   };
 
@@ -139,21 +146,34 @@ export function initPresence() {
     // update the eye button count
     const badge = document.getElementById('stats-btn-count');
     if (badge) badge.textContent = _onlineCount;
+    // update the footer visitor count
+    const footCount = document.getElementById('visitor-count');
+    if (footCount) footCount.textContent = _onlineCount;
     // check and update peak
     if (_onlineCount > 0) updatePeakOnline(_onlineCount);
+  }, (err) => {
+    console.error("Presence read error:", err);
+    const footCount = document.getElementById('visitor-count');
+    if (footCount) footCount.textContent = "?";
   });
 
-  // Listen for force-refresh signals — guarded so only one reload ever fires
-  let _lastSeenRefresh = null;
+  let _lastSeenRefresh = {};
   let _refreshListenerAttached = false;
   let _reloadScheduled = false;
 
-  const _handleRefresh = (triggeredAt) => {
+  const _handleRefresh = (triggeredAt, key) => {
     if (!triggeredAt) return;
-    if (triggeredAt === _lastSeenRefresh) return; // already handled this exact signal
-    _lastSeenRefresh = triggeredAt;
-    const age = Date.now() - new Date(triggeredAt).getTime();
-    if (age < 10000 && !_reloadScheduled) {
+    
+    // Use sessionStorage to remember this trigger ID across page reloads
+    const stored = sessionStorage.getItem(`_fluxRefresh_${key}`);
+    if (stored === triggeredAt.toString()) return;
+    if (triggeredAt === _lastSeenRefresh[key]) return; // already handled exactly this
+    
+    _lastSeenRefresh[key] = triggeredAt;
+    sessionStorage.setItem(`_fluxRefresh_${key}`, triggeredAt.toString());
+    
+    // Trigger is guaranteed fresh because we delete it from DB after 15 seconds
+    if (!_reloadScheduled) {
       _reloadScheduled = true;
       setTimeout(() => location.reload(), 800);
     }
@@ -165,14 +185,14 @@ export function initPresence() {
     _refreshListenerAttached = true;
     onValue(ref(rtdb, `forceRefresh/${user.uid}`), (snap) => {
       if (!snap.exists()) return;
-      _handleRefresh(snap.val()?.triggeredAt);
+      _handleRefresh(snap.val()?.triggeredAt, 'user');
     });
   });
 
   // Global refresh — affects everyone including guests
   onValue(ref(rtdb, 'forceRefreshAll'), (snap) => {
     if (!snap.exists()) return;
-    _handleRefresh(snap.val()?.triggeredAt);
+    _handleRefresh(snap.val()?.triggeredAt, 'global');
   });
 }
 
@@ -182,9 +202,12 @@ export async function forceRefreshUser(targetUid) {
   if (!user || user.uid !== 'zEy6TO5ligf2um4rssIZs9C9X7f2') return { ok: false, error: 'Admin only.' };
   try {
     await set(ref(rtdb, `forceRefresh/${targetUid}`), {
-      triggeredAt: new Date().toISOString(),
+      triggeredAt: new Date().getTime(),
       by: user.uid,
+      rand: Math.random()
     });
+    // Cleanup so it doesn't stay there forever (shorter timeout so it cleans before reload)
+    setTimeout(() => set(ref(rtdb, `forceRefresh/${targetUid}`), null), 200);
     return { ok: true };
   } catch (e) { return { ok: false, error: e.message }; }
 }
@@ -195,9 +218,11 @@ export async function forceRefreshAll() {
   try {
     // Write to a global refresh node — all clients listen to this too (see initPresence)
     await set(ref(rtdb, 'forceRefreshAll'), {
-      triggeredAt: new Date().toISOString(),
+      triggeredAt: new Date().getTime(),
       by: user.uid,
+      rand: Math.random()
     });
+    setTimeout(() => set(ref(rtdb, 'forceRefreshAll'), null), 200);
     return { ok: true };
   } catch (e) { return { ok: false, error: e.message }; }
 }
@@ -550,14 +575,13 @@ export function initUpdateNotification() {
 
   async function checkForUpdate() {
     try {
-      // Fetch version.json with cache-busting
-      const res = await fetch(`version.json?t=${Date.now()}`, { cache: 'no-store' });
+      // Fetch latest commit from GitHub to be completely automatic
+      const res = await fetch('https://api.github.com/repos/nxtcoreee3/Flux/commits?per_page=1', { cache: 'no-store' });
       if (!res.ok) return;
       const data = await res.json();
-      const latestBuild = data.build;
-      const latestVersion = data.version || '';
-      if (!latestBuild) return;
-
+      if (!data || !data[0]) return;
+      
+      const latestBuild = data[0].sha.slice(0, 6);
       const storedBuild = localStorage.getItem(STORAGE_KEY);
 
       if (!storedBuild) {
@@ -568,58 +592,53 @@ export function initUpdateNotification() {
 
       if (storedBuild !== latestBuild && !_notifShown) {
         _notifShown = true;
-        showUpdateBanner(latestBuild, latestVersion);
+        showUpdatePopup(latestBuild, storedBuild);
       }
     } catch {}
   }
 
-  function showUpdateBanner(build, version) {
-    const existing = document.getElementById('flux-update-banner');
+  function showUpdatePopup(newBuild, oldBuild) {
+    const existing = document.getElementById('flux-update-popup');
     if (existing) existing.remove();
 
-    const banner = document.createElement('div');
-    banner.id = 'flux-update-banner';
-    banner.style.cssText = `
-      position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);
-      z-index:9999;display:flex;align-items:center;gap:14px;
-      background:var(--panel,#fff);
-      border:1px solid var(--glass-border,rgba(0,0,0,0.08));
-      border-radius:16px;padding:14px 18px;
-      box-shadow:0 12px 40px rgba(0,0,0,0.15);
-      max-width:440px;width:calc(100vw - 48px);
-      transition:transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
+    const popup = document.createElement('div');
+    popup.id = 'flux-update-popup';
+    popup.style.cssText = `
+      position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:99999999;
+      display:flex;justify-content:center;align-items:center;backdrop-filter:blur(4px);
+      opacity:0;transition:opacity 0.3s ease;
     `;
-    banner.innerHTML = `
-      <span style="font-size:22px;flex-shrink:0;">🚀</span>
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:14px;font-weight:700;color:var(--text,#111);">New update available!</div>
-        <div style="font-size:12px;color:var(--muted,#6b7280);margin-top:2px;">
-          Build <code style="background:rgba(58,125,255,0.1);color:var(--accent,#3a7dff);padding:1px 5px;border-radius:4px;font-size:11px;">#${build}</code>
-          ${version ? `<span style="margin-left:4px;">· v${version}</span>` : ''}
-           is ready
+    popup.innerHTML = `
+      <div style="background:var(--panel,#fff);padding:24px;border-radius:16px;max-width:340px;width:90%;box-shadow:0 10px 25px rgba(0,0,0,0.2);text-align:center;transform:translateY(20px);transition:transform 0.3s cubic-bezier(0.34,1.56,0.64,1);">
+        <div style="font-size:36px;margin-bottom:12px;">🚀</div>
+        <h2 style="margin:0 0 8px;font-size:18px;font-weight:700;color:var(--text,#111827);">New Update Available!</h2>
+        <p style="margin:0 0 16px;font-size:13px;color:var(--muted,#4b5563);line-height:1.5;">
+          You are currently using version <strong>#${oldBuild}</strong>, but the latest version is <strong>#${newBuild}</strong>.<br><br>Please update to ensure everything runs smoothly!
+        </p>
+        <div style="display:flex;gap:10px;justify-content:center;">
+          <button id="update-dismiss-btn" style="padding:10px 16px;border:none;background:var(--bg,#f3f4f6);color:var(--muted,#4b5563);border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">Decline</button>
+          <button id="update-refresh-btn" style="padding:10px 16px;border:none;background:var(--accent,#3a7dff);color:#fff;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;flex:1;">Update Site</button>
         </div>
       </div>
-      <div style="display:flex;gap:8px;flex-shrink:0;">
-        <button id="update-refresh-btn" style="padding:8px 14px;background:var(--accent,#3a7dff);color:white;border:none;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap;">Refresh</button>
-        <button id="update-dismiss-btn" style="background:none;border:none;color:var(--muted,#9ca3af);cursor:pointer;font-size:18px;padding:0 2px;line-height:1;">✕</button>
-      </div>
     `;
-    document.body.appendChild(banner);
+    document.body.appendChild(popup);
 
-    // Slide up
+    // Fade in
     requestAnimationFrame(() => {
-      banner.style.transform = 'translateX(-50%) translateY(0)';
+      popup.style.opacity = '1';
+      popup.firstElementChild.style.transform = 'translateY(0)';
     });
 
     document.getElementById('update-refresh-btn').addEventListener('click', () => {
-      localStorage.setItem(STORAGE_KEY, build);
-      window.location.reload();
+      localStorage.setItem(STORAGE_KEY, newBuild);
+      window.location.reload(true);
     });
 
     document.getElementById('update-dismiss-btn').addEventListener('click', () => {
-      banner.style.transform = 'translateX(-50%) translateY(80px)';
-      setTimeout(() => banner.remove(), 400);
-      // Don't store — show again next page load until they refresh
+      popup.style.opacity = '0';
+      popup.firstElementChild.style.transform = 'translateY(20px)';
+      setTimeout(() => popup.remove(), 300);
+      localStorage.setItem(STORAGE_KEY, newBuild); // User declined this version, don't show until next version
     });
   }
 
@@ -1005,7 +1024,7 @@ export function initNotifications() {
 async function loadNotifications(uid) {
   const list = document.getElementById('notif-list');
   if (!list) return;
-  list.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px;">Loading...</div>';
+  list.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px;"><div style="display:flex;justify-content:center;padding:20px;"><img src="assets/loading.gif" style="width:80px;height:auto;" alt="Loading..."></div></div>';
 
   try {
     const { collection: col, query: q, where: w, limit: lim, getDocs: gd } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
@@ -1694,7 +1713,7 @@ export function initAuthUI(onUserChange) {
       <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">👥 Online Users</div>
       <div style="margin-bottom:4px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-          <span id="mod-online-summary" style="font-size:12px;color:#6b7280;">Loading...</span>
+          <span id="mod-online-summary" style="font-size:12px;color:#6b7280;"><div style="display:flex;justify-content:center;padding:20px;"><img src="assets/loading.gif" style="width:80px;height:auto;" alt="Loading..."></div></span>
           <div style="display:flex;gap:6px;">
             <button id="mod-refresh-all-btn" style="padding:5px 12px;background:#ef4444;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:11px;">🔄 Refresh All</button>
             <button id="mod-reload-users-btn" style="padding:5px 10px;background:#f3f4f6;color:#6b7280;border:1px solid #e5e7eb;border-radius:8px;font-weight:700;cursor:pointer;font-size:11px;">↺ Reload List</button>
@@ -1750,7 +1769,7 @@ export function initAuthUI(onUserChange) {
       <!-- ── SERVER CONTROL ── -->
       <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Server Control</div>
       <div style="margin-bottom:12px;">
-        <div id="mod-current-status" style="font-size:13px;font-weight:600;color:#111827;padding:10px 12px;background:#f9fafb;border-radius:8px;border:1px solid rgba(0,0,0,0.07);margin-bottom:10px;">Loading...</div>
+        <div id="mod-current-status" style="font-size:13px;font-weight:600;color:#111827;padding:10px 12px;background:#f9fafb;border-radius:8px;border:1px solid rgba(0,0,0,0.07);margin-bottom:10px;"><div style="display:flex;justify-content:center;padding:20px;"><img src="assets/loading.gif" style="width:80px;height:auto;" alt="Loading..."></div></div>
         <select id="mod-duration" style="width:100%;padding:10px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;color:#111827;background:#fff;outline:none;cursor:pointer;margin-bottom:8px;">
           <option value="0">⛔ No limit — restore manually</option>
           <option value="1">⏱ 1 minute</option>
@@ -2242,17 +2261,18 @@ export function initAuthUI(onUserChange) {
     }
 
     // ── Online Users ──
-    const renderOnlineUsers = async () => {
+    let _modPresenceUnsub = null;
+    const renderOnlineUsers = () => {
       const list = document.getElementById('mod-online-users-list');
       const summary = document.getElementById('mod-online-summary');
       if (!list) return;
-      list.innerHTML = '<div style="font-size:12px;color:#9ca3af;padding:8px 0;">Loading...</div>';
 
-      try {
-        const presSnap = await new Promise(resolve => {
-          const presRef = ref(rtdb, 'presence');
-          onValue(presRef, resolve, { onlyOnce: true });
-        });
+      if (_modPresenceUnsub) _modPresenceUnsub();
+
+      list.innerHTML = '<div style="font-size:12px;color:#9ca3af;padding:8px 0;"><div style="display:flex;justify-content:center;padding:20px;"><img src="assets/loading.gif" style="width:80px;height:auto;" alt="Loading..."></div></div>';
+
+
+        _modPresenceUnsub = onValue(ref(rtdb, 'presence'), (presSnap) => {
 
         const sessions = presSnap.exists() ? presSnap.val() : {};
         const sessionList = Object.values(sessions);
@@ -2306,19 +2326,23 @@ export function initAuthUI(onUserChange) {
           list.appendChild(item);
         });
 
-        // Render anonymous sessions
-        if (anonCount > 0) {
+        // Render anonymous sessions individually
+        anonymous.forEach((s, i) => {
           const anonItem = document.createElement('div');
-          anonItem.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 10px;background:#f9fafb;border-radius:10px;border:1px solid rgba(0,0,0,0.06);opacity:0.6;';
+          anonItem.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 10px;background:#f9fafb;border-radius:10px;border:1px solid rgba(0,0,0,0.06);opacity:0.8;';
           anonItem.innerHTML = `
             <span style="width:8px;height:8px;border-radius:50%;background:#9ca3af;flex-shrink:0;"></span>
-            <div style="flex:1;">
-              <div style="font-size:13px;font-weight:600;color:#6b7280;">${anonCount} anonymous session${anonCount !== 1 ? 's' : ''}</div>
-              <div style="font-size:11px;color:#9ca3af;">Guests / not signed in</div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:13px;font-weight:600;color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Anonymous ${i + 1}</div>
+              <div style="font-size:11px;color:#9ca3af;">Guest (sid: ${s.sessionId ? s.sessionId.slice(0,6) : '?'})</div>
             </div>
+            <button class="mod-force-refresh-btn" data-uid="${s.sessionId}" data-name="Guest"
+              style="padding:4px 10px;background:#9ca3af;color:white;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:11px;flex-shrink:0;">
+              🔄
+            </button>
           `;
           list.appendChild(anonItem);
-        }
+        });
 
         // Wire force-refresh buttons
         list.querySelectorAll('.mod-force-refresh-btn').forEach(btn => {
@@ -2338,9 +2362,11 @@ export function initAuthUI(onUserChange) {
           });
         });
 
-      } catch (e) {
-        list.innerHTML = '<div style="font-size:12px;color:#ef4444;padding:8px 0;">Failed to load presence data.</div>';
-      }
+      }, (err) => {
+        list.innerHTML = `<div style="font-size:12px;color:#ef4444;padding:8px 0;text-align:center;">Realtime DB Permission Denied.<br>Please update your Realtime Database rules.<br>${err.message}</div>`;
+      });
+
+
     };
 
     renderOnlineUsers();
@@ -2360,12 +2386,6 @@ export function initAuthUI(onUserChange) {
         setTimeout(() => modMsg.style.display = 'none', 2500);
       }
     });
-
-    // Live-update the list every 15s while modal is open
-    const _onlineListInterval = setInterval(() => {
-      if (modModal.style.display !== 'none') renderOnlineUsers();
-      else clearInterval(_onlineListInterval);
-    }, 15000);
 
 
     document.getElementById('mod-banner-show-btn')?.addEventListener('click', async () => {

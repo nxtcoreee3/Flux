@@ -328,6 +328,10 @@
   </style>
 </head>
 <body>
+  <div id="global-page-loader" style="position:fixed;inset:0;background:#ffffff;z-index:9999999;display:flex;justify-content:center;align-items:center;transition:opacity 0.4s ease;pointer-events:none;">
+    <img src="assets/loading.gif" style="width:250px;height:auto;" alt="Loading...">
+  </div>
+
   <header class="topbar">
     <div class="brand">
       <a href="index.html" class="logo"><img src="assets/logo.png" alt="Flux" style="height:32px;vertical-align:middle;margin-right:6px;"> FLUX</a>
@@ -358,7 +362,7 @@
         <span id="chat-online-count" style="font-size:12px;color:var(--muted);margin-left:auto;"></span>
       </div>
       <div id="chat-messages" class="chat-messages">
-        <div class="chat-empty">Loading messages...</div>
+        <div class="chat-empty"><div style="display:flex;justify-content:center;padding:20px;"><img src="assets/loading.gif" style="width:80px;height:auto;" alt="Loading..."></div></div>
       </div>
       <div id="chat-input-area" class="chat-input-wrap" style="display:none;">
         <input id="chat-input" class="chat-input" type="text" placeholder="Say something..." maxlength="300" autocomplete="off">
@@ -421,5 +425,11 @@
   </footer>
 
   <script type="module" src="social.js"></script>
+
+<script>
+  window.addEventListener('load', () => {
+    setTimeout(() => { const loader = document.getElementById('global-page-loader'); if(loader) { loader.style.opacity = '0'; setTimeout(() => loader.remove(), 400); } }, 400);
+  });
+</script>
 </body>
 </html>
