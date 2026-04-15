@@ -43,6 +43,9 @@ import {
   onValue,
   onDisconnect,
   set,
+  get,
+  update,
+  remove,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
@@ -106,12 +109,25 @@ export function initPresence() {
 
   const updatePresenceRecord = async () => {
     const user = auth.currentUser;
+    const path = window.location.pathname.split('/').pop() || 'index.html';
+    const pageMap = {
+      'index.html': 'Home',
+      'social.html': 'Social',
+      'profile.html': 'Profile',
+      'games.html': 'Games',
+      'settings.html': 'Settings',
+      'status.html': 'Status',
+      'messages.html': 'Chat'
+    };
+    
     const payload = {
       online: true,
       timestamp: serverTimestamp(),
+      lastSeen: Date.now(), // Local fallback for heartbeat
       uid: (user && !user.isAnonymous) ? user.uid : null,
       username: null,
       currentlyPlaying: window._fluxCurrentlyPlaying || null,
+      currentLocation: pageMap[path] || 'Browsing',
       sessionId: sessionId,
     };
 
@@ -133,6 +149,9 @@ export function initPresence() {
       onDisconnect(presenceRef).remove();
     }
   });
+
+  // Pulse/Heartbeat every 2 minutes to prove the session is alive
+  setInterval(updatePresenceRecord, 120000);
 
   // CRITICAL: Re-check/update presence whenever the auth state changes (Guest -> User)
   onAuthStateChanged(auth, () => {
@@ -1735,9 +1754,10 @@ export function initAuthUI(onUserChange) {
       <div style="margin-bottom:4px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
           <span id="mod-online-summary" style="font-size:12px;color:#6b7280;"><div style="display:flex;justify-content:center;padding:20px;"><img src="assets/loading.gif" style="width:80px;height:auto;" alt="Loading..."></div></span>
-          <div style="display:flex;gap:6px;">
+          <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+            <button id="mod-purge-stale-btn" style="padding:5px 10px;background:#f59e0b;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:11px;" title="Delete sessions inactive for 10+ mins">🗑️ Purge Ghosts</button>
             <button id="mod-refresh-all-btn" style="padding:5px 12px;background:#ef4444;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:11px;">🔄 Refresh All</button>
-            <button id="mod-reload-users-btn" style="padding:5px 10px;background:#f3f4f6;color:#6b7280;border:1px solid #e5e7eb;border-radius:8px;font-weight:700;cursor:pointer;font-size:11px;">↺ Reload List</button>
+            <button id="mod-reload-users-btn" style="padding:5px 10px;background:#f3f4f6;color:#6b7280;border:1px solid #e5e7eb;border-radius:8px;font-weight:700;cursor:pointer;font-size:11px;">↺ Reload</button>
           </div>
         </div>
         <div id="mod-online-users-list" style="display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto;"></div>
@@ -2333,12 +2353,16 @@ export function initAuthUI(onUserChange) {
         _modPresenceUnsub = onValue(ref(rtdb, 'presence'), (presSnap) => {
 
         const sessions = presSnap.exists() ? presSnap.val() : {};
-        const sessionList = Object.values(sessions);
+        const sessionEntries = Object.entries(sessions);
+        const serverNow = Date.now() + _serverOffset;
 
-        // Deduplicate by uid (one user may have multiple tabs)
+        // Deduplicate and filter (and track stale status)
         const byUid = {};
         const anonymous = [];
-        sessionList.forEach(s => {
+        sessionEntries.forEach(([sid, s]) => {
+          const isStale = (s.lastSeen && (serverNow - s.lastSeen > 300000)); // 5 mins
+          s.isStale = isStale;
+          s.sid = sid; // Ensure sid is available for deletion
           if (s.uid) {
             if (!byUid[s.uid]) byUid[s.uid] = s;
           } else {
@@ -2347,7 +2371,7 @@ export function initAuthUI(onUserChange) {
         });
 
         const namedUsers = Object.values(byUid);
-        const totalSessions = sessionList.length;
+        const totalSessions = sessionEntries.length;
         const namedCount = namedUsers.length;
         const anonCount = totalSessions - namedCount;
 
@@ -2364,26 +2388,31 @@ export function initAuthUI(onUserChange) {
         namedUsers.forEach(s => {
           const item = document.createElement('div');
           item.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 10px;background:#f9fafb;border-radius:10px;border:1px solid rgba(0,0,0,0.06);';
-          const playing = s.currentlyPlaying?.title;
           const profileLink = s.username ? `profile.html?user=${s.username}` : null;
+          const playing = s.currentlyPlaying?.title;
+          const statusColor = s.isStale ? '#f59e0b' : '#22c55e';
           item.innerHTML = `
-            <span style="width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0;"></span>
+            <span style="width:8px;height:8px;border-radius:50%;background:${statusColor};flex-shrink:0;" title="${s.isStale ? 'Inactive for 5+ mins' : 'Active'}"></span>
             <div style="flex:1;min-width:0;">
               <div style="font-size:13px;font-weight:700;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
                 ${profileLink ? `<a href="${profileLink}" target="_blank" style="color:#3a7dff;text-decoration:none;">@${s.username}</a>` : (s.username ? `@${s.username}` : `uid: ${s.uid.slice(0,8)}…`)}
               </div>
-              <div style="font-size:11px;color:#6b7280;margin-top:1px;">
-                ${playing ? `🎮 Playing <strong style="color:#111827;">${playing}</strong>` : '🏠 Browsing'}
+              <div style="font-size:11px;color:#6b7280;margin:1px 0;">
+                ${playing ? `🎮 Playing <strong style="color:#111827;">${playing}</strong>` : `🏠 Browsing <strong style="color:#111827;">${s.currentLocation || 'Flux'}</strong>`}
               </div>
             </div>
             <div style="display:flex;gap:4px;flex-shrink:0;">
-              <button class="mod-media-blast-btn" data-sid="${s.sessionId}" data-name="${s.username || s.uid.slice(0,8)}"
+              <button class="mod-media-blast-btn" data-sid="${s.sid}" data-name="${s.username || s.uid.slice(0,8)}" title="Media Blast (Scare)"
                 style="padding:4px 8px;background:#ef4444;color:white;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:11px;">
                 👁️
               </button>
-              <button class="mod-force-refresh-btn" data-uid="${s.sessionId || s.uid}" data-name="${s.username || s.uid.slice(0,8)}"
+              <button class="mod-force-refresh-btn" data-uid="${s.sid}" data-name="${s.username || s.uid.slice(0,8)}" title="Force Refresh"
                 style="padding:4px 10px;background:#3a7dff;color:white;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:11px;">
                 🔄
+              </button>
+              <button class="mod-delete-session-btn" data-sid="${s.sid}" title="Delete Ghost Session"
+                style="padding:4px 10px;background:#9ca3af;color:white;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:11px;">
+                ✕
               </button>
             </div>
           `;
@@ -2394,20 +2423,25 @@ export function initAuthUI(onUserChange) {
         anonymous.forEach((s, i) => {
           const anonItem = document.createElement('div');
           anonItem.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 10px;background:#f9fafb;border-radius:10px;border:1px solid rgba(0,0,0,0.06);opacity:0.8;';
+          const statusColor = s.isStale ? '#f59e0b' : '#9ca3af';
           anonItem.innerHTML = `
-            <span style="width:8px;height:8px;border-radius:50%;background:#9ca3af;flex-shrink:0;"></span>
+            <span style="width:8px;height:8px;border-radius:50%;background:${statusColor};flex-shrink:0;" title="${s.isStale ? 'Inactive for 5+ mins' : 'Active'}"></span>
             <div style="flex:1;min-width:0;">
               <div style="font-size:13px;font-weight:600;color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Anonymous ${i + 1}</div>
-              <div style="font-size:11px;color:#9ca3af;">Guest (sid: ${s.sessionId ? s.sessionId.slice(0,6) : '?'})</div>
+              <div style="font-size:11px;color:#9ca3af;">🏠 Browsing <strong style="color:#6b7280;">${s.currentLocation || 'Flux'}</strong> ${s.isStale ? ' (Stale)' : ''}</div>
             </div>
             <div style="display:flex;gap:4px;flex-shrink:0;">
-              <button class="mod-media-blast-btn" data-sid="${s.sessionId}" data-name="Guest"
+               <button class="mod-media-blast-btn" data-sid="${s.sid}" data-name="Anonymous ${i+1}" title="Media Blast (Scare)"
                 style="padding:4px 8px;background:#ef4444;color:white;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:11px;">
                 👁️
               </button>
-              <button class="mod-force-refresh-btn" data-uid="${s.sessionId}" data-name="Guest"
-                style="padding:4px 10px;background:#9ca3af;color:white;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:11px;">
+              <button class="mod-force-refresh-btn" data-uid="${s.sid}" data-name="Anonymous ${i+1}" title="Force Refresh"
+                style="padding:4px 10px;background:#3a7dff;color:white;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:11px;">
                 🔄
+              </button>
+              <button class="mod-delete-session-btn" data-sid="${s.sid}" title="Delete Ghost Session"
+                style="padding:4px 10px;background:#9ca3af;color:white;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:11px;">
+                ✕
               </button>
             </div>
           `;
@@ -2428,6 +2462,21 @@ export function initAuthUI(onUserChange) {
             } else {
               btn.textContent = '✗'; btn.style.background = '#ef4444';
               setTimeout(() => { btn.textContent = '🔄'; btn.style.background = '#3a7dff'; btn.disabled = false; }, 2000);
+            }
+          });
+        });
+
+        // Wire delete buttons (manual ghost clearing)
+        list.querySelectorAll('.mod-delete-session-btn').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const sid = btn.dataset.sid;
+            if (!sid) return;
+            btn.textContent = '…';
+            try {
+              await remove(ref(rtdb, `presence/${sid}`));
+            } catch (e) {
+              console.error("Delete session failed", e);
+              btn.textContent = '✗';
             }
           });
         });
@@ -2474,6 +2523,39 @@ export function initAuthUI(onUserChange) {
     renderOnlineUsers();
 
     document.getElementById('mod-reload-users-btn')?.addEventListener('click', renderOnlineUsers);
+
+    document.getElementById('mod-purge-stale-btn')?.addEventListener('click', async () => {
+      const btn = document.getElementById('mod-purge-stale-btn');
+      const modMsg = document.getElementById('mod-msg');
+      btn.textContent = '…'; btn.disabled = true;
+      
+      try {
+        const snap = await get(ref(rtdb, 'presence'));
+        if (!snap.exists()) return;
+        const sessions = snap.val();
+        const serverNow = Date.now() + _serverOffset;
+        let purged = 0;
+        
+        const updates = {};
+        Object.entries(sessions).forEach(([sid, s]) => {
+          // If inactive for more than 10 minutes
+          if (!s.lastSeen || (serverNow - s.lastSeen > 600000)) {
+            updates[`presence/${sid}`] = null;
+            purged++;
+          }
+        });
+        
+        if (purged > 0) {
+          await update(ref(rtdb), updates);
+          if (modMsg) { modMsg.style.color='#22c55e'; modMsg.textContent=`✓ Purged ${purged} ghost sessions!`; modMsg.style.display='block'; setTimeout(()=>modMsg.style.display='none',3000); }
+        } else {
+          if (modMsg) { modMsg.style.color='#6b7280'; modMsg.textContent='No ghosts found to purge.'; modMsg.style.display='block'; setTimeout(()=>modMsg.style.display='none',3000); }
+        }
+      } catch (e) {
+        console.error("Purge failed:", e);
+      }
+      btn.textContent = '🗑️ Purge Ghosts'; btn.disabled = false;
+    });
 
     document.getElementById('mod-refresh-all-btn')?.addEventListener('click', async () => {
       const btn = document.getElementById('mod-refresh-all-btn');
@@ -4207,6 +4289,10 @@ export function initMediaBlast(sessionId) {
   
   const globalRef = ref(rtdb, 'broadcastMedia/all');
   const sessionRef = ref(rtdb, `broadcastMedia/sessions/${sessionId}`);
+  const offsetRef = ref(rtdb, '.info/serverTimeOffset');
+  
+  let _serverOffset = 0;
+  onValue(offsetRef, (snap) => { _serverOffset = snap.val() || 0; });
 
   let _lastBid = null;
 
@@ -4218,8 +4304,13 @@ export function initMediaBlast(sessionId) {
     if (data.bid && data.bid === _lastBid) return;
     _lastBid = data.bid;
 
-    // Ignore stale triggers (within 120s is fine)
-    const drift = Math.abs(Date.now() - (data.timestamp || 0));
+    // Ignore stale triggers (drift-safe check using serverTimeOffset)
+    const serverNow = Date.now() + _serverOffset;
+    const drift = Math.abs(serverNow - (data.timestamp || 0));
+    
+    // Log for debugging
+    console.info(`[MediaBlast] Received at ${new Date(serverNow).toLocaleTimeString()}, data timestamp: ${new Date(data.timestamp).toLocaleTimeString()}. Drift: ${Math.round(drift/1000)}s`);
+    
     if (drift > 120000) return;
     
     showMediaBlast(data.url);
