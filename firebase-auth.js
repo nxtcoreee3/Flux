@@ -2389,7 +2389,7 @@ export function initAuthUI(onUserChange) {
 
         list.innerHTML = '';
 
-        if (!sessionList.length) {
+        if (!sessionEntries.length) {
           list.innerHTML = '<div style="font-size:12px;color:#9ca3af;text-align:center;padding:12px 0;">No one online right now</div>';
           return;
         }
