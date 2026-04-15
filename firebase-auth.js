@@ -4376,12 +4376,13 @@ export async function syncProfileAvatar(force = false) {
     // Only update if current source is 'google' (or missing) OR if force is true (manual sync)
     const shouldSync = force || !profile.avatarSource || profile.avatarSource === 'google';
     
-    if (shouldSync && profile.avatarURL !== googlePhoto) {
+    // If forcing, we always want to set the source back to 'google'
+    if (force || (shouldSync && profile.avatarURL !== googlePhoto)) {
       await updateProfile(user.uid, { 
         avatarURL: googlePhoto, 
-        avatarSource: force ? 'google' : (profile.avatarSource || 'google')
+        avatarSource: 'google'
       });
-      console.log("[AvatarSync] Profile picture synced from provider source.");
+      console.log("[AvatarSync] Profile picture restored/synced from provider source.");
       return true;
     }
   } catch (err) {
