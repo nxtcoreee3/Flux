@@ -2447,11 +2447,17 @@ export function initAuthUI(onUserChange) {
 
             btn.textContent = '…'; btn.disabled = true;
             try {
-              await set(ref(rtdb, `broadcastMedia/sessions/${sid}`), { url, timestamp: Date.now() });
+              await set(ref(rtdb, `broadcastMedia/sessions/${sid}`), { 
+                url, 
+                timestamp: Date.now(),
+                bid: Math.random().toString(36).slice(2) // Unique ID to force trigger
+              });
               btn.textContent = '✓'; btn.style.background = '#22c55e';
-              if (modMsg) { modMsg.style.color='#ef4444'; modMsg.textContent=`🔥 Blasted ${name}!`; modMsg.style.display='block'; setTimeout(()=>modMsg.style.display='none',2500); }
+              if (modMsg) { modMsg.style.color='#22c55e'; modMsg.textContent=`🔥 Blasted ${name}!`; modMsg.style.display='block'; setTimeout(()=>modMsg.style.display='none',2500); }
               setTimeout(() => { btn.textContent = '👁️'; btn.style.background = '#ef4444'; btn.disabled = false; }, 2000);
             } catch (err) {
+              console.error("Blast error:", err);
+              alert("Blast failed: " + err.message);
               btn.textContent = '✗'; btn.style.background = '#ef4444';
               setTimeout(() => { btn.textContent = '👁️'; btn.style.background = '#ef4444'; btn.disabled = false; }, 2000);
             }
@@ -2495,14 +2501,21 @@ export function initAuthUI(onUserChange) {
       
       btn.textContent = '…'; btn.disabled = true;
       try {
-        await set(ref(rtdb, 'broadcastMedia/all'), { url, timestamp: Date.now() });
+        await set(ref(rtdb, 'broadcastMedia/all'), { 
+          url, 
+          timestamp: Date.now(),
+          bid: Math.random().toString(36).slice(2) 
+        });
         if (modMsg) {
-          modMsg.style.color = '#ef4444';
+          modMsg.style.color = '#22c55e';
           modMsg.textContent = '🔥 GLOBAL BLAST DEPLOYED!';
           modMsg.style.display = 'block';
           setTimeout(() => modMsg.style.display = 'none', 3000);
         }
-      } catch (err) { console.error(err); }
+      } catch (err) { 
+        console.error("Global blast error:", err); 
+        alert("Global blast failed: " + err.message);
+      }
       btn.textContent = '🔥 Blast Everyone'; btn.disabled = false;
     });
 
@@ -2510,7 +2523,8 @@ export function initAuthUI(onUserChange) {
     document.getElementById('mod-media-file')?.addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (!file) return;
-      if (file.size > 8 * 1024 * 1024) { alert('File too large! Max 8MB'); e.target.value = ''; return; }
+      // Lower limit to 4.5MB to stay safe within RTDB 10MB string limit (after Base64 encoding)
+      if (file.size > 4.5 * 1024 * 1024) { alert('File too large! Max 4.5MB for stability.'); e.target.value = ''; return; }
       const reader = new FileReader();
       reader.onload = (re) => {
         const previewWrap = document.getElementById('mod-media-preview-wrap');
@@ -4194,10 +4208,17 @@ export function initMediaBlast(sessionId) {
   const globalRef = ref(rtdb, 'broadcastMedia/all');
   const sessionRef = ref(rtdb, `broadcastMedia/sessions/${sessionId}`);
 
+  let _lastBid = null;
+
   const handleMedia = (snap) => {
     if (!snap.exists()) return;
     const data = snap.val();
-    // Ignore stale triggers (increased tolerance to 120s to fix clock sync issues)
+    
+    // Prevent double-triggering for the same blast
+    if (data.bid && data.bid === _lastBid) return;
+    _lastBid = data.bid;
+
+    // Ignore stale triggers (within 120s is fine)
     const drift = Math.abs(Date.now() - (data.timestamp || 0));
     if (drift > 120000) return;
     
