@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Disconnected | Flux</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0b0b0b;
+            --text: #ffffff;
+            --muted: #9ca3af;
+            --accent: #3b82f6;
+            --error: #ef4444;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .container {
+            text-align: center;
+            max-width: 480px;
+            padding: 40px;
+            animation: fadeIn 0.8s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .mascot {
+            width: 180px;
+            height: auto;
+            margin-bottom: 32px;
+            filter: drop-shadow(0 0 30px rgba(59, 130, 246, 0.2));
+        }
+
+        h1 {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 56px;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+            background: linear-gradient(to bottom, #fff, #9ca3af);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .reason-box {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 20px;
+            margin-bottom: 32px;
+            backdrop-filter: blur(10px);
+        }
+
+        p {
+            color: var(--muted);
+            font-size: 16px;
+            line-height: 1.6;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 14px 32px;
+            background: var(--accent);
+            color: white;
+            text-decoration: none;
+            border-radius: 14px;
+            font-weight: 700;
+            font-size: 15px;
+            transition: all 0.2s;
+            box-shadow: 0 10px 20px rgba(59, 130, 246, 0.2);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            background: #2563eb;
+            box-shadow: 0 15px 30px rgba(59, 130, 246, 0.3);
+        }
+
+        .btn:active { transform: translateY(0); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <img src="assets/crashed.png" alt="Flux Mascot" class="mascot" onerror="this.src='https://icons.iconarchive.com/icons/google/noto-emoji-activities/512/52701-video-game-icon.png'">
+        <h1 id="title">DISCONNECTED</h1>
+        
+        <div class="reason-box">
+            <p id="description">Your session has ended. This happens when the connection is lost or if your account is logged in elsewhere.</p>
+        </div>
+
+        <a href="index.html" class="btn">Return to home</a>
+    </div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const reason = params.get('reason');
+        const titleEl = document.getElementById('title');
+        const descEl = document.getElementById('description');
+
+        if (reason === 'admin') {
+            titleEl.textContent = 'SESSION ENDED';
+            descEl.textContent = 'An administrator has ended your current session. If you believe this was an error, please contact support.';
+        } else if (reason === 'inactivity') {
+            titleEl.textContent = 'TIMEOUT';
+            descEl.textContent = 'You were disconnected for being inactive for too long. We do this to save server energy for active players!';
+        } else if (reason === 'banned') {
+            titleEl.textContent = 'ACCESS DENIED';
+            descEl.textContent = 'This account has been permanently suspended from Flux for violating our community guidelines.';
+            document.querySelector('.btn').style.display = 'none';
+        }
+    </script>
+</body>
+</html>

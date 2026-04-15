@@ -160,8 +160,28 @@ export function initPresence() {
     }
   });
 
+  // Listen for session-specific kicks (Admin Kick)
+  onValue(ref(rtdb, `presence_kills/${sessionId}`), (snap) => {
+    if (snap.exists() && snap.val() === true) {
+      location.replace('kicked.html?reason=admin');
+    }
+  });
+
   // Pulse/Heartbeat every 2 minutes to prove the session is alive
   setInterval(updatePresenceRecord, 120000);
+
+  // Inactivity Kick (30 Minutes)
+  let _lastActivity = Date.now();
+  const _resetIdle = () => { _lastActivity = Date.now(); };
+  ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'].forEach(e => {
+    window.addEventListener(e, _resetIdle, { passive: true });
+  });
+
+  setInterval(() => {
+    if (Date.now() - _lastActivity > 1800000) { // 30 Minutes
+      location.replace('kicked.html?reason=inactivity');
+    }
+  }, 30000); // Check every 30s
 
   // CRITICAL: Re-check/update presence whenever the auth state changes (Guest -> User)
   onAuthStateChanged(auth, () => {
@@ -1750,301 +1770,87 @@ export function initAuthUI(onUserChange) {
   // Mod modal
   const modModal = document.createElement('div');
   modModal.id = 'mod-modal';
-  modModal.style.cssText = 'display:none;position:fixed;inset:0;z-index:500;align-items:center;justify-content:center;background:rgba(0,0,0,0.4);backdrop-filter:blur(4px);';
+  modModal.style.cssText = 'display:none;position:fixed;inset:0;z-index:700;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(10px);overflow-y:auto;padding:20px;';
   modModal.innerHTML = `
-    <div style="background:#fff;border-radius:16px;padding:28px;width:100%;max-width:400px;box-shadow:0 30px 80px rgba(0,0,0,0.2);position:relative;max-height:90vh;overflow-y:auto;">
-      <button id="mod-modal-close" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:18px;cursor:pointer;color:#6b7280;">✕</button>
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
-        <span style="font-size:22px;">⚙️</span>
-        <h3 style="font-family:'Bebas Neue',sans-serif;font-size:26px;margin:0;color:#111827;">Mod Panel</h3>
-      </div>
-
-      <!-- ── ONLINE USERS ── -->
-      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">👥 Online Users</div>
-      <div style="margin-bottom:4px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-          <span id="mod-online-summary" style="font-size:12px;color:#6b7280;"><div style="display:flex;justify-content:center;padding:20px;"><img src="assets/loading.gif" style="width:80px;height:auto;" alt="Loading..."></div></span>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
-            <button id="mod-purge-stale-btn" style="padding:5px 10px;background:#f59e0b;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:11px;" title="Delete sessions inactive for 10+ mins">🗑️ Purge Ghosts</button>
-            <button id="mod-refresh-all-btn" style="padding:5px 12px;background:#ef4444;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:11px;">🔄 Refresh All</button>
-            <button id="mod-reload-users-btn" style="padding:5px 10px;background:#f3f4f6;color:#6b7280;border:1px solid #e5e7eb;border-radius:8px;font-weight:700;cursor:pointer;font-size:11px;">↺ Reload</button>
-          </div>
+    <div style="background:#fff;border-radius:24px;padding:32px;width:100%;max-width:440px;box-shadow:0 40px 100px rgba(0,0,0,0.3);position:relative;margin:auto;">
+      <button id="mod-modal-close" style="position:absolute;top:20px;right:20px;background:#f3f4f6;border:none;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;color:#6b7280;transition:all 0.2s;" onmouseover="this.style.background='#e5e7eb'" onmouseout="this.style.background='#f3f4f6'">✕</button>
+      
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:28px;">
+        <div style="width:48px;height:48px;background:#3a7dff10;color:#3a7dff;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;">⚙️</div>
+        <div>
+          <h3 style="font-family:'Bebas Neue',sans-serif;font-size:32px;margin:0;color:#111827;letter-spacing:0.5px;">Moderator Panel</h3>
+          <p style="font-size:12px;color:#6b7280;margin:0;">Manage server health and live users</p>
         </div>
-        <div id="mod-online-users-list" style="display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto;"></div>
       </div>
 
-      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
+      <!-- ── SECTION: ONLINE SESSIONS ── -->
+      <div style="background:#f9fafb;border-radius:20px;padding:20px;margin-bottom:24px;border:1px solid #f3f4f6;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <div style="font-size:11px;font-weight:800;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;">👥 Live Sessions</div>
+          <button id="mod-reload-users-btn" style="background:none;border:none;color:#3a7dff;font-size:11px;font-weight:700;cursor:pointer;">Refresh List</button>
+        </div>
+        
+        <div id="mod-online-summary" style="font-size:13px;color:#111827;font-weight:600;margin-bottom:12px;">...</div>
+        
+        <div id="mod-online-users-list" style="display:flex;flex-direction:column;gap:8px;max-height:220px;overflow-y:auto;padding-right:4px;margin-bottom:16px;"></div>
 
-      <!-- ── INCIDENT BANNER ── -->
-      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">📢 Incident Banner</div>
-      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px;">
-        <select id="mod-banner-type" style="padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;color:#111827;background:#fff;outline:none;cursor:pointer;">
-          <option value="warning">⚠️ Warning</option>
-          <option value="error">🔴 Error / Outage</option>
-          <option value="info">ℹ️ Info</option>
-        </select>
-        <textarea id="mod-banner-msg" placeholder="Banner message shown to all users..." maxlength="200" rows="2"
-          style="padding:10px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;outline:none;box-sizing:border-box;resize:none;font-family:inherit;"></textarea>
         <div style="display:flex;gap:8px;">
-          <button id="mod-banner-show-btn" style="flex:1;padding:10px;background:#f59e0b;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:13px;">📢 Show Banner</button>
-          <button id="mod-banner-hide-btn" style="flex:1;padding:10px;background:#6b7280;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:13px;">✕ Dismiss</button>
+          <button id="mod-refresh-all-btn" style="flex:1;padding:10px;background:#ef4444;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:12px;box-shadow:0 4px 12px rgba(239,68,68,0.2);">🔄 Global Refresh</button>
+          <button id="mod-purge-stale-btn" title="Purge inactive sessions" style="padding:10px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;cursor:pointer;font-size:14px;">🗑️</button>
         </div>
       </div>
 
-      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
-
-      <!-- ── SERVICE STATUS ── -->
-      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🛡️ Service Status</div>
-      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px;">
-        <div style="font-size:11px;color:#9ca3af;margin-bottom:2px;">Flag a service issue (auto-triggers banner + updates status page)</div>
-        ${['firestore', 'googleAuth', 'website', 'games'].map(key => {
-          const labels = { firestore:'🔥 Database', googleAuth:'🔐 Auth', website:'🌐 Website', games:'🎮 Games' };
-          return `<div style="display:flex;align-items:center;gap:8px;">
-            <span style="font-size:13px;font-weight:600;color:#111827;flex:1;">${labels[key]}</span>
-            <select class="mod-svc-status" data-key="${key}" style="padding:6px 10px;border:1px solid rgba(0,0,0,0.1);border-radius:8px;font-size:12px;color:#111827;background:#fff;outline:none;cursor:pointer;">
-              <option value="operational">✅ Operational</option>
-              <option value="degraded">⚠️ Degraded</option>
-              <option value="outage">🔴 Outage</option>
-            </select>
-            <button class="mod-svc-flag-btn" data-key="${key}" style="padding:6px 12px;background:#3a7dff;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:11px;">Flag</button>
-          </div>`;
-        }).join('')}
-        <div style="display:flex;gap:8px;margin-top:4px;">
-          <button id="mod-run-healthcheck" style="flex:1;padding:9px;background:#22c55e;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:12px;">🤖 Run Auto Health Check</button>
-          <a href="status.html" target="_blank" style="flex:1;padding:9px;background:#f9fafb;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-weight:700;cursor:pointer;font-size:12px;color:#111827;text-decoration:none;display:flex;align-items:center;justify-content:center;">🔗 View Status Page</a>
-        </div>
-      </div>
-
-      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
-
-      <!-- ── SERVER CONTROL ── -->
-      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Server Control</div>
-      <div style="margin-bottom:12px;">
-        <div id="mod-current-status" style="font-size:13px;font-weight:600;color:#111827;padding:10px 12px;background:#f9fafb;border-radius:8px;border:1px solid rgba(0,0,0,0.07);margin-bottom:10px;"><div style="display:flex;justify-content:center;padding:20px;"><img src="assets/loading.gif" style="width:80px;height:auto;" alt="Loading..."></div></div>
-        <select id="mod-duration" style="width:100%;padding:10px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;color:#111827;background:#fff;outline:none;cursor:pointer;margin-bottom:8px;">
-          <option value="0">⛔ No limit — restore manually</option>
-          <option value="1">⏱ 1 minute</option>
-          <option value="2">⏱ 2 minutes</option>
-          <option value="5">⏱ 5 minutes</option>
-          <option value="10">⏱ 10 minutes</option>
-          <option value="30">⏱ 30 minutes</option>
-          <option value="60">⏱ 1 hour</option>
-        </select>
-        <div style="display:flex;flex-direction:column;gap:8px;">
-          <button id="mod-shutdown-btn" style="padding:11px;background:#ef4444;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">🔴 Shut Down Server</button>
-          <select id="mod-crash-reason" style="padding:10px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;color:#111827;background:#fff;outline:none;cursor:pointer;">
-            <option value="The server has crashed due to high traffic. We're working on a fix.">🚦 Too much traffic</option>
-            <option value="The database has overloaded and caused a crash. Please try again soon.">🗄️ Database overload</option>
-            <option value="A memory leak has caused the server to crash unexpectedly.">💾 Memory leak</option>
-            <option value="An unexpected internal error has caused a server crash. Our team is investigating.">⚠️ Unexpected internal error</option>
-            <option value="The server is under a DDoS attack. We're working to restore access.">🛡️ DDoS attack</option>
-            <option value="A failed deployment has taken the server down. Rolling back now.">🚀 Failed deployment</option>
+      <!-- ── SECTION: SYSTEM TOOLS ── -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px;">
+        <!-- Banner Card -->
+        <div style="padding:16px;background:#fff;border:1px solid #e5e7eb;border-radius:20px;">
+          <div style="font-size:10px;font-weight:800;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">📢 Incident</div>
+          <select id="mod-banner-type" style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:8px;font-size:12px;margin-bottom:8px;background:#f9fafb;">
+            <option value="warning">Warning</option>
+            <option value="error">Outage</option>
+            <option value="info">Info</option>
           </select>
-          <button id="mod-crash-btn" style="padding:11px;background:#f59e0b;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">💥 Fake Server Crash</button>
-          <button id="mod-restore-btn" style="padding:11px;background:#22c55e;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">✅ Restore Server</button>
+          <button id="mod-banner-show-btn" style="width:100%;padding:8px;background:#f59e0b;color:white;border:none;border-radius:8px;font-weight:700;font-size:11px;cursor:pointer;">Post Banner</button>
+        </div>
+        <!-- Health Card -->
+        <div style="padding:16px;background:#fff;border:1px solid #e5e7eb;border-radius:20px;">
+          <div style="font-size:10px;font-weight:800;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">🛠️ Health</div>
+          <button id="mod-run-healthcheck" style="width:100%;padding:8px;background:#22c55e;color:white;border:none;border-radius:8px;font-weight:700;font-size:11px;margin-bottom:8px;cursor:pointer;">Auto-Check</button>
+          <a href="status.html" target="_blank" style="display:block;text-align:center;padding:7px;background:#f3f4f6;color:#6b7280;border-radius:8px;font-size:11px;text-decoration:none;font-weight:700;">View Status</a>
         </div>
       </div>
 
-      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
-
-      <!-- ── MEDIA BLAST ── -->
-      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🖼️ Media Blast</div>
-      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">
-        <label style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:80px;border:2px dashed #e5e7eb;border-radius:12px;cursor:pointer;background:#f9fafb;transition:all 0.2s;" onmouseover="this.style.borderColor='#3a7dff';this.style.background='#f0f4ff'" onmouseout="this.style.borderColor='#e5e7eb';this.style.background='#f9fafb'">
-          <span style="font-size:24px;margin-bottom:4px;">📂</span>
-          <span style="font-size:11px;color:#6b7280;font-weight:600;">Click to upload Image/GIF</span>
-          <input id="mod-media-file" type="file" accept="image/*" style="display:none;">
-        </label>
-        <div id="mod-media-preview-wrap" style="display:none;position:relative;border-radius:12px;overflow:hidden;border:1px solid rgba(0,0,0,0.1);">
-          <img id="mod-media-preview" src="" style="width:100%;height:100px;object-fit:cover;display:block;">
-          <button id="mod-media-clear-btn" style="position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,0.6);color:white;border:none;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;">✕</button>
-        </div>
-        <input id="mod-media-url" type="text" placeholder="...or paste Image URL"
-          style="padding:10px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;outline:none;box-sizing:border-box;">
-        <button id="mod-media-blast-all-btn" style="padding:11px;background:#ef4444;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">🔥 Blast Everyone</button>
-      </div>
-
-      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin:8px 0;">🛡️ Text Broadcast</div>
-      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px;">
-        <input id="mod-broadcast-text" type="text" placeholder="Announcement text..."
-          style="padding:10px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;outline:none;box-sizing:border-box;">
-        <button id="mod-broadcast-btn" style="padding:11px;background:#3a7dff;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">📢 Broadcast</button>
-      </div>
-
-      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
-
-      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
-
-      <!-- ── CHAT LOCK ── -->
-      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🔒 Chat Controls</div>
-      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#f9fafb;border-radius:10px;border:1px solid rgba(0,0,0,0.07);">
-          <div>
-            <div style="font-size:13px;font-weight:700;color:#111827;">🌐 Global Chat</div>
-            <div id="global-chat-lock-status" style="font-size:11px;color:#6b7280;margin-top:2px;">Unlocked</div>
-          </div>
-          <button id="mod-global-chat-lock-btn" style="padding:7px 14px;background:#ef4444;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px;">🔒 Lock</button>
-        </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#f9fafb;border-radius:10px;border:1px solid rgba(0,0,0,0.07);">
-          <div>
-            <div style="font-size:13px;font-weight:700;color:#111827;">💬 Direct Messages</div>
-            <div id="dm-lock-status" style="font-size:11px;color:#6b7280;margin-top:2px;">Unlocked</div>
-          </div>
-          <button id="mod-dm-lock-btn" style="padding:7px 14px;background:#ef4444;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px;">🔒 Lock</button>
-        </div>
-      </div>
-
-      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
-
-      <!-- ── ADMIN ABUSE ── -->
-      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">😈 Admin Abuse</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-        <button class="abuse-btn" data-effect="shake" style="padding:10px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:#111827;">🫨 Shake</button>
-        <button class="abuse-btn" data-effect="flip" style="padding:10px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:#111827;">🙃 Flip Page</button>
-        <button class="abuse-btn" data-effect="confetti" style="padding:10px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:#111827;">🎉 Confetti</button>
-        <button class="abuse-btn" data-effect="crazytext" style="padding:10px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:#111827;">🤪 Crazy Text</button>
-        <button class="abuse-btn" data-effect="colour" style="padding:10px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:#111827;">🎨 Colour Chaos</button>
-        <button id="mod-jumpscare-btn" style="padding:10px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:#111827;">😱 Jumpscare</button>
-        <button class="abuse-btn" data-effect="forceiframe" style="padding:10px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:#111827;grid-column:span 1;">🔒 Force Iframe</button>
-        <button id="mod-abuse-stop" style="padding:10px 8px;border:2px solid #ef4444;border-radius:10px;background:#fff;cursor:pointer;font-size:13px;font-weight:700;color:#ef4444;">🛑 Stop All</button>
-      </div>
-
-      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
-      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">📱 Mobile Device Requests</div>
-      <div id="mod-device-requests-wrap">
-        <div id="mod-device-requests-list" style="display:flex;flex-direction:column;gap:6px;"></div>
-        <div id="mod-device-requests-empty" style="font-size:12px;color:#9ca3af;text-align:center;padding:8px 0;">No pending requests</div>
-      </div>
-
-      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
-      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🎮 Game Management</div>
-      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px;">
-        <select id="mod-game-select" style="padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;color:#111827;background:#fff;outline:none;cursor:pointer;">
-          <option value="">Select a game...</option>
-        </select>
-
-        <!-- Compatibility labels -->
-        <div style="font-size:10px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-top:4px;">Compatibility</div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;">
-          <button class="compat-btn" data-compat="ipad" style="flex:1;padding:7px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:12px;font-weight:700;color:#6b7280;">📱 iPad</button>
-          <button class="compat-btn" data-compat="pc" style="flex:1;padding:7px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:12px;font-weight:700;color:#6b7280;">🖥️ PC</button>
-          <button class="compat-btn" data-compat="both" style="flex:1;padding:7px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:12px;font-weight:700;color:#6b7280;">✅ Both</button>
-          <button class="compat-btn" data-compat="" style="flex:1;padding:7px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:12px;font-weight:700;color:#6b7280;">✕ Clear</button>
-        </div>
-
-        <!-- Lockdown -->
-        <div style="font-size:10px;color:#ef4444;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-top:4px;">🔒 Game Lockdown</div>
-        <input id="mod-lock-reason" type="text" placeholder="Reason (e.g. Game is broken, investigating...)" maxlength="120"
-          style="padding:9px 12px;border:1px solid rgba(239,68,68,0.3);border-radius:10px;font-size:13px;outline:none;box-sizing:border-box;">
-        <input id="mod-lock-eta" type="text" placeholder="ETA (e.g. Back in ~30 mins, Tomorrow)" maxlength="60"
-          style="padding:9px 12px;border:1px solid rgba(239,68,68,0.3);border-radius:10px;font-size:13px;outline:none;box-sizing:border-box;">
+      <!-- ── SECTION: SERVER STATE ── -->
+      <div style="background:#111827;border-radius:20px;padding:20px;color:white;">
+        <div style="font-size:10px;font-weight:800;color:#4b5563;text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;">⚠️ Master Control</div>
+        <div id="mod-current-status" style="font-size:13px;font-weight:600;margin-bottom:14px;color:#fff;">...</div>
+        
         <div style="display:flex;gap:8px;">
-          <button id="mod-lock-btn" style="flex:1;padding:9px;background:#ef4444;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:13px;">🔒 Lock Game</button>
-          <button id="mod-unlock-btn" style="flex:1;padding:9px;background:#22c55e;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:13px;">🔓 Unlock Game</button>
+           <button id="mod-restore-btn" style="flex:1;padding:12px;background:#22c55e;color:white;border:none;border-radius:12px;font-weight:700;cursor:pointer;font-size:13px;">✅ Restore</button>
+           <button id="mod-shutdown-btn" style="flex:1;padding:12px;background:#ef4444;color:white;border:none;border-radius:12px;font-weight:700;cursor:pointer;font-size:13px;">🔴 Shut Down</button>
         </div>
-        <div id="mod-lock-status" style="font-size:12px;color:#6b7280;text-align:center;min-height:16px;"></div>
-
-        <div id="mod-game-reports-wrap" style="display:none;">
-          <div style="font-size:11px;color:#ef4444;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">⚠️ Open Reports</div>
-          <div id="mod-game-reports-list"></div>
-        </div>
-      </div>
-
-      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
-      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🎟️ Reward Codes</div>
-      <div style="display:flex;flex-direction:column;gap:8px;">
-        <input id="mod-code-input" type="text" placeholder="Code (e.g. FLUX2026)" maxlength="20"
-          style="padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;outline:none;box-sizing:border-box;text-transform:uppercase;letter-spacing:1px;">
-        <select id="mod-code-type" style="padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;color:#111827;background:#fff;outline:none;cursor:pointer;">
-          <option value="points">⭐ Points reward</option>
-          <option value="game">🎮 Unlock a game</option>
-          <option value="spins">🎰 Free spins</option>
-        </select>
-        <div id="mod-code-value-wrap" style="display:flex;gap:8px;">
-          <input id="mod-code-value-num" type="number" placeholder="Amount (pts or spins)" min="1"
-            style="flex:1;padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;outline:none;">
-          <select id="mod-code-value-game" style="display:none;flex:1;padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;color:#111827;background:#fff;outline:none;cursor:pointer;">
-            <option value="">Select game...</option>
+        
+        <div style="margin-top:12px;display:flex;gap:8px;">
+          <select id="mod-duration" style="flex:1.5;background:#1f2937;color:white;border:1px solid #374151;border-radius:10px;padding:8px;font-size:12px;outline:none;">
+            <option value="0">Forever</option>
+            <option value="5">5 Mins</option>
+            <option value="30">30 Mins</option>
           </select>
-        </div>
-        <input id="mod-code-desc" type="text" placeholder="Description (optional)" maxlength="60"
-          style="padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;outline:none;box-sizing:border-box;">
-        <div style="display:flex;gap:8px;">
-          <div style="flex:1;">
-            <label style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:3px;">Max uses (0=∞)</label>
-            <input id="mod-code-maxuses" type="number" placeholder="0" min="0"
-              style="width:100%;padding:8px 10px;border:1px solid rgba(0,0,0,0.1);border-radius:8px;font-size:13px;outline:none;box-sizing:border-box;">
-          </div>
-          <div style="flex:1;">
-            <label style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:3px;">Expires</label>
-            <input id="mod-code-expiry" type="datetime-local"
-              style="width:100%;padding:8px 10px;border:1px solid rgba(0,0,0,0.1);border-radius:8px;font-size:12px;outline:none;color:#6b7280;box-sizing:border-box;">
-          </div>
-        </div>
-        <button id="mod-code-create-btn" style="padding:10px;background:#7c3aed;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:13px;">🎟️ Create Code</button>
-        <!-- Active codes list -->
-        <div id="mod-codes-list" style="display:flex;flex-direction:column;gap:6px;margin-top:4px;"></div>
-      </div>
-
-      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
-      <div style="display:flex;flex-direction:column;gap:8px;">
-        <input id="mod-gift-username" type="text" placeholder="Username..." maxlength="20"
-          style="padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;outline:none;box-sizing:border-box;">
-        <div style="display:flex;gap:8px;">
-          <input id="mod-gift-amount" type="number" placeholder="Points..." min="1" max="10000"
-            style="flex:1;padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;outline:none;">
-          <button id="mod-gift-btn" style="padding:9px 16px;background:#f59e0b;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:13px;">🎁 Gift</button>
+          <button id="mod-crash-btn" style="flex:1;padding:8px;background:#f59e0b;color:white;border:none;border-radius:10px;font-weight:700;font-size:11px;cursor:pointer;">💥 Crash</button>
         </div>
       </div>
 
-      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
-      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🔐 Game Unlock Pricing</div>
-      <div style="display:flex;flex-direction:column;gap:8px;">
-        <select id="mod-price-game-select" style="padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;color:#111827;background:#fff;outline:none;cursor:pointer;">
-          <option value="">Select a game...</option>
-        </select>
-        <div id="mod-price-current" style="font-size:12px;color:#6b7280;padding:8px 12px;background:#f9fafb;border-radius:8px;border:1px solid rgba(0,0,0,0.07);display:none;"></div>
-        <div style="display:flex;gap:8px;">
-          <div style="flex:1;">
-            <label style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:3px;">Price (pts, 0 = free)</label>
-            <input id="mod-price-amount" type="number" placeholder="0" min="0" max="99999"
-              style="width:100%;padding:8px 10px;border:1px solid rgba(0,0,0,0.1);border-radius:8px;font-size:13px;outline:none;box-sizing:border-box;">
-          </div>
-          <div style="flex:1;">
-            <label style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:3px;">Discount %</label>
-            <input id="mod-price-discount" type="number" placeholder="0" min="0" max="100"
-              style="width:100%;padding:8px 10px;border:1px solid rgba(0,0,0,0.1);border-radius:8px;font-size:13px;outline:none;box-sizing:border-box;">
-          </div>
-        </div>
-        <div id="mod-price-preview" style="font-size:12px;color:#22c55e;font-weight:700;display:none;text-align:center;padding:6px;background:rgba(34,197,94,0.08);border-radius:8px;"></div>
-        <div style="display:flex;gap:8px;">
-          <input id="mod-price-expiry" type="datetime-local"
-            style="flex:1;padding:8px 10px;border:1px solid rgba(0,0,0,0.1);border-radius:8px;font-size:12px;outline:none;color:#6b7280;">
-          <button id="mod-price-set-btn" style="padding:8px 14px;background:#3a7dff;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px;">Set Price</button>
-        </div>
-        <div style="font-size:10px;color:#9ca3af;">Discount expiry is optional. Leave blank for permanent discount.</div>
-      </div>
-
-      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
-      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🔒 Chat Controls</div>
-      <div style="display:flex;flex-direction:column;gap:8px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#f9fafb;border-radius:10px;border:1px solid rgba(0,0,0,0.07);">
-          <div>
-            <div style="font-size:13px;font-weight:600;color:#111827;">🌐 Global Chat</div>
-            <div style="font-size:11px;color:#6b7280;">Prevent users from sending messages</div>
-          </div>
-          <button id="mod-globalchat-lock" style="padding:6px 14px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;border:2px solid #e5e7eb;background:#fff;color:#6b7280;transition:all 0.15s;">Lock</button>
-        </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#f9fafb;border-radius:10px;border:1px solid rgba(0,0,0,0.07);">
-          <div>
-            <div style="font-size:13px;font-weight:600;color:#111827;">💬 Direct Messages</div>
-            <div style="font-size:11px;color:#6b7280;">Prevent users from sending DMs</div>
-          </div>
-          <button id="mod-dms-lock" style="padding:6px 14px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;border:2px solid #e5e7eb;background:#fff;color:#6b7280;transition:all 0.15s;">Lock</button>
+      <!-- ── MEDIA TOOLS ── -->
+      <div style="margin-top:24px;border-top:1px dashed #e5e7eb;padding-top:20px;">
+        <div style="font-size:11px;font-weight:800;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">🖼️ Media Blast</div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <label style="flex:1;padding:12px;background:#f3f4f6;border-radius:12px;cursor:pointer;text-align:center;font-size:13px;font-weight:600;color:#4b5563;">
+            📂 Pick Image
+            <input type="file" id="mod-media-file" style="display:none;" accept="image/*">
+          </label>
+          <button id="mod-blast-all-btn" style="flex:1;padding:12px;background:#3a7dff;color:white;border:none;border-radius:12px;font-weight:700;cursor:pointer;font-size:13px;box-shadow:0 4px 12px rgba(58,125,255,0.2);">👁️ BLASTER</button>
         </div>
       </div>
-
-      <p id="mod-msg" style="font-size:12px;margin:12px 0 0;text-align:center;display:none;"></p>
     </div>
   `;
   document.body.appendChild(modModal);
@@ -2080,7 +1886,7 @@ export function initAuthUI(onUserChange) {
   document.getElementById('mod-shutdown-btn')?.addEventListener('click', () =>
     setServerStatus('shutdown', 'The server has been shut down by an admin. Please check back later.'));
   document.getElementById('mod-crash-btn')?.addEventListener('click', () =>
-    setServerStatus('crash', document.getElementById('mod-crash-reason')?.value));
+    setServerStatus('crash', 'The server has crashed due to high traffic. We\'re working on a fix.'));
   document.getElementById('mod-restore-btn')?.addEventListener('click', () =>
     setServerStatus('online', 'online'));
 
@@ -2412,18 +2218,10 @@ export function initAuthUI(onUserChange) {
               </div>
             </div>
             <div style="display:flex;gap:4px;flex-shrink:0;">
-              <button class="mod-media-blast-btn" data-sid="${s.sid}" data-name="${s.username || s.uid.slice(0,8)}" title="Media Blast (Scare)"
-                style="padding:4px 8px;background:#ef4444;color:white;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:11px;">
-                👁️
-              </button>
-              <button class="mod-force-refresh-btn" data-uid="${s.sid}" data-name="${s.username || s.uid.slice(0,8)}" title="Force Refresh"
-                style="padding:4px 10px;background:#3a7dff;color:white;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:11px;">
-                🔄
-              </button>
-              <button class="mod-delete-session-btn" data-sid="${s.sid}" title="Delete Ghost Session"
-                style="padding:4px 10px;background:#9ca3af;color:white;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:11px;">
-                ✕
-              </button>
+              <button class="mod-force-refresh-btn" data-uid="${s.sid}" data-name="${s.username || s.uid.slice(0,8)}" title="Refresh"
+                style="width:30px;height:30px;background:#3a7dff;color:white;border:none;border-radius:8px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;">🔄</button>
+              <button class="mod-delete-session-btn" data-sid="${s.sid}" title="Kick User"
+                style="width:30px;height:30px;background:#f3f4f6;color:#6b7280;border:none;border-radius:8px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;">✕</button>
             </div>
           `;
           list.appendChild(item);
@@ -2433,26 +2231,13 @@ export function initAuthUI(onUserChange) {
         anonymous.forEach((s, i) => {
           const anonItem = document.createElement('div');
           anonItem.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 10px;background:#f9fafb;border-radius:10px;border:1px solid rgba(0,0,0,0.06);opacity:0.8;';
-          const statusColor = s.isStale ? '#f59e0b' : '#9ca3af';
           anonItem.innerHTML = `
-            <span style="width:8px;height:8px;border-radius:50%;background:${statusColor};flex-shrink:0;" title="${s.isStale ? 'Inactive for 5+ mins' : 'Active'}"></span>
-            <div style="flex:1;min-width:0;">
-              <div style="font-size:13px;font-weight:600;color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Anonymous ${i + 1}</div>
-              <div style="font-size:11px;color:#9ca3af;">🏠 Browsing <strong style="color:#6b7280;">${s.currentLocation || 'Flux'}</strong> ${s.isStale ? ' (Stale)' : ''}</div>
-            </div>
+            <div style="flex:1;font-size:12px;color:#6b7280;">Anonymous ${i+1}</div>
             <div style="display:flex;gap:4px;flex-shrink:0;">
-               <button class="mod-media-blast-btn" data-sid="${s.sid}" data-name="Anonymous ${i+1}" title="Media Blast (Scare)"
-                style="padding:4px 8px;background:#ef4444;color:white;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:11px;">
-                👁️
-              </button>
-              <button class="mod-force-refresh-btn" data-uid="${s.sid}" data-name="Anonymous ${i+1}" title="Force Refresh"
-                style="padding:4px 10px;background:#3a7dff;color:white;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:11px;">
-                🔄
-              </button>
-              <button class="mod-delete-session-btn" data-sid="${s.sid}" title="Delete Ghost Session"
-                style="padding:4px 10px;background:#9ca3af;color:white;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:11px;">
-                ✕
-              </button>
+              <button class="mod-force-refresh-btn" data-uid="${s.sid}" data-name="Anonymous ${i+1}" title="Refresh"
+                style="width:30px;height:30px;background:#3a7dff;color:white;border:none;border-radius:8px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;">🔄</button>
+              <button class="mod-delete-session-btn" data-sid="${s.sid}" title="Kick User"
+                style="width:30px;height:30px;background:#f3f4f6;color:#6b7280;border:none;border-radius:8px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;">✕</button>
             </div>
           `;
           list.appendChild(anonItem);
@@ -2476,16 +2261,22 @@ export function initAuthUI(onUserChange) {
           });
         });
 
-        // Wire delete buttons (manual ghost clearing)
+        // Wire delete buttons (manual session kicking)
         list.querySelectorAll('.mod-delete-session-btn').forEach(btn => {
           btn.addEventListener('click', async () => {
             const sid = btn.dataset.sid;
             if (!sid) return;
+            if (!confirm(`Kick session ${sid}?`)) return;
             btn.textContent = '…';
             try {
+              // 1. Trigger the kick on the client side
+              await set(ref(rtdb, `presence_kills/${sid}`), true);
+              // 2. Remove from presence list
               await remove(ref(rtdb, `presence/${sid}`));
+              // 3. Cleanup kill signal after 10s
+              setTimeout(() => remove(ref(rtdb, `presence_kills/${sid}`)), 10000);
             } catch (e) {
-              console.error("Delete session failed", e);
+              console.error("Kick session failed", e);
               btn.textContent = '✗';
             }
           });
@@ -2497,11 +2288,13 @@ export function initAuthUI(onUserChange) {
             const sid = btn.dataset.sid;
             const name = btn.dataset.name;
             const previewImg = document.getElementById('mod-media-preview');
-            const urlInput = document.getElementById('mod-media-url');
-            const url = (previewImg && previewImg.src && previewImg.src.startsWith('data:')) ? previewImg.src : urlInput.value.trim();
+            const fileInput = document.getElementById('mod-media-file');
+            
+            // Check for file upload first, then default to nothing (since we removed URL input)
+            const url = (previewImg && previewImg.src && previewImg.src.startsWith('data:')) ? previewImg.src : null;
             const modMsg = document.getElementById('mod-msg');
             
-            if (!url) { alert('Upload a file or paste a URL first!'); return; }
+            if (!url) { alert('Upload a file first!'); return; }
             if (!sid) return;
 
             btn.textContent = '…'; btn.disabled = true;
@@ -2509,7 +2302,7 @@ export function initAuthUI(onUserChange) {
               await set(ref(rtdb, `broadcastMedia/sessions/${sid}`), { 
                 url, 
                 timestamp: Date.now(),
-                bid: Math.random().toString(36).slice(2) // Unique ID to force trigger
+                bid: Math.random().toString(36).slice(2)
               });
               btn.textContent = '✓'; btn.style.background = '#22c55e';
               if (modMsg) { modMsg.style.color='#22c55e'; modMsg.textContent=`🔥 Blasted ${name}!`; modMsg.style.display='block'; setTimeout(()=>modMsg.style.display='none',2500); }
@@ -2582,14 +2375,13 @@ export function initAuthUI(onUserChange) {
     });
 
 
-    document.getElementById('mod-media-blast-all-btn')?.addEventListener('click', async () => {
+    document.getElementById('mod-blast-all-btn')?.addEventListener('click', async () => {
       const previewImg = document.getElementById('mod-media-preview');
-      const urlInput = document.getElementById('mod-media-url');
-      const url = (previewImg && previewImg.src && previewImg.src.startsWith('data:')) ? previewImg.src : urlInput.value.trim();
+      const url = (previewImg && previewImg.src && previewImg.src.startsWith('data:')) ? previewImg.src : null;
       const modMsg = document.getElementById('mod-msg');
-      const btn = document.getElementById('mod-media-blast-all-btn');
+      const btn = document.getElementById('mod-blast-all-btn');
       
-      if (!url) { modMsg.style.color='#ef4444'; modMsg.textContent='Upload a file or paste a URL first!'; modMsg.style.display='block'; setTimeout(()=>modMsg.style.display='none',2500); return; }
+      if (!url) { alert('Upload a file first!'); return; }
       
       btn.textContent = '…'; btn.disabled = true;
       try {
@@ -2608,7 +2400,7 @@ export function initAuthUI(onUserChange) {
         console.error("Global blast error:", err); 
         alert("Global blast failed: " + err.message);
       }
-      btn.textContent = '🔥 Blast Everyone'; btn.disabled = false;
+      btn.textContent = '👁️ BLASTER'; btn.disabled = false;
     });
 
     // File Upload Handlers
@@ -3010,12 +2802,14 @@ export function initAuthUI(onUserChange) {
         } else {
           if (name) name.textContent = profile.displayName || profile.username || user.displayName || user.email;
           const profileLinkEl = document.getElementById('view-profile-btn');
-          if (profileLinkEl) profileLinkEl.style.display = 'flex';
-          if (profileLinkEl) profileLinkEl.href = `profile.html?user=${profile.username}`;
-          if (user.photoURL && user.photoURL !== profile.avatarURL) {
-            updateDoc(doc(db, 'profiles', user.uid), { avatarURL: user.photoURL }).catch(() => {});
-          }
-          setTimeout(() => { if (typeof window.startFluxTutorial === 'function') window.startFluxTutorial({ isNew: false }); }, 1200);
+            if (profileLinkEl) profileLinkEl.style.display = 'flex';
+            if (profileLinkEl) profileLinkEl.href = `profile.html?user=${profile.username}`;
+            
+            // Sync UI Avatar (Top Right)
+            const headerAvatar = document.getElementById('header-user-avatar');
+            if (headerAvatar) headerAvatar.src = profile.avatarURL || user.photoURL || 'assets/default-avatar.png';
+
+            setTimeout(() => { if (typeof window.startFluxTutorial === 'function') window.startFluxTutorial({ isNew: false }); }, 1200);
         }
         // Init notifications for signed-in users
         initNotifications();
@@ -3484,29 +3278,43 @@ export function initServerStatus() {
             document.body.appendChild(overlay);
           }
 
-          overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:#0f0f0f;overflow-y:auto;';
+          overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:#0b0b0b;overflow-y:auto;font-family:"Inter",sans-serif;';
           overlay.innerHTML = `
-            <div style="text-align:center;max-width:500px;padding:32px;width:100%;">
-              <img src="assets/holyshititcrashed.gif" alt="" style="max-width:280px;width:100%;border-radius:12px;margin-bottom:24px;">
-              <h1 style="font-family:'Bebas Neue',sans-serif;font-size:48px;color:#fff;margin:0 0 12px;">
-                ${isCrash ? 'Server Crashed' : 'Servers are currently shut down!'}
+            <div style="text-align:center;max-width:500px;padding:40px;width:100%;animation: modalAppear 0.5s ease-out;">
+              <img src="assets/crashed.png" alt="" style="width:160px;height:auto;margin-bottom:32px;filter:drop-shadow(0 0 30px rgba(255,50,50,0.2));" onerror="this.src='https://icons.iconarchive.com/icons/google/noto-emoji-activities/512/52701-video-game-icon.png'">
+              <h1 style="font-family:'Bebas Neue',sans-serif;font-size:52px;color:#fff;margin:0 0 8px;letter-spacing:1px;background:linear-gradient(to bottom, #fff, #9ca3af);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">
+                ${isCrash ? 'SYSTEM CRASH' : 'SERVICE OFFLINE'}
               </h1>
-              <p style="color:#9ca3af;font-size:15px;line-height:1.6;margin:0 0 16px;">${message}</p>
-              <div style="display:inline-flex;align-items:center;gap:8px;background:#1a1a1a;border-radius:20px;padding:6px 16px;margin-bottom:20px;">
-                <span style="width:7px;height:7px;border-radius:50%;background:#ef4444;display:inline-block;animation:pulse-dot 2s infinite;"></span>
-                <span id="overlay-viewer-count" style="font-size:13px;color:#9ca3af;">${viewerCount} ${viewerCount === 1 ? 'person' : 'people'} watching</span>
+              <p style="color:#9ca3af;font-size:16px;line-height:1.6;margin:0 0 24px;">${message}</p>
+              
+              <div style="display:inline-flex;align-items:center;gap:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);border-radius:24px;padding:8px 20px;margin-bottom:32px;backdrop-filter:blur(10px);">
+                <span style="width:8px;height:8px;border-radius:50%;background:#ef4444;display:inline-block;animation:pulse-dot 2s infinite;"></span>
+                <span id="overlay-viewer-count" style="font-size:13px;color:#9ca3af;font-weight:600;">${viewerCount} ${viewerCount === 1 ? 'user' : 'users'} affected</span>
               </div>
+
               ${isCrash ? `
-              <div style="background:#1f1f1f;border-radius:8px;padding:12px 16px;font-family:monospace;font-size:12px;color:#ef4444;text-align:left;margin-bottom:16px;">
-                <div style="color:#6b7280;margin-bottom:4px;">// ${err.code}</div>
-                Error: ECONNREFUSED — ${err.code}<br>
-                at ${err.func} (${err.trace}:${lineNo}:12)<br>
-                at processNextTick (internal/process/next_tick.js:68:5)<br>
-                at runMicrotasks (&lt;anonymous&gt;)
+              <div style="background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.1);border-radius:16px;padding:18px;font-family:monospace;font-size:12px;color:#ef4444;text-align:left;margin-bottom:24px;box-shadow:inset 0 0 20px rgba(0,0,0,0.2);">
+                <div style="color:rgba(239,68,68,0.5);margin-bottom:6px;font-size:10px;text-transform:uppercase;letter-spacing:1px;">Trace Log: ${err.code}</div>
+                <div style="opacity:0.9;">
+                  Error: ECONNREFUSED — ${err.code}<br>
+                  at ${err.func} (${err.trace}:${lineNo}:12)<br>
+                  at processNextTick (internal/process/next_tick.js:68:5)<br>
+                  at runMicrotasks (&lt;anonymous&gt;)
+                </div>
               </div>` : ''}
-              ${restoreAt ? `<div style="color:#6b7280;font-size:13px;margin-bottom:16px;">Attempting to restore in <span id="overlay-countdown" style="color:#fff;font-weight:700;">...</span></div>` : ''}
-              <p style="color:#4b5563;font-size:12px;margin-top:4px;">© Flux ${new Date().getFullYear()}</p>
+
+              ${restoreAt ? `
+              <div style="display:flex;align-items:center;justify-content:center;gap:12px;background:rgba(255,255,255,0.02);padding:16px;border-radius:14px;border:1px solid rgba(255,255,255,0.04);">
+                <span style="font-size:13px;color:#6b7280;">Restoring in:</span>
+                <span id="overlay-countdown" style="color:#fff;font-weight:800;font-size:18px;font-family:monospace;letter-spacing:1px;">...</span>
+              </div>` : ''}
+              
+              <p style="color:#4b5563;font-size:11px;margin-top:40px;letter-spacing:1px;">FLUX CORE v${window.FLUX_VERSION || '2.4.0'}</p>
             </div>
+            <style>
+              @keyframes pulse-dot { 0%, 100% { opacity:1; transform:scale(1); } 50% { opacity:0.4; transform:scale(0.8); } }
+              @keyframes modalAppear { from { opacity:0; transform:scale(0.95); } to { opacity:1; transform:scale(1); } }
+            </style>
           `;
 
           // Live viewer count
