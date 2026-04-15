@@ -1819,10 +1819,17 @@ export function initAuthUI(onUserChange) {
 
       <!-- ── MEDIA BLAST ── -->
       <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🖼️ Media Blast</div>
-      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px;">
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">
         <input id="mod-media-url" type="text" placeholder="GIF or Image URL..."
           style="padding:10px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;outline:none;box-sizing:border-box;">
         <button id="mod-media-blast-all-btn" style="padding:11px;background:#ef4444;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">🔥 Blast Everyone</button>
+      </div>
+
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin:8px 0;">🛡️ Text Broadcast</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px;">
+        <input id="mod-broadcast-text" type="text" placeholder="Announcement text..."
+          style="padding:10px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;outline:none;box-sizing:border-box;">
+        <button id="mod-broadcast-btn" style="padding:11px;background:#3a7dff;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">📢 Broadcast</button>
       </div>
 
       <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
@@ -2031,16 +2038,16 @@ export function initAuthUI(onUserChange) {
     }
   }
 
-  document.getElementById('mod-shutdown-btn').addEventListener('click', () =>
+  document.getElementById('mod-shutdown-btn')?.addEventListener('click', () =>
     setServerStatus('shutdown', 'The server has been shut down by an admin. Please check back later.'));
-  document.getElementById('mod-crash-btn').addEventListener('click', () =>
-    setServerStatus('crash', document.getElementById('mod-crash-reason').value));
-  document.getElementById('mod-restore-btn').addEventListener('click', () =>
+  document.getElementById('mod-crash-btn')?.addEventListener('click', () =>
+    setServerStatus('crash', document.getElementById('mod-crash-reason')?.value));
+  document.getElementById('mod-restore-btn')?.addEventListener('click', () =>
     setServerStatus('online', 'online'));
 
   // Broadcast
-  document.getElementById('mod-broadcast-btn').addEventListener('click', async () => {
-    const text = document.getElementById('mod-broadcast-text').value.trim();
+  document.getElementById('mod-broadcast-btn')?.addEventListener('click', async () => {
+    const text = document.getElementById('mod-broadcast-text')?.value.trim();
     if (!text) return;
     const msg = document.getElementById('mod-msg');
     try {
@@ -2049,11 +2056,13 @@ export function initAuthUI(onUserChange) {
         sentAt: new Date().toISOString(),
         id: Math.random().toString(36).slice(2)
       });
-      document.getElementById('mod-broadcast-text').value = '';
-      msg.style.color = '#22c55e'; msg.textContent = 'Message sent!'; msg.style.display = 'block';
-      setTimeout(() => { msg.style.display = 'none'; }, 2500);
+      if (document.getElementById('mod-broadcast-text')) document.getElementById('mod-broadcast-text').value = '';
+      if (msg) {
+        msg.style.color = '#22c55e'; msg.textContent = 'Message sent!'; msg.style.display = 'block';
+        setTimeout(() => { msg.style.display = 'none'; }, 2500);
+      }
     } catch (e) {
-      msg.style.color = '#ef4444'; msg.textContent = 'Failed to send.'; msg.style.display = 'block';
+      if (msg) { msg.style.color = '#ef4444'; msg.textContent = 'Failed to send.'; msg.style.display = 'block'; }
     }
   });
 
@@ -2061,7 +2070,7 @@ export function initAuthUI(onUserChange) {
   let _globalChatLocked = false;
   let _dmLocked = false;
 
-  document.getElementById('mod-globalchat-lock').addEventListener('click', async () => {
+  document.getElementById('mod-globalchat-lock')?.addEventListener('click', async () => {
     _globalChatLocked = !_globalChatLocked;
     const btn = document.getElementById('mod-globalchat-lock');
     try {
@@ -2070,14 +2079,16 @@ export function initAuthUI(onUserChange) {
         dmLocked: _dmLocked,
         updatedAt: new Date().toISOString()
       });
-      btn.textContent = _globalChatLocked ? '🔓 Unlock' : '🔒 Lock';
-      btn.style.background = _globalChatLocked ? '#22c55e' : '#fff';
-      btn.style.color = _globalChatLocked ? '#fff' : '#6b7280';
-      btn.style.borderColor = _globalChatLocked ? '#22c55e' : '#e5e7eb';
+      if (btn) {
+        btn.textContent = _globalChatLocked ? '🔓 Unlock' : '🔒 Lock';
+        btn.style.background = _globalChatLocked ? '#22c55e' : '#fff';
+        btn.style.color = _globalChatLocked ? '#fff' : '#6b7280';
+        btn.style.borderColor = _globalChatLocked ? '#22c55e' : '#e5e7eb';
+      }
     } catch (e) { console.warn('Chat lock failed', e); }
   });
 
-  document.getElementById('mod-dms-lock').addEventListener('click', async () => {
+  document.getElementById('mod-dms-lock')?.addEventListener('click', async () => {
     _dmLocked = !_dmLocked;
     const btn = document.getElementById('mod-dms-lock');
     try {
@@ -2086,27 +2097,34 @@ export function initAuthUI(onUserChange) {
         dmLocked: _dmLocked,
         updatedAt: new Date().toISOString()
       });
-      btn.textContent = _dmLocked ? '🔓 Unlock' : '🔒 Lock';
-      btn.style.background = _dmLocked ? '#22c55e' : '#fff';
-      btn.style.color = _dmLocked ? '#fff' : '#6b7280';
-      btn.style.borderColor = _dmLocked ? '#22c55e' : '#e5e7eb';
+      if (btn) {
+        btn.textContent = _dmLocked ? '🔓 Unlock' : '🔒 Lock';
+        btn.style.background = _dmLocked ? '#22c55e' : '#fff';
+        btn.style.color = _dmLocked ? '#fff' : '#6b7280';
+        btn.style.borderColor = _dmLocked ? '#22c55e' : '#e5e7eb';
+      }
     } catch (e) { console.warn('DM lock failed', e); }
   });
 
   // Gift points
-  document.getElementById('mod-gift-btn').addEventListener('click', async () => {
-    const username = document.getElementById('mod-gift-username').value.trim().toLowerCase();
-    const amount = parseInt(document.getElementById('mod-gift-amount').value);
+  document.getElementById('mod-gift-btn')?.addEventListener('click', async () => {
+    const username = document.getElementById('mod-gift-username')?.value.trim().toLowerCase();
+    const amount = parseInt(document.getElementById('mod-gift-amount')?.value);
     const msg = document.getElementById('mod-msg');
-    if (!username || !amount) { msg.style.color='#ef4444'; msg.textContent='Enter username and amount.'; msg.style.display='block'; return; }
+    if (!username || !amount) { if (msg) { msg.style.color='#ef4444'; msg.textContent='Enter username and amount.'; msg.style.display='block'; } return; }
     const profile = await getProfileByUsername(username);
-    if (!profile) { msg.style.color='#ef4444'; msg.textContent='User not found.'; msg.style.display='block'; return; }
+    if (!profile) { if (msg) { msg.style.color='#ef4444'; msg.textContent='User not found.'; msg.style.display='block'; } return; }
     const result = await giftPoints(profile.uid, amount);
-    msg.style.color = result.ok ? '#22c55e' : '#ef4444';
-    msg.textContent = result.ok ? `✓ Gifted ${amount} points to @${username}!` : result.error;
-    msg.style.display = 'block';
-    if (result.ok) { document.getElementById('mod-gift-username').value=''; document.getElementById('mod-gift-amount').value=''; }
-    setTimeout(() => { msg.style.display='none'; }, 3000);
+    if (msg) {
+      msg.style.color = result.ok ? '#22c55e' : '#ef4444';
+      msg.textContent = result.ok ? `✓ Gifted ${amount} points to @${username}!` : result.error;
+      msg.style.display = 'block';
+      setTimeout(() => { msg.style.display='none'; }, 3000);
+    }
+    if (result.ok) { 
+      if (document.getElementById('mod-gift-username')) document.getElementById('mod-gift-username').value=''; 
+      if (document.getElementById('mod-gift-amount')) document.getElementById('mod-gift-amount').value=''; 
+    }
   });
 
   // Game compatibility buttons
@@ -2140,33 +2158,39 @@ export function initAuthUI(onUserChange) {
   });
 
   // Lock / unlock game
-  document.getElementById('mod-lock-btn').addEventListener('click', async () => {
+  document.getElementById('mod-lock-btn')?.addEventListener('click', async () => {
     const select = document.getElementById('mod-game-select');
+    if (!select) return;
     const gameId = select.value;
     const gameTitle = select.options[select.selectedIndex]?.text || '';
-    const reason = document.getElementById('mod-lock-reason').value.trim();
-    const eta = document.getElementById('mod-lock-eta').value.trim();
+    const reason = document.getElementById('mod-lock-reason')?.value.trim();
+    const eta = document.getElementById('mod-lock-eta')?.value.trim();
     const statusEl = document.getElementById('mod-lock-status');
-    if (!gameId) { statusEl.style.color='#ef4444'; statusEl.textContent='Select a game first.'; return; }
-    if (!reason) { statusEl.style.color='#ef4444'; statusEl.textContent='Enter a reason for locking.'; return; }
+    if (!gameId) { if (statusEl) { statusEl.style.color='#ef4444'; statusEl.textContent='Select a game first.'; } return; }
+    if (!reason) { if (statusEl) { statusEl.style.color='#ef4444'; statusEl.textContent='Enter a reason for locking.'; } return; }
     const result = await setGameLockdown(gameId, gameTitle, { locked: true, reason, eta });
-    statusEl.style.color = result.ok ? '#ef4444' : '#ef4444';
-    statusEl.textContent = result.ok ? `🔒 ${gameTitle} is now locked` : result.error;
+    if (statusEl) {
+      statusEl.style.color = result.ok ? '#ef4444' : '#ef4444';
+      statusEl.textContent = result.ok ? `🔒 ${gameTitle} is now locked` : result.error;
+    }
     if (result.ok) {
-      document.getElementById('mod-lock-reason').value = '';
-      document.getElementById('mod-lock-eta').value = '';
+      if (document.getElementById('mod-lock-reason')) document.getElementById('mod-lock-reason').value = '';
+      if (document.getElementById('mod-lock-eta')) document.getElementById('mod-lock-eta').value = '';
     }
   });
 
-  document.getElementById('mod-unlock-btn').addEventListener('click', async () => {
+  document.getElementById('mod-unlock-btn')?.addEventListener('click', async () => {
     const select = document.getElementById('mod-game-select');
+    if (!select) return;
     const gameId = select.value;
     const gameTitle = select.options[select.selectedIndex]?.text || '';
     const statusEl = document.getElementById('mod-lock-status');
-    if (!gameId) { statusEl.style.color='#ef4444'; statusEl.textContent='Select a game first.'; return; }
+    if (!gameId) { if (statusEl) { statusEl.style.color='#ef4444'; statusEl.textContent='Select a game first.'; } return; }
     const result = await setGameLockdown(gameId, gameTitle, { locked: false });
-    statusEl.style.color = result.ok ? '#22c55e' : '#ef4444';
-    statusEl.textContent = result.ok ? `🔓 ${gameTitle} is now unlocked` : result.error;
+    if (statusEl) {
+      statusEl.style.color = result.ok ? '#22c55e' : '#ef4444';
+      statusEl.textContent = result.ok ? `🔓 ${gameTitle} is now unlocked` : result.error;
+    }
   });
 
   // Admin abuse buttons — toggle on/off
@@ -2183,29 +2207,31 @@ export function initAuthUI(onUserChange) {
     });
   });
 
-  document.getElementById('mod-abuse-stop').addEventListener('click', async () => {
+  document.getElementById('mod-abuse-stop')?.addEventListener('click', async () => {
     try {
       await setDoc(doc(db, 'stats', 'chaos'), { effects: [], updatedAt: new Date().toISOString() });
     } catch (e) { console.warn('Chaos stop failed', e); }
   });
 
   // Jumpscare — one-shot trigger with unique ID each time
-  document.getElementById('mod-jumpscare-btn').addEventListener('click', async () => {
+  document.getElementById('mod-jumpscare-btn')?.addEventListener('click', async () => {
     try {
       await setDoc(doc(db, 'stats', 'jumpscare'), {
         triggeredAt: new Date().toISOString(),
         id: Math.random().toString(36).slice(2)
       });
       const msg = document.getElementById('mod-msg');
-      msg.style.color = '#22c55e'; msg.textContent = '😱 Jumpscare sent!'; msg.style.display = 'block';
-      setTimeout(() => { msg.style.display = 'none'; }, 2000);
+      if (msg) {
+        msg.style.color = '#22c55e'; msg.textContent = '😱 Jumpscare sent!'; msg.style.display = 'block';
+        setTimeout(() => { msg.style.display = 'none'; }, 2000);
+      }
     } catch (e) { console.warn('Jumpscare failed', e); }
   });
 
   // Open mod modal
-  document.getElementById('mod-panel-btn').addEventListener('click', async (e) => {
+  document.getElementById('mod-panel-btn')?.addEventListener('click', async (e) => {
     e.stopPropagation();
-    document.getElementById('profile-dropdown').style.display = 'none';
+    if (document.getElementById('profile-dropdown')) document.getElementById('profile-dropdown').style.display = 'none';
     modModal.style.display = 'flex';
     const snap = await getDoc(doc(db, 'stats', 'server'));
     const statusEl = document.getElementById('mod-current-status');
