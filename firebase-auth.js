@@ -2686,6 +2686,21 @@ export function initAuthUI(onUserChange) {
     } catch {}
   });
 
+  window.hideGlobalLoader = () => {
+    const loader = document.getElementById('global-page-loader');
+    if (loader) {
+      loader.style.opacity = '0';
+      setTimeout(() => loader.remove(), 400);
+    }
+  };
+
+  // Safety net: forcibly hide loader after 3 seconds of page load to prevent permanent white screens
+  window.addEventListener('load', () => {
+    setTimeout(() => {
+      if (window.hideGlobalLoader) window.hideGlobalLoader();
+    }, 3500);
+  });
+
   function showAuthError(msg) {
     const el = document.getElementById('auth-error');
     el.textContent = msg.replace('Firebase: ', '').replace(/\(auth\/.*\)/, '').trim();

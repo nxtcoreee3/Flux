@@ -13,7 +13,7 @@ const GAMES = [
     url: 'https://nxtcoreee3.github.io/Drive-Mad/',
     desc: 'High speed driving challenge'
   },
-   {
+  {
     id: 'stickman-hook',
     title: 'Stickman Hook',
     thumb: 'assets/Stickman-Hook.png',
@@ -132,146 +132,146 @@ const GAMES = [
     url: 'https://eaglercraft.app/web/',
     desc: 'Play a browser-based Minecraft-style game with survival, building, and multiplayer. (Hosted by EaglercraftX)'
   },
-{
-  id: 'elastic-man',
-  title: 'Elastic Man',
-  thumb: 'assets/elastic-man.png',
-  url: 'https://nxtcoreee3.github.io/Elastic-Man/',
-  desc: 'Stretch and squish a face with realistic physics in this weirdly satisfying game.'
-},
-{
-  id: 'space-waves',
-  title: 'Space Waves',
-  thumb: 'assets/space-waves.png',
-  url: 'https://nxtcoreee3.github.io/Space-Waves/',
-  desc: 'Control an arrow and dodge obstacles through fast-paced levels.'
-},
-{
-  id: 'jetpack-joyride',
-  title: 'Jetpack Joyride',
-  thumb: 'assets/jetpack-joyride.png',
-  url: 'https://nxtcoreee3.github.io/Jetpack-Joyride/',
-  desc: 'Fly with a jetpack, dodge lasers and missiles, and see how far you can go.'
-},
-{
-  id: 'crossy-road',
-  title: 'Crossy Road',
-  thumb: 'assets/crossy-road.png',
-  url: 'https://nxtcoreee3.github.io/Crossy-Road/',
-  desc: 'Hop across roads, rivers, and tracks while avoiding traffic and obstacles.'
-},
-{
-  id: 'stacktris',
-  title: 'Stacktris',
-  thumb: 'assets/stacktris.png',
-  url: 'https://nxtcoreee3.github.io/Stacktris/',
-  desc: 'Stack spinning blocks carefully and build the tallest tower without it falling.',
-},
-{
-  id: 'guess-their-answer',
-  title: 'Guess Their Answer',
-  thumb: 'assets/guess-their-answer.png',
-  url: 'https://nxtcoreee3.github.io/Guess-Their-Answer/',
-  desc: 'Answer fun questions by guessing the most popular responses to beat your opponents.'
-},
-{
-  id: 'block-blast',
-  title: 'Block Blast',
-  thumb: 'assets/block-blast.png',
-  url: 'https://nxtcoreee3.github.io/Block-Blast/',
-  desc: 'Place blocks, clear lines, and keep the board from filling up.'
-},
-{
-  id: 'candy-crush',
-  title: 'Candy Crush',
-  thumb: 'assets/candy-crush.png',
-  url: 'https://nxtcoreee3.github.io/Candy-Crush/',
-  desc: 'Match candies to complete levels and earn high scores.'
-},
-{
-  id: 'capybara-clicker',
-  title: 'Capybara Clicker',
-  thumb: 'assets/capybara-clicker.png',
-  url: 'https://nxtcoreee3.github.io/Capybara-Clicker/',
-  desc: 'Click to collect capybaras and upgrade your cute farm.'
-},
-{
-  id: 'cleanup-io',
-  title: 'Cleanup.io',
-  thumb: 'assets/cleanup-io.png',
-  url: 'https://nxtcoreee3.github.io/Cleanup.io/',
-  desc: 'Collect trash, clean the area, and compete with other players.'
-},
-{
-  id: 'ducklings-io',
-  title: 'Ducklings.io',
-  thumb: 'assets/ducklings-io.png',
-  url: 'https://nxtcoreee3.github.io/Ducklings.io/',
-  desc: 'Lead your ducklings, grow your flock, and dominate the pond.'
-},
-{
-  id: 'monster-tracks',
-  title: 'Monster Tracks',
-  thumb: 'assets/monster-tracks.png',
-  url: 'https://nxtcoreee3.github.io/Monster-Tracks/',
-  desc: 'Drive monster trucks through crazy tracks and perform insane stunts.'
-},
   {
-  id: 'basket-random',
-  title: 'Basket Random',
-  thumb: 'assets/basket-random.png',
-  url: 'https://nxtcoreee3.github.io/Basket-Random/',
-  desc: 'Play chaotic basketball with random physics and score before your opponent.'
-},
-{
-  id: 'clash-of-vikings',
-  title: 'Clash of Vikings',
-  thumb: 'assets/clash-of-vikings.png',
-  url: 'https://nxtcoreee3.github.io/Clash-of-Vikings/',
-  desc: 'Build your deck, deploy units, and destroy enemy towers in fast-paced battles.'
-},
-{
-  id: 'bowmasters',
-  title: 'Bowmasters',
-  thumb: 'assets/bowmasters.png',
-  url: 'https://nxtcoreee3.github.io/Bowmasters/',
-  desc: 'Aim carefully, throw weapons, and defeat your opponent in turn-based duels.'
-},
-{
-  id: 'state-io',
-  title: 'State.io',
-  thumb: 'assets/state-io.png',
-  url: 'https://nxtcoreee3.github.io/State.io/',
-  desc: 'Send troops, capture territories, and conquer the map using smart strategy.'
-},
-{
-  id: 'hole-io',
-  title: 'Hole.io',
-  thumb: 'assets/hole-io.png',
-  url: 'https://nxtcoreee3.github.io/Hole.io/',
-  desc: 'Control a black hole, swallow everything, and grow bigger than your rivals.'
-},
-{
-  id: 'talking-tom-cat',
-  title: 'Talking Tom Cat',
-  thumb: 'assets/talking-tom-cat.png',
-  url: 'https://gamejolt.net/?token=pUpjLeSCuADJLGguZw4X5LbU6NxbLv',
-  desc: 'Play the original Talking Tom game through an emulator and interact with the classic pet. (Hosted by GameJolt)'
-},
-{
-  id: 'subway-surfers-mexico',
-  title: 'Subway Surfers Mexico',
-  thumb: 'assets/subway-surfers-mexico.png',
-  url: 'https://nxtcoreee3.github.io/Subway-Surfers-Mexico/',
-  desc: 'Run through tracks, dodge trains, and collect coins in this Mexico-themed endless runner.'
-},
-{
-  id: 'subway-surfers-houston',
-  title: 'Subway Surfers Houston',
-  thumb: 'assets/subway-surfers-houston.png',
-  url: 'https://nxtcoreee3.github.io/Subway-Surfers-Houston/',
-  desc: 'Run through tracks, dodge trains, and collect coins in this Houston-themed endless runner.'
-}
+    id: 'elastic-man',
+    title: 'Elastic Man',
+    thumb: 'assets/elastic-man.png',
+    url: 'https://nxtcoreee3.github.io/Elastic-Man/',
+    desc: 'Stretch and squish a face with realistic physics in this weirdly satisfying game.'
+  },
+  {
+    id: 'space-waves',
+    title: 'Space Waves',
+    thumb: 'assets/space-waves.png',
+    url: 'https://nxtcoreee3.github.io/Space-Waves/',
+    desc: 'Control an arrow and dodge obstacles through fast-paced levels.'
+  },
+  {
+    id: 'jetpack-joyride',
+    title: 'Jetpack Joyride',
+    thumb: 'assets/jetpack-joyride.png',
+    url: 'https://nxtcoreee3.github.io/Jetpack-Joyride/',
+    desc: 'Fly with a jetpack, dodge lasers and missiles, and see how far you can go.'
+  },
+  {
+    id: 'crossy-road',
+    title: 'Crossy Road',
+    thumb: 'assets/crossy-road.png',
+    url: 'https://nxtcoreee3.github.io/Crossy-Road/',
+    desc: 'Hop across roads, rivers, and tracks while avoiding traffic and obstacles.'
+  },
+  {
+    id: 'stacktris',
+    title: 'Stacktris',
+    thumb: 'assets/stacktris.png',
+    url: 'https://nxtcoreee3.github.io/Stacktris/',
+    desc: 'Stack spinning blocks carefully and build the tallest tower without it falling.',
+  },
+  {
+    id: 'guess-their-answer',
+    title: 'Guess Their Answer',
+    thumb: 'assets/guess-their-answer.png',
+    url: 'https://nxtcoreee3.github.io/Guess-Their-Answer/',
+    desc: 'Answer fun questions by guessing the most popular responses to beat your opponents.'
+  },
+  {
+    id: 'block-blast',
+    title: 'Block Blast',
+    thumb: 'assets/block-blast.png',
+    url: 'https://nxtcoreee3.github.io/Block-Blast/',
+    desc: 'Place blocks, clear lines, and keep the board from filling up.'
+  },
+  {
+    id: 'candy-crush',
+    title: 'Candy Crush',
+    thumb: 'assets/candy-crush.png',
+    url: 'https://nxtcoreee3.github.io/Candy-Crush/',
+    desc: 'Match candies to complete levels and earn high scores.'
+  },
+  {
+    id: 'capybara-clicker',
+    title: 'Capybara Clicker',
+    thumb: 'assets/capybara-clicker.png',
+    url: 'https://nxtcoreee3.github.io/Capybara-Clicker/',
+    desc: 'Click to collect capybaras and upgrade your cute farm.'
+  },
+  {
+    id: 'cleanup-io',
+    title: 'Cleanup.io',
+    thumb: 'assets/cleanup-io.png',
+    url: 'https://nxtcoreee3.github.io/Cleanup.io/',
+    desc: 'Collect trash, clean the area, and compete with other players.'
+  },
+  {
+    id: 'ducklings-io',
+    title: 'Ducklings.io',
+    thumb: 'assets/ducklings-io.png',
+    url: 'https://nxtcoreee3.github.io/Ducklings.io/',
+    desc: 'Lead your ducklings, grow your flock, and dominate the pond.'
+  },
+  {
+    id: 'monster-tracks',
+    title: 'Monster Tracks',
+    thumb: 'assets/monster-tracks.png',
+    url: 'https://nxtcoreee3.github.io/Monster-Tracks/',
+    desc: 'Drive monster trucks through crazy tracks and perform insane stunts.'
+  },
+  {
+    id: 'basket-random',
+    title: 'Basket Random',
+    thumb: 'assets/basket-random.png',
+    url: 'https://nxtcoreee3.github.io/Basket-Random/',
+    desc: 'Play chaotic basketball with random physics and score before your opponent.'
+  },
+  {
+    id: 'clash-of-vikings',
+    title: 'Clash of Vikings',
+    thumb: 'assets/clash-of-vikings.png',
+    url: 'https://nxtcoreee3.github.io/Clash-of-Vikings/',
+    desc: 'Build your deck, deploy units, and destroy enemy towers in fast-paced battles.'
+  },
+  {
+    id: 'bowmasters',
+    title: 'Bowmasters',
+    thumb: 'assets/bowmasters.png',
+    url: 'https://nxtcoreee3.github.io/Bowmasters/',
+    desc: 'Aim carefully, throw weapons, and defeat your opponent in turn-based duels.'
+  },
+  {
+    id: 'state-io',
+    title: 'State.io',
+    thumb: 'assets/state-io.png',
+    url: 'https://nxtcoreee3.github.io/State.io/',
+    desc: 'Send troops, capture territories, and conquer the map using smart strategy.'
+  },
+  {
+    id: 'hole-io',
+    title: 'Hole.io',
+    thumb: 'assets/hole-io.png',
+    url: 'https://nxtcoreee3.github.io/Hole.io/',
+    desc: 'Control a black hole, swallow everything, and grow bigger than your rivals.'
+  },
+  {
+    id: 'talking-tom-cat',
+    title: 'Talking Tom Cat',
+    thumb: 'assets/talking-tom-cat.png',
+    url: 'https://gamejolt.net/?token=pUpjLeSCuADJLGguZw4X5LbU6NxbLv',
+    desc: 'Play the original Talking Tom game through an emulator and interact with the classic pet. (Hosted by GameJolt)'
+  },
+  {
+    id: 'subway-surfers-mexico',
+    title: 'Subway Surfers Mexico',
+    thumb: 'assets/subway-surfers-mexico.png',
+    url: 'https://nxtcoreee3.github.io/Subway-Surfers-Mexico/',
+    desc: 'Run through tracks, dodge trains, and collect coins in this Mexico-themed endless runner.'
+  },
+  {
+    id: 'subway-surfers-houston',
+    title: 'Subway Surfers Houston',
+    thumb: 'assets/subway-surfers-houston.png',
+    url: 'https://nxtcoreee3.github.io/Subway-Surfers-Houston/',
+    desc: 'Run through tracks, dodge trains, and collect coins in this Houston-themed endless runner.'
+  }
 ];
 
 // expose game count globally for stats button
@@ -323,7 +323,7 @@ document.addEventListener('click', (e) => {
 });
 
 /* YEAR footers */
-['year','year2','year3','year4','year5'].forEach(id => {
+['year', 'year2', 'year3', 'year4', 'year5'].forEach(id => {
   const el = document.getElementById(id);
   if (el) el.textContent = new Date().getFullYear();
 });
@@ -332,7 +332,7 @@ document.addEventListener('click', (e) => {
 const DARK_KEY = 'flux_dark';
 
 // Apply beta immediately from localStorage to avoid flash
-(function() {
+(function () {
   if (localStorage.getItem('flux_beta') === '1') {
     document.documentElement.classList.add('beta');
   }
@@ -361,7 +361,7 @@ function showToast(message, type = 'info') {
     document.body.appendChild(container);
   }
   const colors = { info: '#3a7dff', success: '#22c55e', error: '#ef4444', warning: '#f59e0b' };
-  const icons  = { info: 'ℹ️', success: '✅', error: '❌', warning: '⚠️' };
+  const icons = { info: 'ℹ️', success: '✅', error: '❌', warning: '⚠️' };
 
   const toast = document.createElement('div');
   toast.style.cssText = `
@@ -373,9 +373,9 @@ function showToast(message, type = 'info') {
   `;
   toast.innerHTML = `<span>${icons[type]}</span><span>${message}</span>`;
   container.appendChild(toast);
-  requestAnimationFrame(() => { toast.style.opacity='1'; toast.style.transform='translateY(0)'; });
+  requestAnimationFrame(() => { toast.style.opacity = '1'; toast.style.transform = 'translateY(0)'; });
   setTimeout(() => {
-    toast.style.opacity='0'; toast.style.transform='translateY(8px)';
+    toast.style.opacity = '0'; toast.style.transform = 'translateY(8px)';
     setTimeout(() => toast.remove(), 200);
   }, 3000);
 }
@@ -464,10 +464,10 @@ function createCard(game) {
   const compatBadge = compat === 'ipad'
     ? '<span class="compat-badge" data-tip="📱 Touchscreen compatible — works great on iPad and touch devices">📱 iPad</span>'
     : compat === 'pc'
-    ? '<span class="compat-badge" data-tip="🖥️ Requires a keyboard — best played on PC or laptop">🖥️ PC Only</span>'
-    : compat === 'both'
-    ? '<span class="compat-badge" data-tip="✅ Works on both — touchscreen friendly and also works with a keyboard">✅ iPad & PC</span>'
-    : '';
+      ? '<span class="compat-badge" data-tip="🖥️ Requires a keyboard — best played on PC or laptop">🖥️ PC Only</span>'
+      : compat === 'both'
+        ? '<span class="compat-badge" data-tip="✅ Works on both — touchscreen friendly and also works with a keyboard">✅ iPad & PC</span>'
+        : '';
 
   const ratingHTML = avgRating
     ? `<span style="font-size:11px;color:#f59e0b;font-weight:700;">★ ${avgRating} <span style="color:var(--muted);font-weight:400;">(${stats.ratingCount})</span></span>`
@@ -509,9 +509,9 @@ function createCard(game) {
       </div>
       <div style="display:flex;gap:8px;align-items:center">
         ${isModLocked && !isOwnerView
-          ? `<button class="modlock-info-btn" style="padding:7px 14px;background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.3);border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;">Get Info</button>`
-          : `<button class="play-btn" data-url="${game.url}" data-title="${game.title}">${isLocked ? `🔒 ${finalPrice} pts` : 'Play'}</button>`
-        }
+      ? `<button class="modlock-info-btn" style="padding:7px 14px;background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.3);border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;">Get Info</button>`
+      : `<button class="play-btn" data-url="${game.url}" data-title="${game.title}">${isLocked ? `🔒 ${finalPrice} pts` : 'Play'}</button>`
+    }
       </div>
     </div>
   `;
@@ -577,7 +577,7 @@ function showRatingModal(game) {
       <h3 style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:var(--text);margin:0 0 6px;">${game.title}</h3>
       <p style="font-size:13px;color:var(--muted);margin:0 0 16px;">How would you rate this game?</p>
       <div id="star-row" style="display:flex;justify-content:center;gap:8px;margin-bottom:16px;">
-        ${[1,2,3,4,5].map(s => `<button class="star-btn" data-star="${s}" style="background:none;border:none;font-size:32px;cursor:pointer;transition:transform 0.1s;color:${s <= userRating ? '#f59e0b' : '#d1d5db'};">★</button>`).join('')}
+        ${[1, 2, 3, 4, 5].map(s => `<button class="star-btn" data-star="${s}" style="background:none;border:none;font-size:32px;cursor:pointer;transition:transform 0.1s;color:${s <= userRating ? '#f59e0b' : '#d1d5db'};">★</button>`).join('')}
       </div>
       <p id="rating-msg" style="font-size:12px;color:var(--muted);margin:0;min-height:18px;"></p>
     </div>
@@ -632,9 +632,9 @@ function showReportModal(game) {
       <h3 style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:var(--text);margin:0 0 6px;">Report ${game.title}</h3>
       <p style="font-size:13px;color:var(--muted);margin:0 0 14px;">What's wrong with this game?</p>
       <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
-        ${['Game is broken / won\'t load','Game crashes my browser','Content is inappropriate','Other'].map(r =>
-          `<button class="report-reason-btn" data-reason="${r}" style="padding:10px 14px;text-align:left;border:1px solid var(--glass-border);border-radius:10px;background:var(--bg);color:var(--text);font-size:13px;cursor:pointer;transition:border-color 0.15s;">${r}</button>`
-        ).join('')}
+        ${['Game is broken / won\'t load', 'Game crashes my browser', 'Content is inappropriate', 'Other'].map(r =>
+    `<button class="report-reason-btn" data-reason="${r}" style="padding:10px 14px;text-align:left;border:1px solid var(--glass-border);border-radius:10px;background:var(--bg);color:var(--text);font-size:13px;cursor:pointer;transition:border-color 0.15s;">${r}</button>`
+  ).join('')}
       </div>
       <p id="report-msg" style="font-size:12px;text-align:center;margin:0;min-height:18px;"></p>
     </div>
@@ -729,8 +729,8 @@ function applyFilters() {
   const query = (quickSearch?.value || '').toLowerCase().trim();
   const sort = sortSelect?.value || 'featured';
   let list = [...GAMES];
-  if (query) list = list.filter(g => g.title.toLowerCase().includes(query) || (g.desc||'').toLowerCase().includes(query));
-  if (sort === 'alpha') list.sort((a,b) => a.title.localeCompare(b.title));
+  if (query) list = list.filter(g => g.title.toLowerCase().includes(query) || (g.desc || '').toLowerCase().includes(query));
+  if (sort === 'alpha') list.sort((a, b) => a.title.localeCompare(b.title));
   else if (sort === 'recent') list = list.slice().reverse();
   renderGames(list);
 }
@@ -738,7 +738,7 @@ function applyFilters() {
 if (quickSearch) quickSearch.addEventListener('input', debounce(applyFilters, 160));
 if (sortSelect) sortSelect.addEventListener('change', applyFilters);
 
-function debounce(fn, wait=120) {
+function debounce(fn, wait = 120) {
   let t;
   return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), wait); };
 }
@@ -764,7 +764,7 @@ async function initAds() {
       localStorage.setItem('flux_no_ads', '1');
       return;
     }
-  } catch {}
+  } catch { }
 
   // Render the banner
   const slot = document.getElementById('flux-ad-banner');
@@ -830,9 +830,9 @@ function showNoAdsModal() {
         </div>
         <div style="font-size:12px;color:#9ca3af;margin-bottom:20px;">One-time purchase. Permanent, no expiry.</div>
         ${hasEnough
-          ? `<button id="no-ads-buy" style="width:100%;padding:13px;background:linear-gradient(135deg,#f59e0b,#ef4444);color:white;border:none;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer;margin-bottom:8px;">Remove Ads Forever</button>`
-          : `<button id="no-ads-earn" style="width:100%;padding:13px;background:linear-gradient(135deg,#f59e0b,#ef4444);color:white;border:none;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer;margin-bottom:8px;">💡 How to earn more points</button>`
-        }
+        ? `<button id="no-ads-buy" style="width:100%;padding:13px;background:linear-gradient(135deg,#f59e0b,#ef4444);color:white;border:none;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer;margin-bottom:8px;">Remove Ads Forever</button>`
+        : `<button id="no-ads-earn" style="width:100%;padding:13px;background:linear-gradient(135deg,#f59e0b,#ef4444);color:white;border:none;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer;margin-bottom:8px;">💡 How to earn more points</button>`
+      }
         <button id="no-ads-cancel" style="width:100%;padding:11px;background:#f3f4f6;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;color:#6b7280;">Cancel</button>
         <p id="no-ads-msg" style="font-size:12px;margin:10px 0 0;display:none;"></p>
       </div>`;
@@ -860,7 +860,7 @@ function showNoAdsModal() {
         const { getApp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
         const snap = await gd(fd(getFirestore(getApp()), 'profiles', window._currentUserUid));
         if (snap.exists()) balance = snap.data().points || 0;
-      } catch {}
+      } catch { }
     }
 
     document.getElementById('no-ads-body').innerHTML = renderContent(balance);
@@ -910,7 +910,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initCookieConsent();
   initDarkMode();
   initUpdateNotification();
-  if(window.hideGlobalLoader) window.hideGlobalLoader();
+  if (window.hideGlobalLoader) window.hideGlobalLoader();
   initFirestoreHealthCheck();
   initIncidentBanner();
   initStatsButton();
@@ -976,7 +976,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('game-grid') || document.getElementById('games-grid')) {
       renderGames(GAMES);
     }
-  }).catch(() => {});
+  }).catch(() => { });
 });
 
 /* ===================== MOBILE WARNING ===================== */
@@ -1140,7 +1140,7 @@ function initMobileWarning() {
       const key = deviceModel.replace(/\s+/g, '_');
       const snap = await getDoc(docRef(firestore, 'mobileBlacklist', key));
       if (snap.exists()) return; // blacklisted — don't show
-    } catch {}
+    } catch { }
     showWarning();
   })();
 }
@@ -1462,7 +1462,7 @@ async function injectBuildNumber() {
     const obs = new MutationObserver(tryInject);
     obs.observe(document.body, { childList: true, subtree: true });
     setTimeout(() => obs.disconnect(), 30000);
-  } catch {}
+  } catch { }
 }
 
 /* ===================== FULLSCREEN ===================== */
@@ -1480,9 +1480,10 @@ function openFullscreen(url, title) {
     <div id="fs-loading-bg" style="position:absolute;inset:0;background:#fff url('assets/loading.gif') center center / 250px no-repeat;z-index:1;"></div>
     <iframe id="fs-iframe" src="${url}" style="flex:1;border:0;width:100%;height:100%;opacity:0;transition:opacity 0.4s ease;position:relative;z-index:2;" allow="autoplay; fullscreen" sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
     <div id="fs-embed-warn" style="display:none;position:absolute;inset:0;z-index:3;align-items:center;justify-content:center;flex-direction:column;gap:12px;background:rgba(0,0,0,0.85);">
-      <span style="font-size:32px;">🚫</span>
-      <span style="color:white;font-size:15px;font-weight:600;">This game can't be embedded.</span>
-      <button id="fs-fallback-btn" style="background:#3a7dff;color:white;border:none;border-radius:10px;padding:10px 22px;font-size:14px;font-weight:700;cursor:pointer;">↗ Open in New Tab</button>
+      <span style="font-size:32px;">🕒</span>
+      <span style="color:white;font-size:15px;font-weight:600;text-align:center;padding:0 20px;">This game might be having trouble loading. Please wait, or report it to an Admin.</span>
+      <button id="fs-fallback-btn" style="background:#3a7dff;color:white;border:none;border-radius:10px;padding:10px 22px;font-size:14px;font-weight:700;cursor:pointer;">Keep Waiting</button>
+      <a href="social.html" style="color:#9ca3af;font-size:12px;margin-top:8px;text-decoration:underline;">Or report to an Admin</a>
     </div>
   `;
   document.body.appendChild(fs);
@@ -1497,12 +1498,12 @@ function openFullscreen(url, title) {
   fs.addEventListener('touchstart', showBar, { passive: true });
   fs.querySelector('#fs-exit').addEventListener('click', () => fs.remove());
   fsNewTab.addEventListener('click', () => window.open(url, '_blank', 'noopener'));
-  fs.querySelector('#fs-fallback-btn').addEventListener('click', () => window.open(url, '_blank', 'noopener'));
+  fs.querySelector('#fs-fallback-btn').addEventListener('click', () => { fsWarn.style.display = 'none'; });
   // Detect embed failure
   let fsLoaded = false;
-  fsIframe.addEventListener('load', () => { 
-    fsLoaded = true; 
-    fsIframe.style.opacity = '1'; 
+  fsIframe.addEventListener('load', () => {
+    fsLoaded = true;
+    fsIframe.style.opacity = '1';
     const lbg = fs.querySelector('#fs-loading-bg');
     if (lbg) lbg.style.display = 'none';
   }, { once: true });
@@ -1546,10 +1547,10 @@ function openPlayModal(url, title) {
   }
   if (fsBtn) { fsBtn.style.display = ''; fsBtn.onclick = () => { closeModal(); openFullscreen(url, title); }; }
 
-  const closeModal = () => { modal.setAttribute('aria-hidden','true'); if(iframe) iframe.src='about:blank'; clearCurrentlyPlaying(); };
+  const closeModal = () => { modal.setAttribute('aria-hidden', 'true'); if (iframe) iframe.src = 'about:blank'; clearCurrentlyPlaying(); };
   if (closeBtn) closeBtn.onclick = closeModal;
   modal.querySelectorAll('[data-close]').forEach(el => el.onclick = closeModal);
-  window.addEventListener('keydown', function escClose(e) { if(e.key==='Escape'){ closeModal(); window.removeEventListener('keydown',escClose); } });
+  window.addEventListener('keydown', function escClose(e) { if (e.key === 'Escape') { closeModal(); window.removeEventListener('keydown', escClose); } });
 
   if (iframe) {
     embedWarning?.classList.add('hidden');
@@ -1562,21 +1563,24 @@ function openPlayModal(url, title) {
     }
 
     let loaded = false;
-    iframe.addEventListener('load', () => { 
-      loaded=true; 
-      embedWarning?.classList.add('hidden'); 
+    iframe.addEventListener('load', () => {
+      loaded = true;
+      embedWarning?.classList.add('hidden');
       iframe.style.opacity = '1';
       if (iframe.parentElement) {
         iframe.parentElement.style.background = ""; // remove loading gif once loaded
       }
-    }, { once:true });
+    }, { once: true });
     setTimeout(() => {
       if (!loaded) {
+        // Fallback for X-Frame-Options
         embedWarning?.classList.remove('hidden');
         if (fsBtn) fsBtn.style.display = 'none'; // hide if embedding blocked
-        if (openTabBtn) openTabBtn.style.display = ''; // show new tab only now
+        
         const fb = embedWarning?.querySelector('a');
-        if (fb) { fb.href=url; fb.onclick=()=>{ window.open(url,'_blank','noopener'); return true; }; }
+        if (fb) {
+          fb.href = 'social.html';
+        }
       }
     }, 2200);
   } else {
@@ -1588,21 +1592,21 @@ document.addEventListener('click', (e) => {
   if (!e.target) return;
   if (e.target.matches('[data-close]') || e.target.classList.contains('modal-backdrop')) {
     const m = e.target.closest('.modal');
-    if (m) { m.setAttribute('aria-hidden','true'); const iframe=m.querySelector('iframe'); if(iframe) iframe.src='about:blank'; }
+    if (m) { m.setAttribute('aria-hidden', 'true'); const iframe = m.querySelector('iframe'); if (iframe) iframe.src = 'about:blank'; }
   }
 });
 
 document.addEventListener('keydown', (e) => {
-  if (e.key==='Escape') {
+  if (e.key === 'Escape') {
     document.querySelectorAll('.modal[aria-hidden="false"]').forEach(m => {
-      m.setAttribute('aria-hidden','true');
-      const iframe=m.querySelector('iframe'); if(iframe) iframe.src='about:blank';
+      m.setAttribute('aria-hidden', 'true');
+      const iframe = m.querySelector('iframe'); if (iframe) iframe.src = 'about:blank';
     });
   }
 });
 
 /* ===================== FLOATING TOOLTIP ===================== */
-(function() {
+(function () {
   const tip = document.createElement('div');
   tip.id = 'flux-tooltip';
   tip.style.cssText = 'position:fixed;z-index:99999;background:#111827;color:#fff;font-size:12px;font-weight:500;padding:7px 11px;border-radius:9px;pointer-events:none;box-shadow:0 4px 16px rgba(0,0,0,0.3);white-space:nowrap;opacity:0;transition:opacity 0.15s ease;max-width:260px;white-space:normal;line-height:1.4;';
@@ -1699,13 +1703,13 @@ async function openGameDetail(game) {
   overlay.id = 'flux-game-detail';
   overlay.style.cssText = 'position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.65);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;font-family:inherit;';
 
-  const pricing = _gamePricing[game.id] || { price:0, discount:0 };
+  const pricing = _gamePricing[game.id] || { price: 0, discount: 0 };
   const isExpired = pricing.discountExpiry && new Date(pricing.discountExpiry) < new Date();
   const activeDiscount = (!isExpired && pricing.discount > 0) ? pricing.discount : 0;
-  const finalPrice = activeDiscount > 0 ? Math.round(pricing.price*(1-activeDiscount/100)) : (pricing.price||0);
+  const finalPrice = activeDiscount > 0 ? Math.round(pricing.price * (1 - activeDiscount / 100)) : (pricing.price || 0);
   const isLocked = finalPrice > 0 && !_unlockedGames.includes(game.id);
   const stats = _allGameStats[game.id] || {};
-  const avgRating = stats.ratingCount ? (stats.ratingTotal/stats.ratingCount).toFixed(1) : null;
+  const avgRating = stats.ratingCount ? (stats.ratingTotal / stats.ratingCount).toFixed(1) : null;
   const isModLocked = stats.locked === true;
   const isOwnerView = window._fluxIsOwner === true;
 
@@ -1721,8 +1725,8 @@ async function openGameDetail(game) {
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
           ${avgRating ? `<div style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg,#f9fafb);border-radius:10px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));"><span>⭐</span><div><div style="font-size:16px;font-weight:700;color:#f59e0b;">${avgRating}</div><div style="font-size:10px;color:var(--muted,#6b7280);">${stats.ratingCount} ratings</div></div></div>` : ''}
           ${stats.plays ? `<div style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg,#f9fafb);border-radius:10px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));"><span>🎮</span><div><div style="font-size:16px;font-weight:700;color:var(--text,#111);">${stats.plays.toLocaleString()}</div><div style="font-size:10px;color:var(--muted,#6b7280);">total plays</div></div></div>` : ''}
-          <div style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg,#f9fafb);border-radius:10px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));"><span>💎</span><div><div style="font-size:16px;font-weight:700;color:var(--text,#111);">${finalPrice > 0 ? finalPrice+' pts' : 'Free'}</div><div style="font-size:10px;color:var(--muted,#6b7280);">${isLocked ? 'to unlock' : '✓ unlocked'}</div></div></div>
-          ${stats.firstSeen ? `<div style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg,#f9fafb);border-radius:10px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));"><span>📅</span><div><div style="font-size:12px;font-weight:700;color:var(--text,#111);">${new Date(stats.firstSeen).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}</div><div style="font-size:10px;color:var(--muted,#6b7280);">added</div></div></div>` : ''}
+          <div style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg,#f9fafb);border-radius:10px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));"><span>💎</span><div><div style="font-size:16px;font-weight:700;color:var(--text,#111);">${finalPrice > 0 ? finalPrice + ' pts' : 'Free'}</div><div style="font-size:10px;color:var(--muted,#6b7280);">${isLocked ? 'to unlock' : '✓ unlocked'}</div></div></div>
+          ${stats.firstSeen ? `<div style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg,#f9fafb);border-radius:10px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));"><span>📅</span><div><div style="font-size:12px;font-weight:700;color:var(--text,#111);">${new Date(stats.firstSeen).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</div><div style="font-size:10px;color:var(--muted,#6b7280);">added</div></div></div>` : ''}
         </div>
         <div>
           <div style="font-size:11px;font-weight:700;color:var(--muted,#6b7280);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">About this game</div>
@@ -1730,10 +1734,10 @@ async function openGameDetail(game) {
         </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
           ${isModLocked && !isOwnerView
-            ? `<button id="gd-modlock-info" style="flex:1;min-width:140px;padding:12px 20px;background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.3);border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;">🔒 Temporarily Unavailable (Get Info)</button>`
-            : isLocked
-              ? `<button id="gd-unlock-btn" style="flex:1;min-width:140px;padding:12px 20px;background:linear-gradient(135deg,#f59e0b,#ef4444);color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;">🔒 Unlock for ${finalPrice} pts</button>`
-              : `<button id="gd-play-btn" style="flex:1;min-width:140px;padding:12px 20px;background:var(--accent,#3a7dff);color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;">▶ Play Now</button>`}
+      ? `<button id="gd-modlock-info" style="flex:1;min-width:140px;padding:12px 20px;background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.3);border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;">🔒 Temporarily Unavailable (Get Info)</button>`
+      : isLocked
+        ? `<button id="gd-unlock-btn" style="flex:1;min-width:140px;padding:12px 20px;background:linear-gradient(135deg,#f59e0b,#ef4444);color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;">🔒 Unlock for ${finalPrice} pts</button>`
+        : `<button id="gd-play-btn" style="flex:1;min-width:140px;padding:12px 20px;background:var(--accent,#3a7dff);color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;">▶ Play Now</button>`}
           <button id="gd-fav-btn" style="padding:12px 20px;border:1px solid var(--glass-border,rgba(0,0,0,0.1));border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;background:var(--bg,#f9fafb);color:var(--text,#111);">${isFav(game.id) ? '★ Favourited' : '☆ Favourite'}</button>
         </div>
         <div>
@@ -1741,7 +1745,7 @@ async function openGameDetail(game) {
           <div style="background:var(--bg,#f9fafb);border-radius:12px;padding:14px 16px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));margin-bottom:12px;">
             <div style="font-size:13px;font-weight:600;color:var(--text,#111);margin-bottom:10px;">Leave a Review</div>
             <div id="gd-star-row" style="display:flex;gap:6px;margin-bottom:10px;">
-              ${[1,2,3,4,5].map(s=>`<button class="gd-star" data-star="${s}" style="background:none;border:none;font-size:26px;cursor:pointer;color:#d1d5db;padding:0;">★</button>`).join('')}
+              ${[1, 2, 3, 4, 5].map(s => `<button class="gd-star" data-star="${s}" style="background:none;border:none;font-size:26px;cursor:pointer;color:#d1d5db;padding:0;">★</button>`).join('')}
             </div>
             <textarea id="gd-review-text" placeholder="Share your thoughts... (optional)" maxlength="500" rows="2" style="width:100%;padding:9px 12px;border:1px solid var(--glass-border,rgba(0,0,0,0.1));border-radius:10px;font-size:13px;font-family:inherit;resize:none;box-sizing:border-box;outline:none;background:var(--panel,#fff);color:var(--text,#111);"></textarea>
             <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">
@@ -1758,7 +1762,7 @@ async function openGameDetail(game) {
   const close = () => overlay.remove();
   document.getElementById('gd-close').addEventListener('click', close);
   overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
-  window.addEventListener('keydown', function escH(e) { if(e.key==='Escape'){close();window.removeEventListener('keydown',escH);} });
+  window.addEventListener('keydown', function escH(e) { if (e.key === 'Escape') { close(); window.removeEventListener('keydown', escH); } });
 
   document.getElementById('gd-play-btn')?.addEventListener('click', () => {
     close(); addRecent(game.id); renderRecentSection();
@@ -1778,21 +1782,21 @@ async function openGameDetail(game) {
   let selectedRating = 0;
   const stars = overlay.querySelectorAll('.gd-star');
   stars.forEach(btn => {
-    btn.addEventListener('mouseenter', () => { const v=parseInt(btn.dataset.star); stars.forEach(s=>s.style.color=parseInt(s.dataset.star)<=v?'#f59e0b':'#d1d5db'); });
-    btn.addEventListener('mouseleave', () => { stars.forEach(s=>s.style.color=parseInt(s.dataset.star)<=selectedRating?'#f59e0b':'#d1d5db'); });
-    btn.addEventListener('click', () => { selectedRating=parseInt(btn.dataset.star); stars.forEach(s=>s.style.color=parseInt(s.dataset.star)<=selectedRating?'#f59e0b':'#d1d5db'); });
+    btn.addEventListener('mouseenter', () => { const v = parseInt(btn.dataset.star); stars.forEach(s => s.style.color = parseInt(s.dataset.star) <= v ? '#f59e0b' : '#d1d5db'); });
+    btn.addEventListener('mouseleave', () => { stars.forEach(s => s.style.color = parseInt(s.dataset.star) <= selectedRating ? '#f59e0b' : '#d1d5db'); });
+    btn.addEventListener('click', () => { selectedRating = parseInt(btn.dataset.star); stars.forEach(s => s.style.color = parseInt(s.dataset.star) <= selectedRating ? '#f59e0b' : '#d1d5db'); });
   });
 
   document.getElementById('gd-submit-review').addEventListener('click', async () => {
-    const msg=document.getElementById('gd-review-msg'), comment=document.getElementById('gd-review-text').value.trim();
-    if(!selectedRating){msg.style.color='#ef4444';msg.textContent='Pick a star rating first.';return;}
-    msg.style.color='#9ca3af';msg.textContent='Saving...';
-    const r=await submitReview(game.id,game.title,selectedRating,comment);
-    if(r.ok){msg.style.color='#22c55e';msg.textContent='✓ Saved!';document.getElementById('gd-review-text').value='';selectedRating=0;stars.forEach(s=>s.style.color='#d1d5db');loadDetailReviews(game.id);}
-    else{msg.style.color='#ef4444';msg.textContent=r.error;}
+    const msg = document.getElementById('gd-review-msg'), comment = document.getElementById('gd-review-text').value.trim();
+    if (!selectedRating) { msg.style.color = '#ef4444'; msg.textContent = 'Pick a star rating first.'; return; }
+    msg.style.color = '#9ca3af'; msg.textContent = 'Saving...';
+    const r = await submitReview(game.id, game.title, selectedRating, comment);
+    if (r.ok) { msg.style.color = '#22c55e'; msg.textContent = '✓ Saved!'; document.getElementById('gd-review-text').value = ''; selectedRating = 0; stars.forEach(s => s.style.color = '#d1d5db'); loadDetailReviews(game.id); }
+    else { msg.style.color = '#ef4444'; msg.textContent = r.error; }
   });
 
-  getAiGameDescription(game).then(desc => { const el=document.getElementById('gd-ai-desc'); if(el) el.textContent=desc; });
+  getAiGameDescription(game).then(desc => { const el = document.getElementById('gd-ai-desc'); if (el) el.textContent = desc; });
   loadDetailReviews(game.id);
 }
 
@@ -1800,36 +1804,36 @@ async function loadDetailReviews(gameId) {
   const list = document.getElementById('gd-reviews-list');
   if (!list) return;
   const reviews = await getGameReviews(gameId);
-  if (!reviews.length) { list.innerHTML='<div style="text-align:center;color:var(--muted,#6b7280);font-size:13px;padding:16px;">No reviews yet. Be the first!</div>'; return; }
-  list.innerHTML='';
+  if (!reviews.length) { list.innerHTML = '<div style="text-align:center;color:var(--muted,#6b7280);font-size:13px;padding:16px;">No reviews yet. Be the first!</div>'; return; }
+  list.innerHTML = '';
   reviews.forEach(r => {
-    const item=document.createElement('div');
-    item.style.cssText='background:var(--bg,#f9fafb);border-radius:12px;padding:14px 16px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));';
-    const stars='★'.repeat(r.rating)+'☆'.repeat(5-r.rating);
-    const d=Date.now()-new Date(r.createdAt).getTime();
-    const timeAgo=d<3600000?Math.floor(d/60000)+'m ago':d<86400000?Math.floor(d/3600000)+'h ago':Math.floor(d/86400000)+'d ago';
-    const isMe=r.uid===(window._currentUserUid||''), isAdmin=window._currentUserUid==='zEy6TO5ligf2um4rssIZs9C9X7f2';
-    const alreadyLiked=(r.likes||[]).includes(window._currentUserUid||'');
-    item.innerHTML=`
+    const item = document.createElement('div');
+    item.style.cssText = 'background:var(--bg,#f9fafb);border-radius:12px;padding:14px 16px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));';
+    const stars = '★'.repeat(r.rating) + '☆'.repeat(5 - r.rating);
+    const d = Date.now() - new Date(r.createdAt).getTime();
+    const timeAgo = d < 3600000 ? Math.floor(d / 60000) + 'm ago' : d < 86400000 ? Math.floor(d / 3600000) + 'h ago' : Math.floor(d / 86400000) + 'd ago';
+    const isMe = r.uid === (window._currentUserUid || ''), isAdmin = window._currentUserUid === 'zEy6TO5ligf2um4rssIZs9C9X7f2';
+    const alreadyLiked = (r.likes || []).includes(window._currentUserUid || '');
+    item.innerHTML = `
       <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:8px;">
-        <div style="width:32px;height:32px;border-radius:50%;background:var(--accent,#3a7dff);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:13px;flex-shrink:0;">${(r.displayName||'?')[0].toUpperCase()}</div>
+        <div style="width:32px;height:32px;border-radius:50%;background:var(--accent,#3a7dff);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:13px;flex-shrink:0;">${(r.displayName || '?')[0].toUpperCase()}</div>
         <div style="flex:1;">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
             <span style="font-size:13px;font-weight:700;color:var(--text,#111);">@${r.username}</span>
             <span style="color:#f59e0b;">${stars}</span>
             <span style="font-size:11px;color:var(--muted,#6b7280);">${timeAgo}</span>
           </div>
-          ${r.comment?`<div style="font-size:13px;color:var(--text,#111);margin-top:4px;line-height:1.5;">${r.comment}</div>`:''}
+          ${r.comment ? `<div style="font-size:13px;color:var(--text,#111);margin-top:4px;line-height:1.5;">${r.comment}</div>` : ''}
         </div>
-        ${(isMe||isAdmin)?`<button class="gd-del-rev" data-id="${r.id}" style="background:none;border:none;color:var(--muted,#9ca3af);cursor:pointer;font-size:13px;flex-shrink:0;">🗑</button>`:''}
+        ${(isMe || isAdmin) ? `<button class="gd-del-rev" data-id="${r.id}" style="background:none;border:none;color:var(--muted,#9ca3af);cursor:pointer;font-size:13px;flex-shrink:0;">🗑</button>` : ''}
       </div>
       <div style="display:flex;align-items:center;gap:14px;padding-top:8px;border-top:1px solid var(--glass-border,rgba(0,0,0,0.06));">
-        <button class="gd-like" data-id="${r.id}" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--muted,#6b7280);display:flex;align-items:center;gap:4px;padding:0;">${alreadyLiked?'❤️':'🤍'} ${r.likes?.length||0}</button>
-        <button class="gd-reply-toggle" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--muted,#6b7280);padding:0;">💬 ${r.comments?.length||0} ${r.comments?.length===1?'reply':'replies'}</button>
+        <button class="gd-like" data-id="${r.id}" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--muted,#6b7280);display:flex;align-items:center;gap:4px;padding:0;">${alreadyLiked ? '❤️' : '🤍'} ${r.likes?.length || 0}</button>
+        <button class="gd-reply-toggle" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--muted,#6b7280);padding:0;">💬 ${r.comments?.length || 0} ${r.comments?.length === 1 ? 'reply' : 'replies'}</button>
       </div>
       <div class="gd-comments-area" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--glass-border,rgba(0,0,0,0.06));">
         <div class="gd-clist" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;">
-          ${(r.comments||[]).map(c=>`<div style="display:flex;gap:8px;"><div style="width:24px;height:24px;border-radius:50%;background:var(--accent,#3a7dff);display:flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:700;flex-shrink:0;">${(c.displayName||'?')[0].toUpperCase()}</div><div style="flex:1;background:var(--panel,#fff);border-radius:8px;padding:7px 10px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));font-size:12px;color:var(--text,#111);"><strong>@${c.username}</strong> ${c.comment}</div></div>`).join('')}
+          ${(r.comments || []).map(c => `<div style="display:flex;gap:8px;"><div style="width:24px;height:24px;border-radius:50%;background:var(--accent,#3a7dff);display:flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:700;flex-shrink:0;">${(c.displayName || '?')[0].toUpperCase()}</div><div style="flex:1;background:var(--panel,#fff);border-radius:8px;padding:7px 10px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));font-size:12px;color:var(--text,#111);"><strong>@${c.username}</strong> ${c.comment}</div></div>`).join('')}
         </div>
         <div style="display:flex;gap:8px;">
           <input class="gd-cin" data-review="${r.id}" type="text" placeholder="Reply..." maxlength="300" style="flex:1;padding:7px 10px;border:1px solid var(--glass-border,rgba(0,0,0,0.1));border-radius:8px;font-size:12px;font-family:inherit;outline:none;background:var(--panel,#fff);color:var(--text,#111);">
@@ -1838,15 +1842,15 @@ async function loadDetailReviews(gameId) {
       </div>`;
     list.appendChild(item);
     item.querySelector('.gd-like').addEventListener('click', async e => {
-      const btn=e.currentTarget; const res=await likeReview(gameId,btn.dataset.id);
-      if(res.ok){const cnt=parseInt(btn.textContent.match(/\d+/)?.[0]||0)+(res.liked?1:-1);btn.innerHTML=`${res.liked?'❤️':'🤍'} ${Math.max(0,cnt)}`;}
+      const btn = e.currentTarget; const res = await likeReview(gameId, btn.dataset.id);
+      if (res.ok) { const cnt = parseInt(btn.textContent.match(/\d+/)?.[0] || 0) + (res.liked ? 1 : -1); btn.innerHTML = `${res.liked ? '❤️' : '🤍'} ${Math.max(0, cnt)}`; }
     });
-    item.querySelector('.gd-reply-toggle').addEventListener('click',()=>{const a=item.querySelector('.gd-comments-area');a.style.display=a.style.display==='none'?'block':'none';});
-    item.querySelector('.gd-csub').addEventListener('click', async()=>{
-      const inp=item.querySelector('.gd-cin'); const res=await addReviewComment(gameId,r.id,inp.value.trim());
-      if(res.ok){const cl=item.querySelector('.gd-clist');const nd=document.createElement('div');nd.style.cssText='display:flex;gap:8px;';nd.innerHTML=`<div style="width:24px;height:24px;border-radius:50%;background:var(--accent,#3a7dff);display:flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:700;flex-shrink:0;">Y</div><div style="flex:1;background:var(--panel,#fff);border-radius:8px;padding:7px 10px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));font-size:12px;color:var(--text,#111);"><strong>You</strong> ${inp.value.trim()}</div>`;cl.appendChild(nd);inp.value='';}
+    item.querySelector('.gd-reply-toggle').addEventListener('click', () => { const a = item.querySelector('.gd-comments-area'); a.style.display = a.style.display === 'none' ? 'block' : 'none'; });
+    item.querySelector('.gd-csub').addEventListener('click', async () => {
+      const inp = item.querySelector('.gd-cin'); const res = await addReviewComment(gameId, r.id, inp.value.trim());
+      if (res.ok) { const cl = item.querySelector('.gd-clist'); const nd = document.createElement('div'); nd.style.cssText = 'display:flex;gap:8px;'; nd.innerHTML = `<div style="width:24px;height:24px;border-radius:50%;background:var(--accent,#3a7dff);display:flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:700;flex-shrink:0;">Y</div><div style="flex:1;background:var(--panel,#fff);border-radius:8px;padding:7px 10px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));font-size:12px;color:var(--text,#111);"><strong>You</strong> ${inp.value.trim()}</div>`; cl.appendChild(nd); inp.value = ''; }
     });
-    item.querySelector('.gd-del-rev')?.addEventListener('click', async e=>{if(!confirm('Delete?'))return;await deleteReview(gameId,e.currentTarget.dataset.id);item.remove();if(!list.children.length)loadDetailReviews(gameId);});
+    item.querySelector('.gd-del-rev')?.addEventListener('click', async e => { if (!confirm('Delete?')) return; await deleteReview(gameId, e.currentTarget.dataset.id); item.remove(); if (!list.children.length) loadDetailReviews(gameId); });
   });
 }
 
@@ -1859,8 +1863,8 @@ async function showUnlockModal(game, finalPrice, discount, originalPrice) {
     const { getApp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
     const { getAuth } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
     const user = getAuth(getApp()).currentUser;
-    if (user) { const s=await gd(fd(getFirestore(getApp()),'profiles',user.uid)); userPoints=s.exists()?(s.data().points||0):0; }
-  } catch {}
+    if (user) { const s = await gd(fd(getFirestore(getApp()), 'profiles', user.uid)); userPoints = s.exists() ? (s.data().points || 0) : 0; }
+  } catch { }
   const canAfford = userPoints >= finalPrice;
   const modal = document.createElement('div');
   modal.id = 'flux-unlock-modal';
@@ -1869,25 +1873,25 @@ async function showUnlockModal(game, finalPrice, discount, originalPrice) {
     <div style="background:var(--panel,#fff);border-radius:20px;padding:28px 24px;max-width:380px;width:100%;box-shadow:0 30px 80px rgba(0,0,0,0.25);text-align:center;">
       <div style="font-size:44px;margin-bottom:12px;">🔒</div>
       <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--text,#111);margin-bottom:6px;">${game.title}</div>
-      ${discount>0?`<div style="margin-bottom:6px;"><span style="text-decoration:line-through;color:var(--muted,#9ca3af);font-size:14px;">${originalPrice} pts</span> <span style="background:linear-gradient(135deg,#ef4444,#f97316);color:white;font-size:11px;font-weight:800;padding:2px 8px;border-radius:20px;">${discount}% OFF</span></div>`:''}
+      ${discount > 0 ? `<div style="margin-bottom:6px;"><span style="text-decoration:line-through;color:var(--muted,#9ca3af);font-size:14px;">${originalPrice} pts</span> <span style="background:linear-gradient(135deg,#ef4444,#f97316);color:white;font-size:11px;font-weight:800;padding:2px 8px;border-radius:20px;">${discount}% OFF</span></div>` : ''}
       <div style="font-size:28px;font-weight:800;color:var(--accent,#3a7dff);margin-bottom:8px;">${finalPrice} pts</div>
-      <div style="font-size:13px;color:var(--muted,#6b7280);margin-bottom:20px;">Your balance: <strong style="color:${canAfford?'#22c55e':'#ef4444'}">${userPoints} pts</strong></div>
+      <div style="font-size:13px;color:var(--muted,#6b7280);margin-bottom:20px;">Your balance: <strong style="color:${canAfford ? '#22c55e' : '#ef4444'}">${userPoints} pts</strong></div>
       ${canAfford
-        ? `<button id="unlock-confirm-btn" style="width:100%;padding:13px;background:var(--accent,#3a7dff);color:white;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px;">🔓 Unlock for ${finalPrice} pts</button>`
-        : `<button id="earn-more-btn" style="width:100%;padding:13px;background:linear-gradient(135deg,#f59e0b,#ef4444);color:white;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px;">💡 How to earn more points</button>`}
+      ? `<button id="unlock-confirm-btn" style="width:100%;padding:13px;background:var(--accent,#3a7dff);color:white;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px;">🔓 Unlock for ${finalPrice} pts</button>`
+      : `<button id="earn-more-btn" style="width:100%;padding:13px;background:linear-gradient(135deg,#f59e0b,#ef4444);color:white;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px;">💡 How to earn more points</button>`}
       <button id="unlock-cancel-btn" style="width:100%;padding:11px;background:none;border:1px solid var(--glass-border,rgba(0,0,0,0.1));border-radius:12px;font-size:14px;cursor:pointer;color:var(--text,#111);">Cancel</button>
       <p id="unlock-msg" style="font-size:12px;margin:10px 0 0;display:none;"></p>
     </div>`;
   document.body.appendChild(modal);
   const close = () => modal.remove();
   document.getElementById('unlock-cancel-btn').addEventListener('click', close);
-  modal.addEventListener('click', e => { if(e.target===modal) close(); });
+  modal.addEventListener('click', e => { if (e.target === modal) close(); });
   document.getElementById('unlock-confirm-btn')?.addEventListener('click', async () => {
-    const btn=document.getElementById('unlock-confirm-btn'); btn.textContent='Unlocking...'; btn.disabled=true;
-    const res=await unlockGame(game.id, finalPrice);
-    const msg=document.getElementById('unlock-msg'); msg.style.display='block';
-    if(res.ok){_unlockedGames.push(game.id);msg.style.color='#22c55e';msg.textContent=`✓ Unlocked! Balance: ${res.newBalance} pts`;setTimeout(()=>{close();renderGames(GAMES);},1500);}
-    else{msg.style.color='#ef4444';msg.textContent=res.error;btn.textContent=`🔓 Unlock for ${finalPrice} pts`;btn.disabled=false;}
+    const btn = document.getElementById('unlock-confirm-btn'); btn.textContent = 'Unlocking...'; btn.disabled = true;
+    const res = await unlockGame(game.id, finalPrice);
+    const msg = document.getElementById('unlock-msg'); msg.style.display = 'block';
+    if (res.ok) { _unlockedGames.push(game.id); msg.style.color = '#22c55e'; msg.textContent = `✓ Unlocked! Balance: ${res.newBalance} pts`; setTimeout(() => { close(); renderGames(GAMES); }, 1500); }
+    else { msg.style.color = '#ef4444'; msg.textContent = res.error; btn.textContent = `🔓 Unlock for ${finalPrice} pts`; btn.disabled = false; }
   });
   document.getElementById('earn-more-btn')?.addEventListener('click', () => { close(); showEarnPointsModal(game, finalPrice); });
 }
@@ -1899,21 +1903,21 @@ function showEarnPointsModal(game, requiredPts) {
   modal.id = 'flux-earn-modal';
   modal.style.cssText = 'position:fixed;inset:0;z-index:9100;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(6px);padding:20px;box-sizing:border-box;font-family:inherit;';
   const ways = [
-    {icon:'🔐',label:'Daily login',pts:'+10 pts',desc:'Log in every day'},
-    {icon:'🔥',label:'Login streak',pts:'+2 pts/day',desc:'Consecutive logins earn bonus (max +50)'},
-    {icon:'⏱️',label:'Time on site',pts:'+1 pt/5 min',desc:'Just browse Flux'},
-    {icon:'🎰',label:'Spin the wheel',pts:'Up to 500 pts',desc:'Spin once per hour in your profile menu'},
-    {icon:'🎁',label:'Receive a gift',pts:'Varies',desc:'Another player can gift you their points'},
+    { icon: '🔐', label: 'Daily login', pts: '+10 pts', desc: 'Log in every day' },
+    { icon: '🔥', label: 'Login streak', pts: '+2 pts/day', desc: 'Consecutive logins earn bonus (max +50)' },
+    { icon: '⏱️', label: 'Time on site', pts: '+1 pt/5 min', desc: 'Just browse Flux' },
+    { icon: '🎰', label: 'Spin the wheel', pts: 'Up to 500 pts', desc: 'Spin once per hour in your profile menu' },
+    { icon: '🎁', label: 'Receive a gift', pts: 'Varies', desc: 'Another player can gift you their points' },
   ];
   modal.innerHTML = `
     <div style="background:var(--panel,#fff);border-radius:20px;padding:28px 24px;max-width:420px;width:100%;box-shadow:0 30px 80px rgba(0,0,0,0.25);">
       <div style="text-align:center;margin-bottom:20px;">
         <div style="font-size:40px;margin-bottom:8px;">💡</div>
         <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--text,#111);">How to Earn Points</div>
-        ${game?`<div style="font-size:13px;color:var(--muted,#6b7280);margin-top:4px;">Need <strong style="color:var(--accent,#3a7dff)">${requiredPts} pts</strong> to unlock <strong>${game.title}</strong></div>`:''}
+        ${game ? `<div style="font-size:13px;color:var(--muted,#6b7280);margin-top:4px;">Need <strong style="color:var(--accent,#3a7dff)">${requiredPts} pts</strong> to unlock <strong>${game.title}</strong></div>` : ''}
       </div>
       <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;">
-        ${ways.map(w=>`<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--bg,#f9fafb);border-radius:12px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));"><span style="font-size:22px;flex-shrink:0;">${w.icon}</span><div style="flex:1;"><div style="font-size:13px;font-weight:700;color:var(--text,#111);">${w.label}</div><div style="font-size:11px;color:var(--muted,#6b7280);">${w.desc}</div></div><span style="font-size:12px;font-weight:700;color:#22c55e;white-space:nowrap;">${w.pts}</span></div>`).join('')}
+        ${ways.map(w => `<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--bg,#f9fafb);border-radius:12px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));"><span style="font-size:22px;flex-shrink:0;">${w.icon}</span><div style="flex:1;"><div style="font-size:13px;font-weight:700;color:var(--text,#111);">${w.label}</div><div style="font-size:11px;color:var(--muted,#6b7280);">${w.desc}</div></div><span style="font-size:12px;font-weight:700;color:#22c55e;white-space:nowrap;">${w.pts}</span></div>`).join('')}
       </div>
       <div style="display:flex;gap:10px;">
         <button id="earn-spin-btn" style="flex:1;padding:12px;background:linear-gradient(135deg,#8b5cf6,#ec4899);color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;">🎰 Spin Now</button>
@@ -1923,35 +1927,35 @@ function showEarnPointsModal(game, requiredPts) {
   document.body.appendChild(modal);
   const close = () => modal.remove();
   document.getElementById('earn-close-btn').addEventListener('click', close);
-  modal.addEventListener('click', e => { if(e.target===modal) close(); });
+  modal.addEventListener('click', e => { if (e.target === modal) close(); });
   document.getElementById('earn-spin-btn').addEventListener('click', () => { close(); window.openSpinWheel?.(); });
 }
 
 /* ===================== SPIN WHEEL ===================== */
-window.openSpinWheel = async function() {
+window.openSpinWheel = async function () {
   document.getElementById('flux-spin-modal')?.remove();
   const lastSpin = await getLastSpin();
-  const cooldownMs = lastSpin ? Math.max(0, new Date(lastSpin).getTime()+3600000-Date.now()) : 0;
+  const cooldownMs = lastSpin ? Math.max(0, new Date(lastSpin).getTime() + 3600000 - Date.now()) : 0;
   const segs = SPIN_SEGMENTS;
-  const total = segs.reduce((s,seg)=>s+seg.weight,0);
-  const size=260, cx=130, cy=130, r=126;
-  let svgSlices=''; let angle=-Math.PI/2;
+  const total = segs.reduce((s, seg) => s + seg.weight, 0);
+  const size = 260, cx = 130, cy = 130, r = 126;
+  let svgSlices = ''; let angle = -Math.PI / 2;
   segs.forEach(seg => {
-    const sweep=(seg.weight/total)*2*Math.PI;
-    const x1=cx+r*Math.cos(angle),y1=cy+r*Math.sin(angle);
-    const x2=cx+r*Math.cos(angle+sweep),y2=cy+r*Math.sin(angle+sweep);
-    const large=sweep>Math.PI?1:0;
-    const mid=angle+sweep/2, tx=cx+(r*0.65)*Math.cos(mid), ty=cy+(r*0.65)*Math.sin(mid);
-    svgSlices+=`<path d="M${cx},${cy} L${x1.toFixed(2)},${y1.toFixed(2)} A${r},${r} 0 ${large},1 ${x2.toFixed(2)},${y2.toFixed(2)} Z" fill="${seg.color}" stroke="white" stroke-width="1.5"/>`;
-    svgSlices+=`<text x="${tx.toFixed(2)}" y="${ty.toFixed(2)}" text-anchor="middle" dominant-baseline="middle" fill="white" font-size="10" font-weight="700" font-family="DM Sans,sans-serif" transform="rotate(${(mid*180/Math.PI).toFixed(1)},${tx.toFixed(2)},${ty.toFixed(2)})">${seg.label}</text>`;
-    angle+=sweep;
+    const sweep = (seg.weight / total) * 2 * Math.PI;
+    const x1 = cx + r * Math.cos(angle), y1 = cy + r * Math.sin(angle);
+    const x2 = cx + r * Math.cos(angle + sweep), y2 = cy + r * Math.sin(angle + sweep);
+    const large = sweep > Math.PI ? 1 : 0;
+    const mid = angle + sweep / 2, tx = cx + (r * 0.65) * Math.cos(mid), ty = cy + (r * 0.65) * Math.sin(mid);
+    svgSlices += `<path d="M${cx},${cy} L${x1.toFixed(2)},${y1.toFixed(2)} A${r},${r} 0 ${large},1 ${x2.toFixed(2)},${y2.toFixed(2)} Z" fill="${seg.color}" stroke="white" stroke-width="1.5"/>`;
+    svgSlices += `<text x="${tx.toFixed(2)}" y="${ty.toFixed(2)}" text-anchor="middle" dominant-baseline="middle" fill="white" font-size="10" font-weight="700" font-family="DM Sans,sans-serif" transform="rotate(${(mid * 180 / Math.PI).toFixed(1)},${tx.toFixed(2)},${ty.toFixed(2)})">${seg.label}</text>`;
+    angle += sweep;
   });
-  const onCooldown=cooldownMs>0;
-  const mL=Math.floor(cooldownMs/60000), sL=Math.floor((cooldownMs%60000)/1000);
-  const modal=document.createElement('div');
-  modal.id='flux-spin-modal';
-  modal.style.cssText='position:fixed;inset:0;z-index:9100;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.65);backdrop-filter:blur(8px);padding:20px;box-sizing:border-box;font-family:inherit;';
-  modal.innerHTML=`
+  const onCooldown = cooldownMs > 0;
+  const mL = Math.floor(cooldownMs / 60000), sL = Math.floor((cooldownMs % 60000) / 1000);
+  const modal = document.createElement('div');
+  modal.id = 'flux-spin-modal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:9100;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.65);backdrop-filter:blur(8px);padding:20px;box-sizing:border-box;font-family:inherit;';
+  modal.innerHTML = `
     <div style="background:var(--panel,#fff);border-radius:24px;padding:28px 24px;max-width:360px;width:100%;box-shadow:0 30px 80px rgba(0,0,0,0.3);text-align:center;">
       <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:var(--text,#111);margin-bottom:4px;">🎰 Spin Wheel</div>
       <div style="font-size:12px;color:var(--muted,#6b7280);margin-bottom:16px;">Spin once per hour to win points!</div>
@@ -1960,48 +1964,48 @@ window.openSpinWheel = async function() {
         <div style="position:absolute;top:-8px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:10px solid transparent;border-right:10px solid transparent;border-top:22px solid #111827;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3));"></div>
       </div>
       <div id="spin-result" style="min-height:44px;display:flex;align-items:center;justify-content:center;margin-bottom:16px;font-size:20px;font-weight:700;color:var(--text,#111);"></div>
-      ${onCooldown?`<div style="padding:12px;background:rgba(239,68,68,0.08);border-radius:12px;border:1px solid rgba(239,68,68,0.15);margin-bottom:14px;"><div style="font-size:13px;color:#ef4444;font-weight:700;">⏱ Next spin in</div><div id="spin-countdown" style="font-size:22px;font-weight:800;color:#ef4444;">${mL}m ${sL}s</div></div>`:''}
-      <button id="spin-btn" ${onCooldown?'disabled':''} style="width:100%;padding:13px;background:${onCooldown?'#d1d5db':'linear-gradient(135deg,#8b5cf6,#ec4899)'};color:white;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:${onCooldown?'not-allowed':'pointer'};margin-bottom:10px;">${onCooldown?'⏳ On Cooldown':'🎰 Spin!'}</button>
+      ${onCooldown ? `<div style="padding:12px;background:rgba(239,68,68,0.08);border-radius:12px;border:1px solid rgba(239,68,68,0.15);margin-bottom:14px;"><div style="font-size:13px;color:#ef4444;font-weight:700;">⏱ Next spin in</div><div id="spin-countdown" style="font-size:22px;font-weight:800;color:#ef4444;">${mL}m ${sL}s</div></div>` : ''}
+      <button id="spin-btn" ${onCooldown ? 'disabled' : ''} style="width:100%;padding:13px;background:${onCooldown ? '#d1d5db' : 'linear-gradient(135deg,#8b5cf6,#ec4899)'};color:white;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:${onCooldown ? 'not-allowed' : 'pointer'};margin-bottom:10px;">${onCooldown ? '⏳ On Cooldown' : '🎰 Spin!'}</button>
       <button id="spin-close-btn" style="width:100%;padding:11px;background:none;border:1px solid var(--glass-border,rgba(0,0,0,0.1));border-radius:12px;font-size:14px;cursor:pointer;color:var(--text,#111);">Close</button>
     </div>`;
   document.body.appendChild(modal);
-  const close=()=>modal.remove();
-  document.getElementById('spin-close-btn').addEventListener('click',close);
-  modal.addEventListener('click',e=>{if(e.target===modal)close();});
-  if(onCooldown){
-    const cEl=document.getElementById('spin-countdown');
-    const tick=setInterval(()=>{
-      const rem=Math.max(0,new Date(lastSpin).getTime()+3600000-Date.now());
-      if(!document.getElementById('spin-countdown')){clearInterval(tick);return;}
-      if(rem<=0){cEl.textContent='Ready!';clearInterval(tick);return;}
-      cEl.textContent=Math.floor(rem/60000)+'m '+Math.floor((rem%60000)/1000)+'s';
-    },1000);
+  const close = () => modal.remove();
+  document.getElementById('spin-close-btn').addEventListener('click', close);
+  modal.addEventListener('click', e => { if (e.target === modal) close(); });
+  if (onCooldown) {
+    const cEl = document.getElementById('spin-countdown');
+    const tick = setInterval(() => {
+      const rem = Math.max(0, new Date(lastSpin).getTime() + 3600000 - Date.now());
+      if (!document.getElementById('spin-countdown')) { clearInterval(tick); return; }
+      if (rem <= 0) { cEl.textContent = 'Ready!'; clearInterval(tick); return; }
+      cEl.textContent = Math.floor(rem / 60000) + 'm ' + Math.floor((rem % 60000) / 1000) + 's';
+    }, 1000);
   }
-  document.getElementById('spin-btn').addEventListener('click', async()=>{
-    const btn=document.getElementById('spin-btn'), res=document.getElementById('spin-result');
-    btn.disabled=true; btn.textContent='Spinning...';
-    const result=await spinWheel();
-    if(!result.ok){res.innerHTML=`<span style="color:#ef4444;font-size:14px;">${result.error==='cooldown'?'⏱ Come back later!':result.error}</span>`;btn.disabled=false;btn.textContent='🎰 Spin!';return;}
-    const seg=result.segment;
-    const segIdx=segs.findIndex(s=>s.label===seg.label);
-    const segAngleDeg=segs.slice(0,segIdx).reduce((acc,s)=>acc+(s.weight/total)*360,0)+(seg.weight/total)*180;
-    const spins=5+Math.random()*3;
-    document.getElementById('spin-wheel-svg').style.transform=`rotate(${spins*360+(360-segAngleDeg)}deg)`;
-    setTimeout(()=>{
-      if(seg.points>0) res.innerHTML=`<span style="color:#22c55e;">🎉 You won <strong style="font-size:28px;">${seg.points}</strong> pts!</span>`;
-      else res.innerHTML=`<span style="color:#6b7280;">😅 Try again next hour!</span>`;
-      btn.textContent='⏳ Come back in 1 hour';
-    },4200);
+  document.getElementById('spin-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('spin-btn'), res = document.getElementById('spin-result');
+    btn.disabled = true; btn.textContent = 'Spinning...';
+    const result = await spinWheel();
+    if (!result.ok) { res.innerHTML = `<span style="color:#ef4444;font-size:14px;">${result.error === 'cooldown' ? '⏱ Come back later!' : result.error}</span>`; btn.disabled = false; btn.textContent = '🎰 Spin!'; return; }
+    const seg = result.segment;
+    const segIdx = segs.findIndex(s => s.label === seg.label);
+    const segAngleDeg = segs.slice(0, segIdx).reduce((acc, s) => acc + (s.weight / total) * 360, 0) + (seg.weight / total) * 180;
+    const spins = 5 + Math.random() * 3;
+    document.getElementById('spin-wheel-svg').style.transform = `rotate(${spins * 360 + (360 - segAngleDeg)}deg)`;
+    setTimeout(() => {
+      if (seg.points > 0) res.innerHTML = `<span style="color:#22c55e;">🎉 You won <strong style="font-size:28px;">${seg.points}</strong> pts!</span>`;
+      else res.innerHTML = `<span style="color:#6b7280;">😅 Try again next hour!</span>`;
+      btn.textContent = '⏳ Come back in 1 hour';
+    }, 4200);
   });
 };
 
 /* ===================== GIFT POINTS MODAL ===================== */
-window.openGiftPoints = function() {
+window.openGiftPoints = function () {
   document.getElementById('flux-gift-modal')?.remove();
-  const modal=document.createElement('div');
-  modal.id='flux-gift-modal';
-  modal.style.cssText='position:fixed;inset:0;z-index:9100;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(6px);padding:20px;box-sizing:border-box;font-family:inherit;';
-  modal.innerHTML=`
+  const modal = document.createElement('div');
+  modal.id = 'flux-gift-modal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:9100;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(6px);padding:20px;box-sizing:border-box;font-family:inherit;';
+  modal.innerHTML = `
     <div style="background:var(--panel,#fff);border-radius:20px;padding:28px 24px;max-width:380px;width:100%;box-shadow:0 30px 80px rgba(0,0,0,0.25);">
       <div style="text-align:center;margin-bottom:20px;"><div style="font-size:40px;margin-bottom:8px;">🎁</div><div style="font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--text,#111);">Gift Points</div><div style="font-size:13px;color:var(--muted,#6b7280);margin-top:4px;">Send your points to another player. Daily cap: 500 pts.</div></div>
       <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;">
@@ -2016,34 +2020,34 @@ window.openGiftPoints = function() {
       </div>
     </div>`;
   document.body.appendChild(modal);
-  const close=()=>modal.remove();
-  document.getElementById('gift-close-btn').addEventListener('click',close);
-  modal.addEventListener('click',e=>{if(e.target===modal)close();});
-  const updatePreview=()=>{
-    const u=document.getElementById('gift-username').value.trim();
-    const a=parseInt(document.getElementById('gift-amount').value)||0;
-    const p=document.getElementById('gift-preview');
-    if(u&&a>0){p.style.display='block';p.innerHTML=`Sending <strong>${a} pts</strong> to <strong>@${u}</strong>`;}
-    else p.style.display='none';
+  const close = () => modal.remove();
+  document.getElementById('gift-close-btn').addEventListener('click', close);
+  modal.addEventListener('click', e => { if (e.target === modal) close(); });
+  const updatePreview = () => {
+    const u = document.getElementById('gift-username').value.trim();
+    const a = parseInt(document.getElementById('gift-amount').value) || 0;
+    const p = document.getElementById('gift-preview');
+    if (u && a > 0) { p.style.display = 'block'; p.innerHTML = `Sending <strong>${a} pts</strong> to <strong>@${u}</strong>`; }
+    else p.style.display = 'none';
   };
-  document.getElementById('gift-username').addEventListener('input',updatePreview);
-  document.getElementById('gift-amount').addEventListener('input',updatePreview);
-  document.getElementById('gift-send-btn').addEventListener('click', async()=>{
-    const username=document.getElementById('gift-username').value.trim().toLowerCase().replace('@','');
-    const amount=parseInt(document.getElementById('gift-amount').value);
-    const msg=document.getElementById('gift-msg'), btn=document.getElementById('gift-send-btn');
-    if(!username){msg.style.color='#ef4444';msg.textContent='Enter a username.';msg.style.display='block';return;}
-    if(!amount||amount<1){msg.style.color='#ef4444';msg.textContent='Enter a valid amount.';msg.style.display='block';return;}
-    btn.textContent='Sending...';btn.disabled=true;
-    const res=await giftPointsToUser(username,amount);
-    msg.style.display='block';
-    if(res.ok){msg.style.color='#22c55e';msg.textContent=`✓ Sent ${amount} pts to @${username}! Balance: ${res.newBalance} pts`;setTimeout(close,2500);}
-    else{msg.style.color='#ef4444';msg.textContent=res.error;btn.textContent='🎁 Send Gift';btn.disabled=false;}
+  document.getElementById('gift-username').addEventListener('input', updatePreview);
+  document.getElementById('gift-amount').addEventListener('input', updatePreview);
+  document.getElementById('gift-send-btn').addEventListener('click', async () => {
+    const username = document.getElementById('gift-username').value.trim().toLowerCase().replace('@', '');
+    const amount = parseInt(document.getElementById('gift-amount').value);
+    const msg = document.getElementById('gift-msg'), btn = document.getElementById('gift-send-btn');
+    if (!username) { msg.style.color = '#ef4444'; msg.textContent = 'Enter a username.'; msg.style.display = 'block'; return; }
+    if (!amount || amount < 1) { msg.style.color = '#ef4444'; msg.textContent = 'Enter a valid amount.'; msg.style.display = 'block'; return; }
+    btn.textContent = 'Sending...'; btn.disabled = true;
+    const res = await giftPointsToUser(username, amount);
+    msg.style.display = 'block';
+    if (res.ok) { msg.style.color = '#22c55e'; msg.textContent = `✓ Sent ${amount} pts to @${username}! Balance: ${res.newBalance} pts`; setTimeout(close, 2500); }
+    else { msg.style.color = '#ef4444'; msg.textContent = res.error; btn.textContent = '🎁 Send Gift'; btn.disabled = false; }
   });
 };
 
 /* ===================== REDEEM CODE MODAL ===================== */
-window.openRedeemCode = function() {
+window.openRedeemCode = function () {
   document.getElementById('flux-redeem-modal')?.remove();
   const modal = document.createElement('div');
   modal.id = 'flux-redeem-modal';
@@ -2098,11 +2102,10 @@ window.openRedeemCode = function() {
       result.style.background = 'rgba(34,197,94,0.1)';
       result.style.border = '1px solid rgba(34,197,94,0.25)';
       result.style.color = '#16a34a';
-      result.innerHTML = `${res.message}<br><span style="font-size:12px;font-weight:400;opacity:0.8;">${
-        res.type === 'points' ? 'Points added to your balance instantly.' :
-        res.type === 'game' ? 'Game is now unlocked — play it from the games page.' :
-        `${res.value} free spin${res.value > 1 ? 's' : ''} added. Use them from your profile menu.`
-      }</span>`;
+      result.innerHTML = `${res.message}<br><span style="font-size:12px;font-weight:400;opacity:0.8;">${res.type === 'points' ? 'Points added to your balance instantly.' :
+          res.type === 'game' ? 'Game is now unlocked — play it from the games page.' :
+            `${res.value} free spin${res.value > 1 ? 's' : ''} added. Use them from your profile menu.`
+        }</span>`;
       input.value = '';
       input.style.borderColor = '#22c55e';
       setTimeout(() => { input.style.borderColor = ''; }, 2000);
