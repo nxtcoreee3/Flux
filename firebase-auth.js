@@ -1,3 +1,5 @@
+/* firebase-auth.js — Flux
+   Core Firebase initialization, authentication, and global services
 */
 
 window.hideGlobalLoader = () => {
