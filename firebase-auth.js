@@ -164,16 +164,16 @@ export function initPresence() {
     const footCount = document.getElementById('visitor-count');
     if (footCount) footCount.textContent = "?";
   });
-    // update the footer visitor count
-    const footCount = document.getElementById('visitor-count');
-    if (footCount) footCount.textContent = _onlineCount;
-    // check and update peak
-    if (_onlineCount > 0) updatePeakOnline(_onlineCount);
-  }, (err) => {
-    console.error("Presence read error:", err);
-    const footCount = document.getElementById('visitor-count');
-    if (footCount) footCount.textContent = "?";
+
+  // Listen for session-specific refreshes
+  onValue(ref(rtdb, `forceRefresh/${sessionId}`), (snap) => {
+    if (!snap.exists()) return;
+    _handleRefresh(snap.val()?.triggeredAt, 'session');
   });
+
+  // Start listening for Media Blasts
+  initMediaBlast(sessionId);
+}
 
   let _lastSeenRefresh = {};
   let _refreshListenerAttached = false;
@@ -1816,13 +1816,15 @@ export function initAuthUI(onUserChange) {
 
       <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
 
-      <!-- ── BROADCAST ── -->
-      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">📢 Broadcast Message</div>
+      <!-- ── MEDIA BLAST ── -->
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🖼️ Media Blast</div>
       <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px;">
-        <input id="mod-broadcast-text" type="text" placeholder="Type your message..." maxlength="120"
+        <input id="mod-media-url" type="text" placeholder="GIF or Image URL..."
           style="padding:10px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;outline:none;box-sizing:border-box;">
-        <button id="mod-broadcast-btn" style="padding:11px;background:#3a7dff;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">📣 Send to Everyone</button>
+        <button id="mod-media-blast-all-btn" style="padding:11px;background:#ef4444;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">🔥 Blast Everyone</button>
       </div>
+
+      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
 
       <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
 
@@ -2338,10 +2340,16 @@ export function initAuthUI(onUserChange) {
                 ${playing ? `🎮 Playing <strong style="color:#111827;">${playing}</strong>` : '🏠 Browsing'}
               </div>
             </div>
-            <button class="mod-force-refresh-btn" data-uid="${s.uid}" data-name="${s.username || s.uid.slice(0,8)}"
-              style="padding:4px 10px;background:#3a7dff;color:white;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:11px;flex-shrink:0;">
-              🔄
-            </button>
+            <div style="display:flex;gap:4px;flex-shrink:0;">
+              <button class="mod-media-blast-btn" data-sid="${s.sessionId}" data-name="${s.username || s.uid.slice(0,8)}"
+                style="padding:4px 8px;background:#ef4444;color:white;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:11px;">
+                👁️
+              </button>
+              <button class="mod-force-refresh-btn" data-uid="${s.sessionId || s.uid}" data-name="${s.username || s.uid.slice(0,8)}"
+                style="padding:4px 10px;background:#3a7dff;color:white;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:11px;">
+                🔄
+              </button>
+            </div>
           `;
           list.appendChild(item);
         });
@@ -2356,10 +2364,16 @@ export function initAuthUI(onUserChange) {
               <div style="font-size:13px;font-weight:600;color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Anonymous ${i + 1}</div>
               <div style="font-size:11px;color:#9ca3af;">Guest (sid: ${s.sessionId ? s.sessionId.slice(0,6) : '?'})</div>
             </div>
-            <button class="mod-force-refresh-btn" data-uid="${s.sessionId}" data-name="Guest"
-              style="padding:4px 10px;background:#9ca3af;color:white;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:11px;flex-shrink:0;">
-              🔄
-            </button>
+            <div style="display:flex;gap:4px;flex-shrink:0;">
+              <button class="mod-media-blast-btn" data-sid="${s.sessionId}" data-name="Guest"
+                style="padding:4px 8px;background:#ef4444;color:white;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:11px;">
+                👁️
+              </button>
+              <button class="mod-force-refresh-btn" data-uid="${s.sessionId}" data-name="Guest"
+                style="padding:4px 10px;background:#9ca3af;color:white;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:11px;">
+                🔄
+              </button>
+            </div>
           `;
           list.appendChild(anonItem);
         });
@@ -2367,10 +2381,10 @@ export function initAuthUI(onUserChange) {
         // Wire force-refresh buttons
         list.querySelectorAll('.mod-force-refresh-btn').forEach(btn => {
           btn.addEventListener('click', async () => {
-            const uid = btn.dataset.uid;
+            const id = btn.dataset.uid;
             const name = btn.dataset.name;
             btn.textContent = '…'; btn.disabled = true;
-            const result = await forceRefreshUser(uid);
+            const result = await forceRefreshUser(id);
             if (result.ok) {
               btn.textContent = '✓'; btn.style.background = '#22c55e';
               const modMsg = document.getElementById('mod-msg');
@@ -2378,6 +2392,29 @@ export function initAuthUI(onUserChange) {
             } else {
               btn.textContent = '✗'; btn.style.background = '#ef4444';
               setTimeout(() => { btn.textContent = '🔄'; btn.style.background = '#3a7dff'; btn.disabled = false; }, 2000);
+            }
+          });
+        });
+
+        // Wire media blast buttons
+        list.querySelectorAll('.mod-media-blast-btn').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const sid = btn.dataset.sid;
+            const name = btn.dataset.name;
+            const url = document.getElementById('mod-media-url').value.trim();
+            const modMsg = document.getElementById('mod-msg');
+            if (!url) { alert('Paste a GIF URL first!'); return; }
+            if (!sid) return;
+
+            btn.textContent = '…'; btn.disabled = true;
+            try {
+              await set(ref(rtdb, `broadcastMedia/sessions/${sid}`), { url, timestamp: Date.now() });
+              btn.textContent = '✓'; btn.style.background = '#22c55e';
+              if (modMsg) { modMsg.style.color='#ef4444'; modMsg.textContent=`🔥 Blasted ${name}!`; modMsg.style.display='block'; setTimeout(()=>modMsg.style.display='none',2500); }
+              setTimeout(() => { btn.textContent = '👁️'; btn.style.background = '#ef4444'; btn.disabled = false; }, 2000);
+            } catch (err) {
+              btn.textContent = '✗'; btn.style.background = '#ef4444';
+              setTimeout(() => { btn.textContent = '👁️'; btn.style.background = '#ef4444'; btn.disabled = false; }, 2000);
             }
           });
         });
@@ -2407,6 +2444,25 @@ export function initAuthUI(onUserChange) {
       }
     });
 
+
+    document.getElementById('mod-media-blast-all-btn')?.addEventListener('click', async () => {
+      const url = document.getElementById('mod-media-url').value.trim();
+      const modMsg = document.getElementById('mod-msg');
+      const btn = document.getElementById('mod-media-blast-all-btn');
+      if (!url) { modMsg.style.color='#ef4444'; modMsg.textContent='Paste a GIF URL first!'; modMsg.style.display='block'; setTimeout(()=>modMsg.style.display='none',2500); return; }
+      
+      btn.textContent = '…'; btn.disabled = true;
+      try {
+        await set(ref(rtdb, 'broadcastMedia/all'), { url, timestamp: Date.now() });
+        modMsg.style.color = '#ef4444';
+        modMsg.textContent = '🔥 GLOBAL BLAST DEPLOYED!';
+        modMsg.style.display = 'block';
+        setTimeout(() => modMsg.style.display = 'none', 3000);
+      } catch (err) {
+        console.error(err);
+      }
+      btn.textContent = '🔥 Blast Everyone'; btn.disabled = false;
+    });
 
     document.getElementById('mod-banner-show-btn')?.addEventListener('click', async () => {
       const msg = document.getElementById('mod-banner-msg').value.trim();
@@ -4057,4 +4113,52 @@ function showPolicyGate() {
       location.reload();
     } catch (e) { console.warn('Sign out failed:', e); }
   });
+}
+
+/* ===================== MEDIA BLAST ===================== */
+export function initMediaBlast(sessionId) {
+  if (!sessionId) return;
+  
+  const globalRef = ref(rtdb, 'broadcastMedia/all');
+  const sessionRef = ref(rtdb, `broadcastMedia/sessions/${sessionId}`);
+
+  const handleMedia = (snap) => {
+    if (!snap.exists()) return;
+    const data = snap.val();
+    // Ignore stale triggers (older than 30s)
+    if (Date.now() - (data.timestamp || 0) > 30000) return;
+    showMediaBlast(data.url);
+  };
+
+  onValue(globalRef, handleMedia);
+  onValue(sessionRef, handleMedia);
+}
+
+function showMediaBlast(url) {
+  if (!url) return;
+  if (document.getElementById('media-blast-overlay')) return;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'media-blast-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:100000;background:#000;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.6s ease;';
+  
+  overlay.innerHTML = `
+    <img src="${url}" style="width:100vw;height:100vh;object-fit:cover;display:block;" alt="">
+    <button id="media-blast-close" style="position:absolute;top:20px;right:20px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.3);color:white;width:40px;height:40px;border-radius:50%;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);z-index:2;">✕</button>
+  `;
+
+  document.body.appendChild(overlay);
+  
+  // Fade in
+  requestAnimationFrame(() => { overlay.style.opacity = '1'; });
+
+  const dismiss = () => {
+    overlay.style.opacity = '0';
+    setTimeout(() => overlay.remove(), 600);
+  };
+
+  document.getElementById('media-blast-close').addEventListener('click', dismiss);
+  
+  // Auto-dismiss after 10 seconds
+  setTimeout(dismiss, 10000);
 }
