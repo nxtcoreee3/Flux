@@ -18,6 +18,11 @@
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
+        html, body {
+            background-color: #ffffff !important;
+            color: #111827 !important;
+        }
+
         body {
             background: var(--bg);
             color: var(--text);
@@ -27,6 +32,7 @@
             align-items: center;
             justify-content: center;
             overflow: hidden;
+            color-scheme: light !important;
         }
 
         .container {
@@ -45,7 +51,6 @@
             width: 180px;
             height: auto;
             margin-bottom: 32px;
-            filter: drop-shadow(0 0 30px rgba(59, 130, 246, 0.2));
         }
 
         h1 {
@@ -53,10 +58,7 @@
             font-size: 56px;
             letter-spacing: 1px;
             margin-bottom: 12px;
-            background: linear-gradient(to bottom, #111827, #4b5563);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
+            color: #111827 !important;
         }
 
         .reason-box {
@@ -111,6 +113,12 @@
     </div>
 
     <script>
+        // Force pure white background on load to fix dark-mode regressions
+        document.documentElement.classList.remove('dark');
+        document.body.classList.remove('dark');
+        document.documentElement.style.backgroundColor = '#ffffff';
+        document.body.style.backgroundColor = '#ffffff';
+
         const params = new URLSearchParams(window.location.search);
         const reason = params.get('reason');
         const titleEl = document.getElementById('title');

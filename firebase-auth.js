@@ -163,8 +163,9 @@ export function initPresence() {
   // Listen for session-specific kicks (Admin Kick)
   onValue(ref(rtdb, `presence_kills/${sessionId}`), async (snap) => {
     if (snap.exists() && snap.val() === true) {
+      console.log("KICK SIGNAL RECEIVED (Session)");
       if (typeof auth.signOut === 'function') await auth.signOut();
-      location.replace('kicked.html?reason=admin');
+      window.location.href = 'kicked.html?reason=admin';
     }
   });
 
@@ -173,8 +174,9 @@ export function initPresence() {
     if (user && !user.isAnonymous) {
       onValue(ref(rtdb, `presence_kills/${user.uid}`), async (snap) => {
         if (snap.exists() && snap.val() === true) {
+          console.log("KICK SIGNAL RECEIVED (UID)");
           if (typeof auth.signOut === 'function') await auth.signOut();
-          location.replace('kicked.html?reason=admin');
+          window.location.href = 'kicked.html?reason=admin';
         }
       });
     }
@@ -1520,7 +1522,7 @@ function showBanOverlay(reason, bannedAt) {
   window._fluxBanned = true;
 }
 
-export function initAuthUI(onUserChange) {
+export async function initAuthUI(onUserChange) {
   // Handle redirect result from GitHub/Google sign-in on Safari
   import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js").then(({ getRedirectResult }) => {
     getRedirectResult(auth).catch(() => {});
@@ -1783,195 +1785,324 @@ export function initAuthUI(onUserChange) {
   // Mod modal
   const modModal = document.createElement('div');
   modModal.id = 'mod-modal';
-  modModal.style.cssText = 'display:none;position:fixed;inset:0;z-index:700;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(10px);overflow-y:auto;padding:20px;';
+  modModal.style.cssText = 'display:none;position:fixed;inset:0;z-index:700;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(3px);overflow-y:auto;padding:20px;';
   modModal.innerHTML = `
-    <div style="background:#fff;border-radius:24px;padding:32px;width:100%;max-width:860px;box-shadow:0 40px 100px rgba(0,0,0,0.3);position:relative;margin:auto;">
-      <button id="mod-modal-close" style="position:absolute;top:20px;right:20px;background:#f3f4f6;border:none;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;color:#6b7280;transition:all 0.2s;" onmouseover="this.style.background='#e5e7eb'" onmouseout="this.style.background='#f3f4f6'">✕</button>
+    <div style="background:#fff;border-radius:24px;padding:28px;width:100%;max-width:520px;box-shadow:0 10px 40px rgba(0,0,0,0.2);position:relative;margin:auto;">
+      <button id="mod-modal-close" style="position:absolute;top:18px;right:18px;background:none;border:none;font-size:24px;cursor:pointer;color:#9ca3af;line-height:1;">✕</button>
       
-      <div style="display:flex;align-items:center;gap:14px;margin-bottom:28px;">
-        <div style="width:48px;height:48px;background:#3a7dff10;color:#3a7dff;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;">⚙️</div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid rgba(0,0,0,0.06);">
+        <div style="font-size:24px;">⚙️</div>
         <div>
-          <h3 style="font-family:'Bebas Neue',sans-serif;font-size:32px;margin:0;color:#111827;letter-spacing:0.5px;">Executive Panel</h3>
-          <p style="font-size:12px;color:#6b7280;margin:0;">Full server oversight & administrative controls</p>
+          <h3 style="font-family:'Bebas Neue',sans-serif;font-size:28px;margin:0;color:#111827;letter-spacing:0.5px;">Executive Panel</h3>
+          <p style="font-size:11px;color:#6b7280;margin:0;text-transform:uppercase;letter-spacing:0.5px;font-weight:700;">Administrative & Global Control</p>
         </div>
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+      <!-- ── ONLINE SESSIONS ── -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">👥 Online Sessions</div>
+        <button id="mod-reload-users-btn" style="background:none;border:none;color:#3a7dff;font-size:11px;font-weight:800;cursor:pointer;">REFRESH LIST</button>
+      </div>
+
+      <div style="background:#f9fafb;border-radius:12px;padding:12px;border:1px solid rgba(0,0,0,0.05);margin-bottom:16px;">
+        <div id="mod-online-summary" style="font-size:12px;color:#111827;font-weight:700;margin-bottom:10px;">Loading sessions...</div>
+        <div id="mod-online-users-list" style="display:flex;flex-direction:column;gap:6px;max-height:180px;overflow-y:auto;padding-right:4px;"></div>
         
-        <!-- LEFT COLUMN: SESSIONS & MASTER CONTROL -->
-        <div>
-          <!-- 👥 ONLINE SESSIONS -->
-          <div style="background:#f9fafb;border-radius:20px;padding:20px;margin-bottom:24px;border:1px solid #f3f4f6;">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-              <div style="font-size:11px;font-weight:800;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;">👥 Live Sessions</div>
-              <button id="mod-reload-users-btn" style="background:none;border:none;color:#3a7dff;font-size:11px;font-weight:700;cursor:pointer;">Refresh</button>
-            </div>
-            <div id="mod-online-summary" style="font-size:13px;color:#111827;font-weight:600;margin-bottom:12px;">...</div>
-            <div id="mod-online-users-list" style="display:flex;flex-direction:column;gap:8px;max-height:220px;overflow-y:auto;padding-right:4px;"></div>
-            <div style="display:flex;gap:8px;margin-top:16px;">
-              <button id="mod-refresh-all-btn" style="flex:1;padding:10px;background:#ef4444;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:12px;">🔄 Global Refresh</button>
-              <button id="mod-purge-stale-btn" title="Purge inactive" style="padding:10px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;cursor:pointer;">🗑️</button>
-            </div>
-          </div>
-
-          <!-- ⚠️ MASTER CONTROL -->
-          <div style="background:#111827;border-radius:20px;padding:20px;color:white;margin-bottom:24px;">
-            <div style="font-size:10px;font-weight:800;color:#4b5563;text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;">⚠️ Server State</div>
-            <div id="mod-current-status" style="font-size:13px;font-weight:600;margin-bottom:14px;color:#fff;">...</div>
-            <div style="display:flex;gap:8px;">
-               <button id="mod-restore-btn" style="flex:1;padding:10px;background:#22c55e;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:12px;">✅ Restore</button>
-               <button id="mod-shutdown-btn" style="flex:1;padding:10px;background:#ef4444;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:12px;">🔴 Shut Down</button>
-            </div>
-            <div style="margin-top:10px;display:flex;gap:8px;">
-              <select id="mod-duration" style="flex:1.5;background:#1f2937;color:white;border:1px solid #374151;border-radius:8px;padding:6px;font-size:11px;">
-                <option value="0">Forever</option>
-                <option value="5">5 Mins</option>
-                <option value="30">30 Mins</option>
-              </select>
-              <button id="mod-crash-btn" style="flex:1;padding:6px;background:#f59e0b;color:white;border:none;border-radius:8px;font-weight:700;font-size:10px;">💥 Crash</button>
-            </div>
-          </div>
-
-          <!-- 👤 USER MANAGEMENT -->
-          <div style="background:#fff;border-radius:20px;padding:20px;border:1px solid #e5e7eb;margin-bottom:24px;">
-            <div style="font-size:11px;font-weight:800;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;margin-bottom:16px;">👤 User Ops</div>
-            
-            <!-- Kick by Username -->
-            <div style="margin-bottom:16px;">
-              <label style="display:block;font-size:10px;color:#9ca3af;margin-bottom:4px;">Force Kick (Username)</label>
-              <div style="display:flex;gap:8px;">
-                <input id="mod-kick-username" type="text" placeholder="@username" style="flex:1;padding:8px 12px;border:1px solid #e5e7eb;border-radius:10px;font-size:13px;">
-                <button id="mod-kick-user-btn" style="padding:8px 16px;background:#ef4444;color:white;border:none;border-radius:10px;font-weight:700;font-size:11px;cursor:pointer;">KICK & LOGOUT</button>
-              </div>
-            </div>
-
-            <!-- Gift Points -->
-            <div>
-              <label style="display:block;font-size:10px;color:#9ca3af;margin-bottom:4px;">Gift Points</label>
-              <div style="display:flex;gap:8px;margin-bottom:8px;">
-                <input id="mod-gift-username" type="text" placeholder="@username" style="flex:1.5;padding:8px 12px;border:1px solid #e5e7eb;border-radius:10px;font-size:13px;">
-                <input id="mod-gift-amount" type="number" placeholder="Pts" style="flex:1;padding:8px 12px;border:1px solid #e5e7eb;border-radius:10px;font-size:13px;">
-              </div>
-              <button id="mod-gift-btn" style="width:100%;padding:10px;background:#f59e0b;color:white;border:none;border-radius:10px;font-weight:700;font-size:12px;cursor:pointer;">🎁 Send Gift</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- RIGHT COLUMN: CHAT, ABUSES, ECONOMY -->
-        <div>
-          <!-- 🛠️ SYSTEM TOOLS -->
-          <div style="background:#fff;border-radius:20px;padding:20px;border:1px solid #e5e7eb;margin-bottom:24px;">
-            <div style="font-size:11px;font-weight:800;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;margin-bottom:16px;">🛠️ Service & Incident</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
-              ${['firestore', 'googleAuth', 'website', 'games'].map(key => {
-                const labels = { firestore:'🔥 DB', googleAuth:'🔐 Auth', website:'🌐 Web', games:'🎮 Games' };
-                return `<div style="display:flex;flex-direction:column;gap:4px;">
-                  <span style="font-size:10px;font-weight:700;color:#4b5563;">${labels[key]}</span>
-                  <select class="mod-svc-status" data-key="${key}" style="padding:5px;border:1px solid #e5e7eb;border-radius:6px;font-size:10px;background:#f9fafb;">
-                    <option value="operational">✅ OK</option>
-                    <option value="degraded">⚠️ Low</option>
-                    <option value="outage">🔴 Out</option>
-                  </select>
-                  <button class="mod-svc-flag-btn" data-key="${key}" style="padding:4px;background:#3a7dff;color:white;border:none;border-radius:6px;font-size:9px;">Update</button>
-                </div>`;
-              }).join('')}
-            </div>
-            <div style="display:flex;gap:8px;margin-bottom:16px;">
-              <select id="mod-banner-type" style="flex:1;padding:8px;border:1px solid #e5e7eb;border-radius:10px;font-size:12px;background:#f9fafb;">
-                <option value="warning">Warning</option>
-                <option value="error">Outage</option>
-                <option value="info">Info</option>
-              </select>
-              <button id="mod-banner-show-btn" style="flex:1;padding:8px;background:#f59e0b;color:white;border:none;border-radius:10px;font-weight:700;font-size:11px;">Post Banner</button>
-              <button id="mod-banner-hide-btn" style="padding:8px;background:#e5e7eb;color:#6b7280;border:none;border-radius:10px;">✕</button>
-            </div>
-            <div style="display:flex;gap:8px;">
-               <input id="mod-broadcast-text" type="text" placeholder="Global broadcast..." style="flex:2;padding:8px 12px;border:1px solid #e5e7eb;border-radius:10px;font-size:12px;">
-               <button id="mod-broadcast-btn" style="flex:1;padding:8px;background:#3a7dff;color:white;border:none;border-radius:10px;font-weight:700;font-size:11px;">Sent</button>
-            </div>
-          </div>
-
-          <!-- 😈 CHAOS CONTROL -->
-          <div style="background:#fff;border-radius:20px;padding:20px;border:1px solid #e5e7eb;margin-bottom:24px;">
-            <div style="font-size:11px;font-weight:800;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;margin-bottom:16px;">😈 Admin Abuse (Global)</div>
-            <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;margin-bottom:12px;">
-              <button class="abuse-btn" data-effect="shake" style="padding:8px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;font-size:11px;font-weight:600;">🫨 Shake</button>
-              <button class="abuse-btn" data-effect="flip" style="padding:8px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;font-size:11px;font-weight:600;">🙃 Flip</button>
-              <button class="abuse-btn" data-effect="confetti" style="padding:8px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;font-size:11px;font-weight:600;">🎉 Party</button>
-              <button class="abuse-btn" data-effect="crazytext" style="padding:8px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;font-size:11px;font-weight:600;">🤪 Text</button>
-              <button class="abuse-btn" data-effect="colour" style="padding:8px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;font-size:11px;font-weight:600;">🎨 Color</button>
-              <button id="mod-jumpscare-btn" style="padding:8px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;font-size:11px;font-weight:600;">😱 Scare</button>
-            </div>
-            <button id="mod-abuse-stop" style="width:100%;padding:10px;background:#ef4444;color:white;border:none;border-radius:10px;font-weight:700;font-size:12px;">🛑 STOP ALL CHAOS</button>
-          </div>
-
-          <!-- 🔒 COMMUNICATIONS -->
-          <div style="background:#fff;border-radius:20px;padding:20px;border:1px solid #e5e7eb;margin-bottom:24px;">
-            <div style="font-size:11px;font-weight:800;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;margin-bottom:16px;">🔒 Chat Locks</div>
-            <div style="display:flex;gap:12px;">
-              <button id="mod-globalchat-lock" style="flex:1;padding:12px;background:#f3f4f6;border-radius:12px;border:none;font-weight:700;font-size:12px;">🌐 Global Chat</button>
-              <button id="mod-dms-lock" style="flex:1;padding:12px;background:#f3f4f6;border-radius:12px;border:none;font-weight:700;font-size:12px;">💬 Private DM</button>
-            </div>
-          </div>
+        <div style="display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px dashed rgba(0,0,0,0.1);">
+          <button id="mod-refresh-all-btn" style="flex:1;padding:10px;background:#ef4444;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:13px;">🔄 Refresh All Clients</button>
+          <button id="mod-purge-stale-btn" style="padding:10px;background:#fff;border:1px solid #d1d5db;border-radius:10px;cursor:pointer;font-size:13px;" title="Purge stale/ghost sessions">🗑️ Purge Ghosts</button>
         </div>
       </div>
 
-      <!-- BOTTOM ROW: ECONOMY & REWARDS (Spans Full Width) -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:24px;border-top:1px dashed #e5e7eb;padding-top:24px;">
-        <div style="background:#f9fafb;border-radius:20px;padding:20px;border:1px solid #f3f4f6;">
-           <div style="font-size:11px;font-weight:800;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;margin-bottom:16px;">🎟️ Reward Codes</div>
-           <div style="display:flex;flex-direction:column;gap:8px;">
-             <input id="mod-code-input" type="text" placeholder="NAME" style="padding:8px 12px;border:1px solid #e5e7eb;border-radius:10px;font-size:11px;text-transform:uppercase;">
-             <select id="mod-code-type" style="padding:8px;border:1px solid #e5e7eb;border-radius:10px;font-size:11px;">
-               <option value="points">⭐ Points</option>
-               <option value="spins">🎰 Spins</option>
-               <option value="game">🎮 Game</option>
-             </select>
-             <input id="mod-code-value-num" type="number" placeholder="Value" style="padding:8px 12px;border:1px solid #e5e7eb;border-radius:10px;font-size:11px;">
-             <button id="mod-code-create-btn" style="padding:10px;background:#7c3aed;color:white;border:none;border-radius:10px;font-weight:700;font-size:12px;">Create Code</button>
-             <div id="mod-codes-list" style="margin-top:10px;max-height:100px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;"></div>
-           </div>
+       <!-- ── INCIDENT CONTROL ── -->
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">⚠️ Global Incident Control</div>
+      <div style="background:#fff4f4;border-radius:14px;padding:16px;border:1px solid #fee2e2;margin-bottom:16px;">
+        <div style="display:flex;gap:10px;margin-bottom:10px;">
+           <select id="mod-banner-type" style="padding:8px;border:1px solid rgba(0,0,0,0.1);border-radius:8px;font-size:12px;outline:none;background:#fff;">
+            <option value="warning">⚠️ Warning</option>
+            <option value="error">🚨 Outage</option>
+            <option value="info">ℹ️ Info</option>
+          </select>
+          <button id="mod-banner-show-btn" style="flex:1;padding:8px;background:#f59e0b;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px;">Display Incident Banner</button>
+          <button id="mod-banner-hide-btn" style="padding:8px;background:#fff;border:1px solid #d1d5db;border-radius:8px;cursor:pointer;" title="Hide/Clear Banner">✕</button>
+        </div>
+        <div id="mod-banner-current" style="font-size:11px;color:#991b1b;font-weight:600;display:none;padding:6px;background:rgba(153,27,27,0.05);border-radius:6px;text-align:center;">Currently active: Outage</div>
+      </div>
+
+      <!-- ── SERVICE FLAGS ── -->
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🛠️ Service Health Flags</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+        ${['firestore', 'googleAuth', 'website', 'games'].map(key => {
+          const labels = { firestore:'🔥 Database', googleAuth:'🔐 Auth', website:'🌐 Website', games:'🎮 Games' };
+          return `<div style="display:flex;flex-direction:column;gap:4px;">
+            <label style="font-size:10px;font-weight:700;color:#4b5563;text-transform:uppercase;">${labels[key]}</label>
+            <div style="display:flex;gap:4px;">
+               <select class="mod-svc-status" data-key="${key}" style="flex:1;padding:5px;border:1px solid #d1d5db;border-radius:6px;font-size:10px;background:#fff;">
+                <option value="operational">Operational</option>
+                <option value="degraded">Performance Issues</option>
+                <option value="outage">Major Outage</option>
+              </select>
+              <button class="mod-svc-flag-btn" data-key="${key}" style="padding:4px 8px;background:#3a7dff;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;">Set</button>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
+
+      <!-- ── MASTER SERVER CONTROL ── -->
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;">🔴 Master Server Control</div>
+      <div style="background:#111827;border-radius:14px;padding:20px;color:white;margin-bottom:20px;">
+        <div id="mod-current-status" style="font-size:13px;font-weight:600;margin-bottom:16px;color:#fff;">Status: Online</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+          <select id="mod-duration" style="padding:9px;background:#1f2937;color:white;border:1px solid #374151;border-radius:10px;font-size:13px;outline:none;">
+            <option value="0">Indefinite</option>
+            <option value="5">For 5 Mins</option>
+            <option value="15">For 15 Mins</option>
+            <option value="60">For 1 Hour</option>
+          </select>
+          <button id="mod-shutdown-btn" style="padding:11px;background:#ef4444;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">🔴 Shutdown</button>
         </div>
         
-        <div style="background:#f9fafb;border-radius:20px;padding:20px;border:1px solid #f3f4f6;">
-           <div style="font-size:11px;font-weight:800;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;margin-bottom:16px;">🔧 Game Mgmt</div>
-           <select id="mod-game-select" style="width:100%;padding:10px;border:1px solid #e5e7eb;border-radius:10px;font-size:12px;margin-bottom:12px;"></select>
-           <div style="display:flex;gap:8px;margin-bottom:12px;">
-             <button id="mod-lock-btn" style="flex:1;padding:10px;background:#ef4444;color:white;border:none;border-radius:10px;font-weight:700;font-size:11px;">🔒 Lock</button>
-             <button id="mod-unlock-btn" style="flex:1;padding:10px;background:#22c55e;color:white;border:none;border-radius:10px;font-weight:700;font-size:11px;">🔓 Unlk</button>
-           </div>
-           <div style="display:flex;gap:4px;">
-             <button class="compat-btn" data-compat="pc" style="flex:1;padding:6px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;font-size:9px;">🖥️ PC</button>
-             <button class="compat-btn" data-compat="ipad" style="flex:1;padding:6px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;font-size:9px;">📱 Mobile</button>
-             <button class="compat-btn" data-compat="both" style="flex:1;padding:6px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;font-size:9px;">✅ Both</button>
-           </div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <select id="mod-crash-reason" style="padding:10px;background:#1f2937;color:white;border:1px solid #374151;border-radius:10px;font-size:12px;outline:none;">
+            <option value="The server is experiencing heavy load. Please try again later.">📉 High server load</option>
+            <option value="An unexpected internal error has caused a server crash. Our team is investigating.">⚠️ Unexpected internal error</option>
+            <option value="The server is under a DDoS attack. We're working to restore access.">🛡️ DDoS attack</option>
+            <option value="A failed deployment has taken the server down. Rolling back now.">🚀 Failed deployment</option>
+          </select>
+          <button id="mod-crash-btn" style="padding:11px;background:#f59e0b;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">💥 Fake Server Crash</button>
+          <button id="mod-restore-btn" style="padding:11px;background:#22c55e;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">✅ Restore Server</button>
         </div>
       </div>
 
-      <!-- MEDIA BLAST TOOLS -->
-      <div style="margin-top:24px;background:#3a7dff08;padding:20px;border-radius:24px;border:1px dashed #3a7dff30;">
-        <div style="font-size:11px;font-weight:800;color:#3a7dff;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">🖼️ Media Blast System</div>
-        <div style="display:flex;gap:12px;align-items:center;">
-          <label style="flex:1.5;padding:14px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;cursor:pointer;text-align:center;font-size:13px;font-weight:700;color:#4b5563;">
-            📂 UPLOAD MEDIA
-            <input type="file" id="mod-media-file" style="display:none;" accept="image/*">
-          </label>
-          <button id="mod-blast-all-btn" style="flex:1;padding:14px;background:#3a7dff;color:white;border:none;border-radius:12px;font-weight:800;font-size:14px;box-shadow:0 8px 24px rgba(58,125,255,0.3);">👁️ GLOBAL EYE</button>
+      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
+
+      <!-- ── BROADCAST ── -->
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">📢 Broadcast Message</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px;">
+        <input id="mod-broadcast-text" type="text" placeholder="Type your message..." maxlength="120"
+          style="padding:10px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;outline:none;box-sizing:border-box;">
+        <button id="mod-broadcast-btn" style="padding:11px;background:#3a7dff;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">📣 Send to Everyone</button>
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
+
+      <!-- ── CHAT LOCK ── -->
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🔒 Chat Controls</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#f9fafb;border-radius:10px;border:1px solid rgba(0,0,0,0.07);">
+          <div>
+            <div style="font-size:13px;font-weight:700;color:#111827;">🌐 Global Chat</div>
+            <div id="global-chat-lock-status" style="font-size:11px;color:#6b7280;margin-top:2px;">Unlocked</div>
+          </div>
+          <button id="mod-globalchat-lock" style="padding:7px 14px;background:#ef4444;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px;">🔒 Lock</button>
         </div>
-        <div id="mod-media-preview-wrap" style="display:none;margin-top:10px;border-radius:10px;overflow:hidden;border:1px solid #3a7dff20;">
-          <img id="mod-media-preview" src="" style="width:100%;height:120px;object-fit:cover;">
-          <button id="mod-media-clear-btn" style="width:100%;padding:4px;background:#ef4444;color:white;border:none;font-size:10px;">Clear File</button>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#f9fafb;border-radius:10px;border:1px solid rgba(0,0,0,0.07);">
+          <div>
+            <div style="font-size:13px;font-weight:700;color:#111827;">💬 Direct Messages</div>
+            <div id="dm-lock-status" style="font-size:11px;color:#6b7280;margin-top:2px;">Unlocked</div>
+          </div>
+          <button id="mod-dms-lock" style="padding:7px 14px;background:#ef4444;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px;">🔒 Lock</button>
         </div>
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
+
+      <!-- ── USER OPERATIONS ── -->
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">👤 User Operations</div>
+      <div style="background:#f9fafb;padding:16px;border-radius:14px;border:1px solid rgba(0,0,0,0.05);">
+        <label style="display:block;font-size:10px;color:#9ca3af;margin-bottom:6px;font-weight:700;text-transform:uppercase;">Force Kick & Logout</label>
+        <div style="display:flex;gap:8px;margin-bottom:12px;">
+          <input id="mod-kick-username" type="text" placeholder="@username" style="flex:1;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;font-size:13px;outline:none;">
+          <button id="mod-kick-user-btn" style="padding:10px 16px;background:#ef4444;color:white;border:none;border-radius:10px;font-weight:700;font-size:11px;cursor:pointer;">KICK MISSION</button>
+        </div>
+
+        <label style="display:block;font-size:10px;color:#9ca3af;margin-bottom:6px;font-weight:700;text-transform:uppercase;">Gift Points</label>
+        <div style="display:flex;gap:8px;">
+          <input id="mod-gift-username" type="text" placeholder="@username" style="flex:1.5;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;font-size:13px;outline:none;">
+          <input id="mod-gift-amount" type="number" placeholder="Pts" style="flex:1;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;font-size:13px;outline:none;">
+          <button id="mod-gift-btn" style="padding:10px 16px;background:#f59e0b;color:white;border:none;border-radius:10px;font-weight:700;font-size:11px;cursor:pointer;">🎁 SEND</button>
+        </div>
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
+
+      <!-- ── ADMIN ABUSE ── -->
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">😈 Admin Abuse</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <button class="abuse-btn" data-effect="shake" style="padding:10px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:#111827;">🫨 Shake</button>
+        <button class="abuse-btn" data-effect="flip" style="padding:10px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:#111827;">🙃 Flip Page</button>
+        <button class="abuse-btn" data-effect="confetti" style="padding:10px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:#111827;">🎉 Confetti</button>
+        <button class="abuse-btn" data-effect="crazytext" style="padding:10px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:#111827;">🤪 Crazy Text</button>
+        <button class="abuse-btn" data-effect="colour" style="padding:10px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:#111827;">🎨 Colour Chaos</button>
+        <button id="mod-jumpscare-btn" style="padding:10px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:#111827;">😱 Jumpscare</button>
+        <button id="mod-abuse-stop" style="padding:10px 8px;border:2px solid #ef4444;border-radius:10px;background:#fff;cursor:pointer;font-size:13px;font-weight:700;color:#ef4444;grid-column: span 2;">🛑 Stop All Chaos</button>
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
+      
+      <!-- ── MOBILE REQUESTS ── -->
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">📱 Mobile Device Requests</div>
+      <div id="mod-device-requests-wrap">
+        <div id="mod-device-requests-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+        <div id="mod-device-requests-empty" style="font-size:12px;color:#9ca3af;text-align:center;padding:8px 0;">No pending requests</div>
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
+      
+      <!-- ── GAME MANAGEMENT ── -->
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🎮 Game Management</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px;">
+        <select id="mod-game-select" style="padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;color:#111827;background:#fff;outline:none;cursor:pointer;">
+          <option value="">Select a game...</option>
+        </select>
+
+        <div style="font-size:10px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-top:4px;">Compatibility</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button class="compat-btn" data-compat="ipad" style="flex:1;padding:7px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:12px;font-weight:700;color:#6b7280;">📱 iPad</button>
+          <button class="compat-btn" data-compat="pc" style="flex:1;padding:7px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:12px;font-weight:700;color:#6b7280;">🖥️ PC</button>
+          <button class="compat-btn" data-compat="both" style="flex:1;padding:7px 8px;border:2px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:12px;font-weight:700;color:#6b7280;">✅ Both</button>
+        </div>
+
+        <div style="font-size:10px;color:#ef4444;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-top:4px;">🔒 Game Lockdown</div>
+        <div style="display:flex;gap:8px;">
+          <input id="mod-lock-reason" type="text" placeholder="Reason..." style="flex:1;padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;outline:none;">
+          <button id="mod-lock-btn" style="padding:9px 16px;background:#ef4444;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:12px;">Lock</button>
+          <button id="mod-unlock-btn" style="padding:9px 16px;background:#22c55e;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:12px;">Unlock</button>
+        </div>
+        <div id="mod-lock-status" style="font-size:11px;font-weight:600;margin-top:4px;"></div>
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
+
+      <!-- ── REWARD CODES ── -->
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🎟️ Reward Codes</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px;">
+        <input id="mod-code-input" type="text" placeholder="CODE NAME (e.g. FLUX2024)"
+          style="padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;outline:none;text-transform:uppercase;box-sizing:border-box;">
+        <div style="display:flex;gap:6px;">
+          <select id="mod-code-type" style="padding:8px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:12px;outline:none;background:#fff;">
+            <option value="points">⭐ Points</option>
+            <option value="spins">🎰 Spins</option>
+            <option value="game">🎮 Unlock Game</option>
+          </select>
+          <input id="mod-code-value-num" type="number" placeholder="Value (e.g. 500)"
+            style="flex:1;padding:8px 10px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;outline:none;">
+        </div>
+        <button id="mod-code-create-btn" style="padding:10px;background:#7c3aed;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:13px;">🎟️ Create Reward Code</button>
+        <div id="mod-codes-list" style="display:flex;flex-direction:column;gap:4px;margin-top:4px;"></div>
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
+
+      <!-- ── GAME PRICING ── -->
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🔐 Game Unlock Pricing</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <select id="mod-price-game-select" style="padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;color:#111827;background:#fff;outline:none;cursor:pointer;">
+          <option value="">Select a game...</option>
+        </select>
+        <div id="mod-price-current" style="font-size:12px;color:#6b7280;padding:8px 12px;background:#f9fafb;border-radius:8px;border:1px solid rgba(0,0,0,0.07);display:none;"></div>
+        <div style="display:flex;gap:8px;">
+          <input id="mod-price-amount" type="number" placeholder="Price (0 = free)" style="flex:1;padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;outline:none;">
+          <input id="mod-price-discount" type="number" placeholder="Discount %" style="flex:1;padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;outline:none;">
+          <button id="mod-price-set-btn" style="padding:9px 16px;background:#3a7dff;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:13px;">Set</button>
+        </div>
+        <div id="mod-price-preview" style="display:none;font-size:11px;color:#22c55e;font-weight:700;text-align:center;"></div>
       </div>
 
       <p id="mod-msg" style="font-size:12px;margin:20px 0 0;text-align:center;display:none;font-weight:700;"></p>
     </div>
-    <style>@keyframes flip { from { transform: rotateY(0deg); } to { transform: rotateY(180deg); } }</style>
   `;
   document.body.appendChild(modModal);
 
   document.getElementById('mod-modal-close').addEventListener('click', () => { modModal.style.display = 'none'; });
   modModal.addEventListener('click', (e) => { if (e.target === modModal) modModal.style.display = 'none'; });
+
+  // Session Management
+  const loadOnlineSessions = async () => {
+    const list = document.getElementById('mod-online-users-list');
+    const summary = document.getElementById('mod-online-summary');
+    if (!list || !summary) return;
+    list.innerHTML = '<div style="font-size:11px;color:#9ca3af;">Fetching active nodes...</div>';
+    try {
+      const snap = await get(ref(rtdb, 'presence'));
+      const data = snap.val() || {};
+      const sessions = Object.entries(data).map(([sid, s]) => ({ sid, ...s }));
+      sessions.sort((a, b) => (b.lastActive || 0) - (a.lastActive || 0));
+      
+      summary.textContent = `${sessions.length} active session${sessions.length === 1 ? '' : 's'}`;
+      list.innerHTML = sessions.map(s => {
+        const isStale = Date.now() - (s.lastActive || 0) > 300000; // 5 mins
+        return `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;opacity:${isStale ? 0.6 : 1};">
+            <div style="min-width:0;flex:1;">
+              <div style="font-size:12px;font-weight:700;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@${s.username || 'anonymous'}</div>
+              <div style="font-size:10px;color:#6b7280;display:flex;gap:6px;">
+                <span>${s.device || 'web'}</span>
+                <span>•</span>
+                <span>${new Date(s.lastActive).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+            </div>
+            <div style="display:flex;gap:4px;">
+              <button class="mod-session-kick" data-sid="${s.sid}" style="padding:4px 8px;background:#f3f4f6;border-radius:6px;border:none;font-size:10px;cursor:pointer;">KICK</button>
+            </div>
+          </div>
+        `;
+      }).join('') || '<div style="font-size:11px;color:#9ca3af;text-align:center;padding:10px;">No sessions found</div>';
+
+      list.querySelectorAll('.mod-session-kick').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const sid = btn.dataset.sid;
+          if (confirm(`Kick session ${sid}?`)) {
+            await set(ref(rtdb, `presence_kills/${sid}`), true);
+            btn.parentElement.parentElement.style.opacity = '0.3';
+            btn.textContent = 'KICKED'; btn.disabled = true;
+          }
+        });
+      });
+    } catch (e) {
+      list.innerHTML = '<div style="font-size:11px;color:#ef4444;">Failed to load sessions.</div>';
+    }
+  };
+
+  document.getElementById('mod-reload-users-btn')?.addEventListener('click', loadOnlineSessions);
+  document.getElementById('mod-refresh-all-btn')?.addEventListener('click', async () => {
+    if (!confirm('FORCED REFRESH: This will reload the page for ALL connected users. Proceed?')) return;
+    try {
+      await set(ref(rtdb, 'presence_kills/global_refresh'), Date.now());
+      const msg = document.getElementById('mod-msg');
+      if (msg) {
+        msg.style.color = '#22c55e'; msg.textContent = '✓ Global reload signal sent.'; msg.style.display = 'block';
+        setTimeout(() => msg.style.display = 'none', 3000);
+      }
+    } catch (e) { alert('Failed to send global signal'); }
+  });
+
+  document.getElementById('mod-purge-stale-btn')?.addEventListener('click', async () => {
+    if (!confirm('This will remove all session nodes older than 10 minutes. Proceed?')) return;
+    const snap = await get(ref(rtdb, 'presence'));
+    const data = snap.val() || {};
+    let count = 0;
+    for (const sid in data) {
+      if (Date.now() - (data[sid].lastActive || 0) > 600000) {
+        await remove(ref(rtdb, `presence/${sid}`));
+        count++;
+      }
+    }
+    alert(`Purged ${count} stale session nodes.`);
+    loadOnlineSessions();
+  });
+
+  // Initial load when modal opens
+  const modPanelBtn = document.getElementById('mod-panel-btn');
+  if (modPanelBtn) {
+    const originalClick = modPanelBtn.onclick;
+    modPanelBtn.addEventListener('click', () => {
+      modModal.style.display = 'flex';
+      loadOnlineSessions();
+    });
+  }
 
   let _autoRestoreTimer = null;
 
@@ -1984,7 +2115,7 @@ export function initAuthUI(onUserChange) {
       msg.style.color = '#22c55e';
       msg.textContent = durationMins > 0 ? `Status set — restoring in ${durationMins} min` : `Status set to "${status}"`;
       msg.style.display = 'block';
-      document.getElementById('mod-current-status').textContent = `${status} — ${message}${durationMins > 0 ? ` (restores in ~${durationMins}m)` : ''}`;
+      document.getElementById('mod-current-status').textContent = `Status: ${status === 'online' ? 'Online ✅' : status.toUpperCase()}`;
       document.getElementById('mod-current-status').style.color = status === 'online' ? '#22c55e' : status === 'crash' ? '#f59e0b' : '#ef4444';
       setTimeout(() => { msg.style.display = 'none'; }, 3000);
       if (_autoRestoreTimer) clearTimeout(_autoRestoreTimer);
@@ -1998,32 +2129,54 @@ export function initAuthUI(onUserChange) {
     }
   }
 
-  document.getElementById('mod-shutdown-btn')?.addEventListener('click', () =>
+  document.getElementById('mod-shutdown-btn').addEventListener('click', () =>
     setServerStatus('shutdown', 'The server has been shut down by an admin. Please check back later.'));
-  document.getElementById('mod-crash-btn')?.addEventListener('click', () =>
-    setServerStatus('crash', 'The server has crashed due to high traffic. We\'re working on a fix.'));
-  document.getElementById('mod-restore-btn')?.addEventListener('click', () =>
+  document.getElementById('mod-crash-btn').addEventListener('click', () =>
+    setServerStatus('crash', document.getElementById('mod-crash-reason').value));
+  document.getElementById('mod-restore-btn').addEventListener('click', () =>
     setServerStatus('online', 'online'));
 
   // Broadcast
-  document.getElementById('mod-broadcast-btn')?.addEventListener('click', async () => {
-    const text = document.getElementById('mod-broadcast-text')?.value.trim();
+  document.getElementById('mod-broadcast-btn').addEventListener('click', async () => {
+    const text = document.getElementById('mod-broadcast-text').value.trim();
     if (!text) return;
     const msg = document.getElementById('mod-msg');
     try {
-      await setDoc(doc(db, 'stats', 'broadcast'), {
-        message: text,
-        sentAt: new Date().toISOString(),
-        id: Math.random().toString(36).slice(2)
-      });
-      if (document.getElementById('mod-broadcast-text')) document.getElementById('mod-broadcast-text').value = '';
-      if (msg) {
-        msg.style.color = '#22c55e'; msg.textContent = 'Message sent!'; msg.style.display = 'block';
-        setTimeout(() => { msg.style.display = 'none'; }, 2500);
-      }
+      await setDoc(doc(db, 'stats', 'broadcast'), { message: text, sentAt: new Date().toISOString(), id: Math.random().toString(36).slice(2) });
+      document.getElementById('mod-broadcast-text').value = '';
+      msg.style.color = '#22c55e'; msg.textContent = 'Broadcast sent!'; msg.style.display = 'block';
+      setTimeout(() => { msg.style.display = 'none'; }, 2500);
     } catch (e) {
-      if (msg) { msg.style.color = '#ef4444'; msg.textContent = 'Failed to send.'; msg.style.display = 'block'; }
+      msg.style.color = '#ef4444'; msg.textContent = 'Failed to broadcast.'; msg.style.display = 'block';
     }
+  });
+
+  // Incident banner
+  document.getElementById('mod-banner-show-btn').addEventListener('click', async () => {
+    const type = document.getElementById('mod-banner-type').value;
+    try {
+      await setDoc(doc(db, 'stats', 'banner'), { type, visible: true, updatedAt: new Date().toISOString() });
+      document.getElementById('mod-banner-current').style.display = 'block';
+      document.getElementById('mod-banner-current').textContent = `Currently active: ${type.toUpperCase()}`;
+    } catch {}
+  });
+  document.getElementById('mod-banner-hide-btn').addEventListener('click', async () => {
+    try {
+      await setDoc(doc(db, 'stats', 'banner'), { visible: false, updatedAt: new Date().toISOString() });
+      document.getElementById('mod-banner-current').style.display = 'none';
+    } catch {}
+  });
+
+  // Services
+  document.querySelectorAll('.mod-svc-flag-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const key = btn.dataset.key;
+      const status = document.querySelector(`.mod-svc-status[data-key="${key}"]`).value;
+      try {
+        await updateDoc(doc(db, 'stats', 'services'), { [key]: status, updatedAt: new Date().toISOString() });
+        btn.textContent = '✓'; setTimeout(() => btn.textContent = 'Set', 1500);
+      } catch {}
+    });
   });
 
   // Kick By Username Logic
@@ -2035,184 +2188,96 @@ export function initAuthUI(onUserChange) {
     
     if (!confirm(`Are you sure you want to KICK and LOGOUT @${username}?`)) return;
     
-    btn.textContent = 'LOOKING UP...'; btn.disabled = true;
+    btn.textContent = '...'; btn.disabled = true;
     const profile = await getProfileByUsername(username);
     
     if (!profile) {
       if (msg) { msg.style.color='#ef4444'; msg.textContent='User not found.'; msg.style.display='block'; }
-      btn.textContent = 'KICK & LOGOUT'; btn.disabled = false;
+      btn.textContent = 'KICK MISSION'; btn.disabled = false;
       return;
     }
 
     try {
-      btn.textContent = 'KILLING SESSIONS...';
       // Terminate all sessions for this UID
       await set(ref(rtdb, `presence_kills/${profile.uid}`), true);
-      
       if (msg) {
         msg.style.color = '#22c55e'; msg.textContent = `✓ @${username} has been terminated.`; msg.style.display = 'block';
         setTimeout(() => { msg.style.display = 'none'; }, 4000);
       }
-      
-      // Cleanup signal after 15s
       setTimeout(() => remove(ref(rtdb, `presence_kills/${profile.uid}`)), 15000);
-      
-      if (document.getElementById('mod-kick-username')) document.getElementById('mod-kick-username').value = '';
+      document.getElementById('mod-kick-username').value = '';
     } catch (e) {
-      console.error("Kick failed", e);
       if (msg) { msg.style.color='#ef4444'; msg.textContent='Kick failed.'; msg.style.display='block'; }
     }
-    btn.textContent = 'KICK & LOGOUT'; btn.disabled = false;
+    btn.textContent = 'KICK MISSION'; btn.disabled = false;
   });
 
-  // Chat lock buttons
+  // Chat lock
   let _globalChatLocked = false;
   let _dmLocked = false;
+  const updateChatLockBtn = (id, locked) => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.textContent = locked ? '🔓 Unlock' : '🔒 Lock';
+    btn.style.background = locked ? '#22c55e' : '#ef4444';
+  };
 
-  document.getElementById('mod-globalchat-lock')?.addEventListener('click', async () => {
+  document.getElementById('mod-globalchat-lock').addEventListener('click', async () => {
     _globalChatLocked = !_globalChatLocked;
-    const btn = document.getElementById('mod-globalchat-lock');
-    try {
-      await setDoc(doc(db, 'stats', 'chatlock'), {
-        globalLocked: _globalChatLocked,
-        dmLocked: _dmLocked,
-        updatedAt: new Date().toISOString()
-      });
-      if (btn) {
-        btn.textContent = _globalChatLocked ? '🔓 Unlock' : '🔒 Lock';
-        btn.style.background = _globalChatLocked ? '#22c55e' : '#fff';
-        btn.style.color = _globalChatLocked ? '#fff' : '#6b7280';
-        btn.style.borderColor = _globalChatLocked ? '#22c55e' : '#e5e7eb';
-      }
-    } catch (e) { console.warn('Chat lock failed', e); }
+    await setDoc(doc(db, 'stats', 'chatlock'), { globalLocked: _globalChatLocked, dmLocked: _dmLocked });
+    updateChatLockBtn('mod-globalchat-lock', _globalChatLocked);
   });
-
-  document.getElementById('mod-dms-lock')?.addEventListener('click', async () => {
+  document.getElementById('mod-dms-lock').addEventListener('click', async () => {
     _dmLocked = !_dmLocked;
-    const btn = document.getElementById('mod-dms-lock');
-    try {
-      await setDoc(doc(db, 'stats', 'chatlock'), {
-        globalLocked: _globalChatLocked,
-        dmLocked: _dmLocked,
-        updatedAt: new Date().toISOString()
-      });
-      if (btn) {
-        btn.textContent = _dmLocked ? '🔓 Unlock' : '🔒 Lock';
-        btn.style.background = _dmLocked ? '#22c55e' : '#fff';
-        btn.style.color = _dmLocked ? '#fff' : '#6b7280';
-        btn.style.borderColor = _dmLocked ? '#22c55e' : '#e5e7eb';
-      }
-    } catch (e) { console.warn('DM lock failed', e); }
+    await setDoc(doc(db, 'stats', 'chatlock'), { globalLocked: _globalChatLocked, dmLocked: _dmLocked });
+    updateChatLockBtn('mod-dms-lock', _dmLocked);
   });
 
   // Gift points
-  document.getElementById('mod-gift-btn')?.addEventListener('click', async () => {
-    const username = document.getElementById('mod-gift-username')?.value.trim().toLowerCase();
-    const amount = parseInt(document.getElementById('mod-gift-amount')?.value);
+  document.getElementById('mod-gift-btn').addEventListener('click', async () => {
+    const username = document.getElementById('mod-gift-username').value.trim().toLowerCase();
+    const amount = parseInt(document.getElementById('mod-gift-amount').value);
     const msg = document.getElementById('mod-msg');
-    if (!username || !amount) { if (msg) { msg.style.color='#ef4444'; msg.textContent='Enter username and amount.'; msg.style.display='block'; } return; }
+    if (!username || !amount) return;
     const profile = await getProfileByUsername(username);
-    if (!profile) { if (msg) { msg.style.color='#ef4444'; msg.textContent='User not found.'; msg.style.display='block'; } return; }
+    if (!profile) { msg.style.color='#ef4444'; msg.textContent='User not found.'; msg.style.display='block'; return; }
     const result = await giftPoints(profile.uid, amount);
-    if (msg) {
-      msg.style.color = result.ok ? '#22c55e' : '#ef4444';
-      msg.textContent = result.ok ? `✓ Gifted ${amount} points to @${username}!` : result.error;
-      msg.style.display = 'block';
-      setTimeout(() => { msg.style.display='none'; }, 3000);
-    }
-    if (result.ok) { 
-      if (document.getElementById('mod-gift-username')) document.getElementById('mod-gift-username').value=''; 
-      if (document.getElementById('mod-gift-amount')) document.getElementById('mod-gift-amount').value=''; 
-    }
+    msg.style.color = result.ok ? '#22c55e' : '#ef4444';
+    msg.textContent = result.ok ? `✓ Gifted ${amount} pts to @${username}` : result.error;
+    msg.style.display = 'block';
+    setTimeout(() => msg.style.display='none', 3000);
   });
 
-  // Game compatibility buttons
-  modModal.querySelectorAll('.compat-btn').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const select = document.getElementById('mod-game-select');
-      const gameId = select.value;
-      const gameTitle = select.options[select.selectedIndex]?.text || '';
-      if (!gameId) { msg.style.color='#ef4444'; msg.textContent='Select a game first.'; msg.style.display='block'; setTimeout(()=>{msg.style.display='none';},2000); return; }
-      const compat = btn.dataset.compat;
-      const result = await setGameCompatibility(gameId, gameTitle, compat);
-      if (result.ok) {
-        const t = document.createElement('div');
-        t.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9999;background:var(--panel,#fff);border-radius:12px;padding:12px 16px;box-shadow:0 8px 30px rgba(0,0,0,0.14);border-left:4px solid #22c55e;display:flex;align-items:center;gap:10px;font-size:13px;font-weight:500;color:var(--text,#111);opacity:0;transform:translateY(8px);transition:all 0.2s ease;max-width:280px;';
-        t.innerHTML = `<span>✅</span><span>✓ ${gameTitle} labelled as ${compat ? compat.toUpperCase() : 'unlabelled'}</span>`;
-        document.body.appendChild(t);
-        requestAnimationFrame(() => { t.style.opacity='1'; t.style.transform='translateY(0)'; });
-        setTimeout(() => { t.style.opacity='0'; t.style.transform='translateY(8px)'; setTimeout(()=>t.remove(),200); }, 3000);
-      } else {
-        msg.style.color = '#ef4444'; msg.textContent = result.error; msg.style.display = 'block';
-        setTimeout(()=>{msg.style.display='none';}, 2500);
-      }
-      // Update button highlights
-      modModal.querySelectorAll('.compat-btn').forEach(b => {
-        const on = b.dataset.compat === compat && compat !== '';
-        b.style.background = on ? '#111827' : '#fff';
-        b.style.color = on ? '#fff' : '#6b7280';
-        b.style.borderColor = on ? '#111827' : '#e5e7eb';
-      });
-    });
-  });
-
-  // Lock / unlock game
-  document.getElementById('mod-lock-btn')?.addEventListener('click', async () => {
-    const select = document.getElementById('mod-game-select');
-    if (!select) return;
-    const gameId = select.value;
-    const gameTitle = select.options[select.selectedIndex]?.text || '';
-    const reason = document.getElementById('mod-lock-reason')?.value.trim();
-    const eta = document.getElementById('mod-lock-eta')?.value.trim();
-    const statusEl = document.getElementById('mod-lock-status');
-    if (!gameId) { if (statusEl) { statusEl.style.color='#ef4444'; statusEl.textContent='Select a game first.'; } return; }
-    if (!reason) { if (statusEl) { statusEl.style.color='#ef4444'; statusEl.textContent='Enter a reason for locking.'; } return; }
-    const result = await setGameLockdown(gameId, gameTitle, { locked: true, reason, eta });
-    if (statusEl) {
-      statusEl.style.color = result.ok ? '#ef4444' : '#ef4444';
-      statusEl.textContent = result.ok ? `🔒 ${gameTitle} is now locked` : result.error;
-    }
-    if (result.ok) {
-      if (document.getElementById('mod-lock-reason')) document.getElementById('mod-lock-reason').value = '';
-      if (document.getElementById('mod-lock-eta')) document.getElementById('mod-lock-eta').value = '';
-    }
-  });
-
-  document.getElementById('mod-unlock-btn')?.addEventListener('click', async () => {
-    const select = document.getElementById('mod-game-select');
-    if (!select) return;
-    const gameId = select.value;
-    const gameTitle = select.options[select.selectedIndex]?.text || '';
-    const statusEl = document.getElementById('mod-lock-status');
-    if (!gameId) { if (statusEl) { statusEl.style.color='#ef4444'; statusEl.textContent='Select a game first.'; } return; }
-    const result = await setGameLockdown(gameId, gameTitle, { locked: false });
-    if (statusEl) {
-      statusEl.style.color = result.ok ? '#22c55e' : '#ef4444';
-      statusEl.textContent = result.ok ? `🔓 ${gameTitle} is now unlocked` : result.error;
-    }
-  });
-
-  // Admin abuse buttons — toggle on/off
+  // Admin abuse
   const _activeEffects = new Set();
   modModal.querySelectorAll('.abuse-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       const effect = btn.dataset.effect;
-      const isActive = _activeEffects.has(effect);
-      const newEffects = new Set(_activeEffects);
-      if (isActive) newEffects.delete(effect); else newEffects.add(effect);
+      if (_activeEffects.has(effect)) _activeEffects.delete(effect); else _activeEffects.add(effect);
       try {
-        await setDoc(doc(db, 'stats', 'chaos'), { effects: [...newEffects], updatedAt: new Date().toISOString() });
-      } catch (e) { console.warn('Chaos write failed', e); }
+        await setDoc(doc(db, 'stats', 'chaos'), { 
+          effects: Array.from(_activeEffects), 
+          updatedAt: new Date().toISOString() 
+        });
+        btn.style.background = _activeEffects.has(effect) ? '#111827' : '#fff';
+        btn.style.color = _activeEffects.has(effect) ? '#fff' : '#111827';
+        btn.style.borderColor = _activeEffects.has(effect) ? '#111827' : '#e5e7eb';
+      } catch (e) {
+        console.warn('Chaos write failed', e);
+      }
     });
   });
 
   document.getElementById('mod-abuse-stop')?.addEventListener('click', async () => {
+    _activeEffects.clear();
     try {
       await setDoc(doc(db, 'stats', 'chaos'), { effects: [], updatedAt: new Date().toISOString() });
+      modModal.querySelectorAll('.abuse-btn').forEach(btn => {
+        btn.style.background = '#fff'; btn.style.color = '#111827'; btn.style.borderColor = '#e5e7eb';
+      });
     } catch (e) { console.warn('Chaos stop failed', e); }
   });
 
-  // Jumpscare — one-shot trigger with unique ID each time
   document.getElementById('mod-jumpscare-btn')?.addEventListener('click', async () => {
     try {
       await setDoc(doc(db, 'stats', 'jumpscare'), {
@@ -2226,307 +2291,6 @@ export function initAuthUI(onUserChange) {
       }
     } catch (e) { console.warn('Jumpscare failed', e); }
   });
-
-  // Open mod modal
-  document.getElementById('mod-panel-btn')?.addEventListener('click', async (e) => {
-    e.stopPropagation();
-    if (document.getElementById('profile-dropdown')) document.getElementById('profile-dropdown').style.display = 'none';
-    modModal.style.display = 'flex';
-    const snap = await getDoc(doc(db, 'stats', 'server'));
-    const statusEl = document.getElementById('mod-current-status');
-    if (snap.exists()) {
-      const { status, message, restoreAt } = snap.data();
-      const timeLeft = restoreAt ? Math.max(0, Math.round((new Date(restoreAt) - Date.now()) / 60000)) : null;
-      statusEl.textContent = `${status} — ${message}${timeLeft > 0 ? ` (restores in ~${timeLeft}m)` : ''}`;
-      statusEl.style.color = status === 'online' ? '#22c55e' : status === 'crash' ? '#f59e0b' : '#ef4444';
-    } else {
-      statusEl.textContent = 'online — no issues';
-      statusEl.style.color = '#22c55e';
-    }
-    // Sync active chaos effects to button states
-    try {
-      const chaosSnap = await getDoc(doc(db, 'stats', 'chaos'));
-      const active = chaosSnap.exists() ? (chaosSnap.data().effects || []) : [];
-      _activeEffects.clear();
-      active.forEach(e => _activeEffects.add(e));
-      modModal.querySelectorAll('.abuse-btn').forEach(btn => {
-        const on = _activeEffects.has(btn.dataset.effect);
-        btn.style.background = on ? '#111827' : '#fff';
-        btn.style.color = on ? '#fff' : '#111827';
-        btn.style.borderColor = on ? '#111827' : '#e5e7eb';
-      });
-    } catch {}
-
-    // Populate game select — try window._FLUX_GAMES, fallback to fetching from gamestats
-    const gameSelect = document.getElementById('mod-game-select');
-    if (gameSelect) {
-      const games = window._FLUX_GAMES || [];
-      gameSelect.innerHTML = '<option value="">Select a game...</option>';
-      if (games.length) {
-        games.forEach(g => {
-          const opt = document.createElement('option');
-          opt.value = g.id; opt.textContent = g.title;
-          gameSelect.appendChild(opt);
-        });
-      } else {
-        // Fallback: fetch from gamestats collection
-        try {
-          const { collection: col, getDocs: gd } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-          const snap = await gd(col(db, 'gamestats'));
-          snap.docs.forEach(d => {
-            const opt = document.createElement('option');
-            opt.value = d.id; opt.textContent = d.data().title || d.id;
-            gameSelect.appendChild(opt);
-          });
-        } catch {}
-      }
-      // Remove old listener to avoid dupes, add fresh one
-      const newSelect = gameSelect.cloneNode(true);
-      gameSelect.parentNode.replaceChild(newSelect, gameSelect);
-      newSelect.addEventListener('change', async () => {
-        const id = newSelect.value;
-        if (!id) return;
-        const snap = await getDoc(doc(db, 'gamestats', id));
-        const data = snap.exists() ? snap.data() : {};
-        const compat = data.compatibility || '';
-        modModal.querySelectorAll('.compat-btn').forEach(b => {
-          const on = b.dataset.compat === compat && compat !== '';
-          b.style.background = on ? '#111827' : '#fff';
-          b.style.color = on ? '#fff' : '#6b7280';
-          b.style.borderColor = on ? '#111827' : '#e5e7eb';
-        });
-        const statusEl = document.getElementById('mod-lock-status');
-        if (statusEl) {
-          if (data.locked) {
-            statusEl.style.color = '#ef4444';
-            statusEl.textContent = `🔒 Currently locked: "${data.lockReason}"${data.lockETA ? ` · ETA: ${data.lockETA}` : ''}`;
-          } else {
-            statusEl.style.color = '#22c55e';
-            statusEl.textContent = data.locked === false ? '🔓 Currently unlocked' : '';
-          }
-        }
-      });
-    }
-
-    // ── Online Users ──
-    let _modPresenceUnsub = null;
-    const renderOnlineUsers = () => {
-      const list = document.getElementById('mod-online-users-list');
-      const summary = document.getElementById('mod-online-summary');
-      if (!list) return;
-
-      if (_modPresenceUnsub) _modPresenceUnsub();
-
-      list.innerHTML = '<div style="font-size:12px;color:#9ca3af;padding:8px 0;"><div style="display:flex;justify-content:center;padding:20px;"><img src="assets/loading.gif" style="width:80px;height:auto;" alt="Loading..."></div></div>';
-
-
-        _modPresenceUnsub = onValue(ref(rtdb, 'presence'), (presSnap) => {
-
-        const sessions = presSnap.exists() ? presSnap.val() : {};
-        const sessionEntries = Object.entries(sessions);
-        const serverNow = Date.now() + _serverOffset;
-
-        // Deduplicate and filter (and track stale status)
-        const byUid = {};
-        const anonymous = [];
-        sessionEntries.forEach(([sid, s]) => {
-          const isStale = (s.lastSeen && (serverNow - s.lastSeen > 300000)); // 5 mins
-          s.isStale = isStale;
-          s.sid = sid; // Ensure sid is available for deletion
-          if (s.uid) {
-            if (!byUid[s.uid]) byUid[s.uid] = s;
-          } else {
-            anonymous.push(s);
-          }
-        });
-
-        const namedUsers = Object.values(byUid);
-        const totalSessions = sessionEntries.length;
-        const namedCount = namedUsers.length;
-        const anonCount = totalSessions - namedCount;
-
-        if (summary) summary.textContent = `${totalSessions} session${totalSessions !== 1 ? 's' : ''} — ${namedCount} signed in, ${anonCount} anonymous`;
-
-        list.innerHTML = '';
-
-        if (!sessionEntries.length) {
-          list.innerHTML = '<div style="font-size:12px;color:#9ca3af;text-align:center;padding:12px 0;">No one online right now</div>';
-          return;
-        }
-
-        // Render named users first
-        namedUsers.forEach(s => {
-          const item = document.createElement('div');
-          item.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 10px;background:#f9fafb;border-radius:10px;border:1px solid rgba(0,0,0,0.06);';
-          const profileLink = s.username ? `profile.html?user=${s.username}` : null;
-          const playing = s.currentlyPlaying?.title;
-          const statusColor = s.isStale ? '#f59e0b' : '#22c55e';
-          item.innerHTML = `
-            <span style="width:8px;height:8px;border-radius:50%;background:${statusColor};flex-shrink:0;" title="${s.isStale ? 'Inactive for 5+ mins' : 'Active'}"></span>
-            <div style="flex:1;min-width:0;">
-              <div style="font-size:13px;font-weight:700;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-                ${profileLink ? `<a href="${profileLink}" target="_blank" style="color:#3a7dff;text-decoration:none;">@${s.username}</a>` : (s.username ? `@${s.username}` : `uid: ${s.uid.slice(0,8)}…`)}
-              </div>
-              <div style="font-size:11px;color:#6b7280;margin:1px 0;">
-                ${playing ? `🎮 Playing <strong style="color:#111827;">${playing}</strong>` : `🏠 Browsing <strong style="color:#111827;">${s.currentLocation || 'Flux'}</strong>`}
-              </div>
-            </div>
-            <div style="display:flex;gap:4px;flex-shrink:0;">
-              <button class="mod-force-refresh-btn" data-uid="${s.sid}" data-name="${s.username || s.uid.slice(0,8)}" title="Refresh"
-                style="width:30px;height:30px;background:#3a7dff;color:white;border:none;border-radius:8px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;">🔄</button>
-              <button class="mod-delete-session-btn" data-sid="${s.sid}" title="Kick User"
-                style="width:30px;height:30px;background:#f3f4f6;color:#6b7280;border:none;border-radius:8px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;">✕</button>
-            </div>
-          `;
-          list.appendChild(item);
-        });
-
-        // Render anonymous sessions individually
-        anonymous.forEach((s, i) => {
-          const anonItem = document.createElement('div');
-          anonItem.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 10px;background:#f9fafb;border-radius:10px;border:1px solid rgba(0,0,0,0.06);opacity:0.8;';
-          anonItem.innerHTML = `
-            <div style="flex:1;font-size:12px;color:#6b7280;">Anonymous ${i+1}</div>
-            <div style="display:flex;gap:4px;flex-shrink:0;">
-              <button class="mod-force-refresh-btn" data-uid="${s.sid}" data-name="Anonymous ${i+1}" title="Refresh"
-                style="width:30px;height:30px;background:#3a7dff;color:white;border:none;border-radius:8px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;">🔄</button>
-              <button class="mod-delete-session-btn" data-sid="${s.sid}" title="Kick User"
-                style="width:30px;height:30px;background:#f3f4f6;color:#6b7280;border:none;border-radius:8px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;">✕</button>
-            </div>
-          `;
-          list.appendChild(anonItem);
-        });
-
-        // Wire force-refresh buttons
-        list.querySelectorAll('.mod-force-refresh-btn').forEach(btn => {
-          btn.addEventListener('click', async () => {
-            const id = btn.dataset.uid;
-            const name = btn.dataset.name;
-            btn.textContent = '…'; btn.disabled = true;
-            const result = await forceRefreshUser(id);
-            if (result.ok) {
-              btn.textContent = '✓'; btn.style.background = '#22c55e';
-              const modMsg = document.getElementById('mod-msg');
-              if (modMsg) { modMsg.style.color='#22c55e'; modMsg.textContent=`✓ Refresh sent to @${name}`; modMsg.style.display='block'; setTimeout(()=>modMsg.style.display='none',2500); }
-            } else {
-              btn.textContent = '✗'; btn.style.background = '#ef4444';
-              setTimeout(() => { btn.textContent = '🔄'; btn.style.background = '#3a7dff'; btn.disabled = false; }, 2000);
-            }
-          });
-        });
-
-        // Wire delete buttons (manual session kicking)
-        list.querySelectorAll('.mod-delete-session-btn').forEach(btn => {
-          btn.addEventListener('click', async () => {
-            const sid = btn.dataset.sid;
-            if (!sid) return;
-            if (!confirm(`Kick session ${sid}?`)) return;
-            btn.textContent = '…';
-            try {
-              // 1. Trigger the kick on the client side
-              await set(ref(rtdb, `presence_kills/${sid}`), true);
-              // 2. Remove from presence list
-              await remove(ref(rtdb, `presence/${sid}`));
-              // 3. Cleanup kill signal after 10s
-              setTimeout(() => remove(ref(rtdb, `presence_kills/${sid}`)), 10000);
-            } catch (e) {
-              console.error("Kick session failed", e);
-              btn.textContent = '✗';
-            }
-          });
-        });
-
-        // Wire media blast buttons
-        list.querySelectorAll('.mod-media-blast-btn').forEach(btn => {
-          btn.addEventListener('click', async () => {
-            const sid = btn.dataset.sid;
-            const name = btn.dataset.name;
-            const previewImg = document.getElementById('mod-media-preview');
-            const fileInput = document.getElementById('mod-media-file');
-            
-            // Check for file upload first, then default to nothing (since we removed URL input)
-            const url = (previewImg && previewImg.src && previewImg.src.startsWith('data:')) ? previewImg.src : null;
-            const modMsg = document.getElementById('mod-msg');
-            
-            if (!url) { alert('Upload a file first!'); return; }
-            if (!sid) return;
-
-            btn.textContent = '…'; btn.disabled = true;
-            try {
-              await set(ref(rtdb, `broadcastMedia/sessions/${sid}`), { 
-                url, 
-                timestamp: Date.now(),
-                bid: Math.random().toString(36).slice(2)
-              });
-              btn.textContent = '✓'; btn.style.background = '#22c55e';
-              if (modMsg) { modMsg.style.color='#22c55e'; modMsg.textContent=`🔥 Blasted ${name}!`; modMsg.style.display='block'; setTimeout(()=>modMsg.style.display='none',2500); }
-              setTimeout(() => { btn.textContent = '👁️'; btn.style.background = '#ef4444'; btn.disabled = false; }, 2000);
-            } catch (err) {
-              console.error("Blast error:", err);
-              alert("Blast failed: " + err.message);
-              btn.textContent = '✗'; btn.style.background = '#ef4444';
-              setTimeout(() => { btn.textContent = '👁️'; btn.style.background = '#ef4444'; btn.disabled = false; }, 2000);
-            }
-          });
-        });
-
-      }, (err) => {
-        list.innerHTML = `<div style="font-size:12px;color:#ef4444;padding:8px 0;text-align:center;">Realtime DB Permission Denied.<br>Please update your Realtime Database rules.<br>${err.message}</div>`;
-      });
-
-
-    };
-
-    renderOnlineUsers();
-
-    document.getElementById('mod-reload-users-btn')?.addEventListener('click', renderOnlineUsers);
-
-    document.getElementById('mod-purge-stale-btn')?.addEventListener('click', async () => {
-      const btn = document.getElementById('mod-purge-stale-btn');
-      const modMsg = document.getElementById('mod-msg');
-      btn.textContent = '…'; btn.disabled = true;
-      
-      try {
-        const snap = await get(ref(rtdb, 'presence'));
-        if (!snap.exists()) return;
-        const sessions = snap.val();
-        const serverNow = Date.now() + _serverOffset;
-        let purged = 0;
-        
-        const updates = {};
-        Object.entries(sessions).forEach(([sid, s]) => {
-          // If inactive for more than 10 minutes
-          if (!s.lastSeen || (serverNow - s.lastSeen > 600000)) {
-            updates[`presence/${sid}`] = null;
-            purged++;
-          }
-        });
-        
-        if (purged > 0) {
-          await update(ref(rtdb), updates);
-          if (modMsg) { modMsg.style.color='#22c55e'; modMsg.textContent=`✓ Purged ${purged} ghost sessions!`; modMsg.style.display='block'; setTimeout(()=>modMsg.style.display='none',3000); }
-        } else {
-          if (modMsg) { modMsg.style.color='#6b7280'; modMsg.textContent='No ghosts found to purge.'; modMsg.style.display='block'; setTimeout(()=>modMsg.style.display='none',3000); }
-        }
-      } catch (e) {
-        console.error("Purge failed:", e);
-      }
-      btn.textContent = '🗑️ Purge Ghosts'; btn.disabled = false;
-    });
-
-    document.getElementById('mod-refresh-all-btn')?.addEventListener('click', async () => {
-      const btn = document.getElementById('mod-refresh-all-btn');
-      const modMsg = document.getElementById('mod-msg');
-      btn.textContent = '…'; btn.disabled = true;
-      const result = await forceRefreshAll();
-      btn.textContent = '🔄 Refresh All'; btn.disabled = false;
-      if (modMsg) {
-        modMsg.style.color = result.ok ? '#22c55e' : '#ef4444';
-        modMsg.textContent = result.ok ? '✓ Refresh sent to all users!' : result.error;
-        modMsg.style.display = 'block';
-        setTimeout(() => modMsg.style.display = 'none', 2500);
-      }
-    });
 
 
     document.getElementById('mod-blast-all-btn')?.addEventListener('click', async () => {
@@ -2567,11 +2331,9 @@ export function initAuthUI(onUserChange) {
       reader.onload = (re) => {
         const previewWrap = document.getElementById('mod-media-preview-wrap');
         const previewImg = document.getElementById('mod-media-preview');
-        const urlInput = document.getElementById('mod-media-url');
         if (previewWrap && previewImg) {
           previewImg.src = re.target.result;
           previewWrap.style.display = 'block';
-          if (urlInput) urlInput.style.display = 'none';
         }
       };
       reader.readAsDataURL(file);
@@ -2581,11 +2343,9 @@ export function initAuthUI(onUserChange) {
       const fileInput = document.getElementById('mod-media-file');
       const previewWrap = document.getElementById('mod-media-preview-wrap');
       const previewImg = document.getElementById('mod-media-preview');
-      const urlInput = document.getElementById('mod-media-url');
       if (fileInput) fileInput.value = '';
       if (previewWrap) previewWrap.style.display = 'none';
       if (previewImg) previewImg.src = '';
-      if (urlInput) { urlInput.style.display = 'block'; urlInput.value = ''; }
     });
 
     document.getElementById('mod-banner-show-btn')?.addEventListener('click', async () => {
@@ -2884,7 +2644,6 @@ export function initAuthUI(onUserChange) {
         }
       }
     } catch {}
-  });
 
   window.hideGlobalLoader = () => {
     const loader = document.getElementById('global-page-loader');
