@@ -959,6 +959,7 @@ export async function createProfile({ uid, username, displayName, bio, isPrivate
     bio: bio || '',
     isPrivate: isPrivate || false,
     avatarURL: avatarURL || '',
+    avatarSource: avatarURL ? (avatarURL.includes('googleusercontent') ? 'google' : 'flux') : 'none',
     badges,
     // New users follow the owner, owner doesn't follow them back
     followers: uid === OWNER_UID ? [] : [],
@@ -2967,6 +2968,9 @@ export function initAuthUI(onUserChange) {
       if (modBtn) modBtn.style.display = user.uid === ADMIN_UID ? 'flex' : 'none';
 
       if (!user.isAnonymous) {
+        // Automatically sync Google photo if it's the current source (sticky sync)
+        await syncProfileAvatar();
+        
         // Check for profile and trigger setup if missing
         const profile = await getProfile(user.uid);
 
@@ -4347,4 +4351,36 @@ function showMediaBlast(url) {
   
   // Auto-dismiss after 10 seconds
   setTimeout(dismiss, 10000);
+}
+
+/**
+ * Syncs the user's Google/Social photo to their Flux profile if they haven't set a custom one.
+ * @param {boolean} force - If true, ignores the 'sticky' check and overwrites with Google photo.
+ */
+export async function syncProfileAvatar(force = false) {
+  const user = auth.currentUser;
+  if (!user || user.isAnonymous) return false;
+  
+  try {
+    const profile = await getProfile(user.uid);
+    if (!profile) return false;
+
+    const googlePhoto = user.photoURL;
+    if (!googlePhoto) return false;
+
+    // Only update if current source is 'google' (or missing) OR if force is true (manual sync)
+    const shouldSync = force || !profile.avatarSource || profile.avatarSource === 'google';
+    
+    if (shouldSync && profile.avatarURL !== googlePhoto) {
+      await updateProfile(user.uid, { 
+        avatarURL: googlePhoto, 
+        avatarSource: force ? 'google' : (profile.avatarSource || 'google')
+      });
+      console.log("[AvatarSync] Profile picture synced from provider source.");
+      return true;
+    }
+  } catch (err) {
+    console.error("[AvatarSync] Failed to sync avatar:", err);
+  }
+  return false;
 }

@@ -6,7 +6,7 @@ import {
   renderBadges, assignRole, removeRole, PREDEFINED_ROLES,
   setUserRank, getUserRank, getContrastColor,
   initAuthUI, initServerStatus, initCookieConsent,
-  initBroadcast, initChaos, initJumpscare, initPresence
+  initBroadcast, initChaos, initJumpscare, initPresence, syncProfileAvatar
 } from './firebase-auth.js';
 
 // Firebase imports (reuse same app)
@@ -97,8 +97,31 @@ async function loadProfilePage() {
 
 function renderProfile(profile, { isOwn, isAdmin, isFollowing, canSeeContent, currentUser }) {
   const avatarHTML = profile.avatarURL
-    ? `<img class="profile-avatar" src="${profile.avatarURL}" alt="${profile.displayName}">`
-    : `<div class="profile-avatar-placeholder">${(profile.displayName || profile.username || '?')[0].toUpperCase()}</div>`;
+    ? `<div class="avatar-container ${isOwn ? 'editable' : ''}" style="position:relative;width:fit-content;margin:0 auto;">
+         <img class="profile-avatar" id="main-avatar" src="${profile.avatarURL}" alt="${profile.displayName}" style="${isOwn ? 'cursor:pointer;transition:all 0.3s;' : ''}">
+         ${isOwn ? '<div class="avatar-edit-hint" style="position:absolute;inset:0;background:rgba(0,0,0,0.4);border-radius:50%;display:flex;items-center;justify-content:center;color:#fff;font-size:12px;opacity:0;transition:opacity 0.2s;pointer-events:none;display:flex;align-items:center;justify-content:center;font-weight:700;">CHANGE</div>' : ''}
+       </div>`
+    : `<div class="profile-avatar-placeholder ${isOwn ? 'editable' : ''}" id="main-avatar" style="${isOwn ? 'cursor:pointer;position:relative;' : ''}">
+         ${(profile.displayName || profile.username || '?')[0].toUpperCase()}
+         ${isOwn ? '<div class="avatar-edit-hint" style="position:absolute;inset:0;background:rgba(0,0,0,0.4);border-radius:50%;display:flex;items-center;justify-content:center;color:#fff;font-size:12px;opacity:0;transition:opacity 0.2s;pointer-events:none;display:flex;align-items:center;justify-content:center;font-weight:700;">CHANGE</div>' : ''}
+       </div>`;
+
+  // Inject animation styles
+  if (!document.getElementById('flux-premium-styles')) {
+    const style = document.createElement('style');
+    style.id = 'flux-premium-styles';
+    style.textContent = `
+      @keyframes modalAppear {
+        from { opacity: 0; transform: scale(0.9) translateY(20px); }
+        to { opacity: 1; transform: scale(1) translateY(0); }
+      }
+      .avatar-container:hover .profile-avatar { transform: scale(1.05); }
+      .avatar-container:hover .avatar-edit-hint { opacity: 1 !important; }
+      .avatar-option:hover { transform: translateY(-4px); border-color: var(--accent) !important; box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+      .profile-avatar-placeholder:hover .avatar-edit-hint { opacity: 1 !important; }
+    `;
+    document.head.appendChild(style);
+  }
 
   const joinDate = profile.joinedAt
     ? new Date(profile.joinedAt).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
@@ -399,6 +422,11 @@ function bindEvents(profile, { isOwn, isAdmin, isFollowing, currentUser }) {
     });
   });
 
+  // Avatar Click (If Own)
+  document.getElementById('main-avatar')?.addEventListener('click', () => {
+    if (isOwn) showAvatarSelectionModal(profile);
+  });
+
   // Role remove chip
   document.querySelectorAll('.role-remove-btn').forEach(btn => {
     btn.addEventListener('click', async (e) => {
@@ -442,6 +470,16 @@ function showEditModal(profile) {
         <div>
           <label class="field-label">Display Name</label>
           <input id="edit-displayname" class="input-field" type="text" value="${profile.displayName || ''}" maxlength="30">
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px;background:var(--bg);border-radius:10px;border:1px solid var(--glass-border);">
+           <div style="display:flex;align-items:center;gap:12px;">
+             <img src="${profile.avatarURL || 'assets/default-avatar.png'}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:1px solid var(--glass-border);">
+             <div>
+               <div style="font-size:13px;font-weight:600;color:var(--text);">Avatar</div>
+               <div style="font-size:11px;color:var(--muted);">${profile.avatarSource === 'google' ? 'Synced from Google' : 'Flux Custom'}</div>
+             </div>
+           </div>
+           <button id="edit-change-avatar-btn" type="button" style="padding:6px 14px;background:var(--accent);color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px;">Change</button>
         </div>
         <div>
           <label class="field-label">Bio</label>
@@ -577,6 +615,101 @@ function showEditModal(profile) {
     });
     overlay.remove();
     location.reload();
+  });
+
+  document.getElementById('edit-change-avatar-btn')?.addEventListener('click', () => {
+    showAvatarSelectionModal(profile);
+  });
+}
+
+function showAvatarSelectionModal(profile) {
+  const existing = document.getElementById('avatar-modal-overlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'avatar-modal-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:700;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);backdrop-filter:blur(8px);';
+  
+  const avatars = [1,2,3,4,5,6,7,8,9,10,11,12].map(n => `profile pictures/Profile${n}.png`);
+  
+  overlay.innerHTML = `
+    <div style="background:var(--panel,#fff);border-radius:20px;padding:28px;width:100%;max-width:380px;box-shadow:0 30px 80px rgba(0,0,0,0.2);position:relative;animation: modalAppear 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);">
+      <button id="avatar-close" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted);">✕</button>
+      <h3 style="font-family:'Bebas Neue',sans-serif;font-size:26px;margin:0 0 4px;color:var(--text);text-align:center;">Change Avatar</h3>
+      <p style="font-size:12px;color:var(--muted);text-align:center;margin:0 0 20px;">Choose a premade icon or upload your own</p>
+      
+      <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:12px;margin-bottom:20px;">
+        ${avatars.map(url => `
+          <div class="avatar-option" data-url="${url}" style="aspect-ratio:1;border-radius:14px;overflow:hidden;cursor:pointer;border:3px solid transparent;transition:all 0.2s;background:#f3f4f6;">
+            <img src="${url}" style="width:100%;height:100%;object-fit:cover;">
+          </div>
+        `).join('')}
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <label style="display:flex;align-items:center;justify-content:center;gap:10px;padding:12px;background:var(--accent);color:white;border-radius:12px;font-weight:700;cursor:pointer;font-size:14px;transition:transform 0.1s;" onmousedown="this.style.transform='scale(0.98)'" onmouseup="this.style.transform='scale(1)'">
+          📤 Upload Custom
+          <input type="file" id="avatar-upload-input" accept="image/*" style="display:none;">
+        </label>
+        
+        <button id="avatar-sync-google" style="display:flex;align-items:center;justify-content:center;gap:10px;padding:12px;background:transparent;border:1px solid var(--glass-border);color:var(--text);border-radius:12px;font-weight:600;cursor:pointer;font-size:13px;transition:background 0.2s;" onmouseover="this.style.background='var(--glass-border)'" onmouseout="this.style.background='transparent'">
+          <svg width="16" height="16" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+          Sync from Google
+        </button>
+      </div>
+
+      <div id="avatar-loader" style="display:none;position:absolute;inset:0;background:rgba(255,255,255,0.8);border-radius:20px;align-items:center;justify-content:center;flex-direction:column;gap:12px;z-index:5;">
+        <img src="assets/loading.gif" style="width:60px;">
+        <span style="font-size:13px;color:var(--text);font-weight:600;">Updating...</span>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  const close = () => overlay.remove();
+  document.getElementById('avatar-close').addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+  const setAvatar = async (url, source) => {
+    document.getElementById('avatar-loader').style.display = 'flex';
+    try {
+      await updateProfile(profile.uid, { avatarURL: url, avatarSource: source });
+      location.reload();
+    } catch (err) {
+      alert("Failed to update avatar: " + err.message);
+      document.getElementById('avatar-loader').style.display = 'none';
+    }
+  };
+
+  // Premade Icons
+  overlay.querySelectorAll('.avatar-option').forEach(opt => {
+    opt.addEventListener('click', () => {
+      opt.style.borderColor = 'var(--accent)';
+      setAvatar(opt.dataset.url, 'premade');
+    });
+  });
+
+  // Custom Upload
+  document.getElementById('avatar-upload-input').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { alert("File too large! Max 2MB."); return; }
+
+    const reader = new FileReader();
+    reader.onload = (re) => setAvatar(re.target.result, 'flux');
+    reader.readAsDataURL(file);
+  });
+
+  // Google Sync
+  document.getElementById('avatar-sync-google').addEventListener('click', async () => {
+     document.getElementById('avatar-loader').style.display = 'flex';
+     const updated = await syncProfileAvatar(true); // force = true
+     if (updated) location.reload();
+     else {
+       alert("No change detected from Google Profile.");
+       document.getElementById('avatar-loader').style.display = 'none';
+     }
   });
 }
 
