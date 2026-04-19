@@ -88,8 +88,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (openWith) openDMWithUsername(openWith);
   });
 
-  document.getElementById('new-dm-btn')?.addEventListener('click', showNewChatModal);
-  document.getElementById('new-group-btn')?.addEventListener('click', showNewGroupModal);
+  document.getElementById('new-dm-btn')?.addEventListener('click', () => {
+    if (!_currentUser) return;
+    showNewChatModal();
+  });
+  document.getElementById('new-group-btn')?.addEventListener('click', () => {
+    if (!_currentUser) return;
+    showNewGroupModal();
+  });
   document.getElementById('tab-inbox')?.addEventListener('click', () => switchTab('inbox'));
   document.getElementById('tab-requests')?.addEventListener('click', () => switchTab('requests'));
 });
@@ -463,6 +469,7 @@ async function openDMWithUsername(username) {
 
 /* ── Start DM ── */
 async function startDM(targetUid, targetProfile) {
+  if (!_currentUser || !_currentProfile) return;
   if (targetUid === _currentUser.uid) return;
 
   // Deterministic ID — always the same for any two users regardless of who initiates

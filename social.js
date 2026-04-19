@@ -119,6 +119,12 @@ async function initChat() {
   document.getElementById('chat-input')?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   });
+
+  // GIF button
+  document.getElementById('global-gif-btn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    showGlobalGifPicker();
+  });
 }
 
 const _profileCache = {};
@@ -200,17 +206,22 @@ function renderMessageSync(msg, currentUser) {
   div.dataset.uid = msg.uid;
   div.style.cssText = `display:flex;align-items:flex-end;margin-bottom:12px;flex-direction:${isOwn?'row-reverse':'row'}`;
   
+  const isGif = msg.type === 'gif';
+  const msgContent = isGif
+    ? `<img src="${msg.text}" alt="GIF" style="max-width:180px;border-radius:10px;display:block;">`
+    : `<div class="chat-msg-text" style="font-size:13px;line-height:1.4;word-break:break-word;">${escapeHtml(msg.text)}</div>`;
+
   div.innerHTML = `
     ${avatarHTML}
-    <div class="chat-msg-body" style="max-width:85%;position:relative;">
+    <div class="chat-msg-body" style="max-width:60%;position:relative;">
       <div class="chat-msg-meta" style="display:flex;align-items:center;gap:6px;margin-bottom:2px;${isOwn?'flex-direction:row-reverse;':''}">
         <a class="chat-msg-name" href="profile.html?user=${msg.username}" style="font-size:11px;font-weight:700;color:var(--text);text-decoration:none;">@${msg.username}</a>
         <span class="msg-badges">${badgesHTML}</span>
         <span class="chat-msg-time" style="font-size:9px;color:var(--muted);">${time}</span>
       </div>
       <div class="msg-playing"></div>
-      <div class="chat-msg-bubble" style="padding:10px 14px;border-radius:18px;position:relative;${isOwn?'background:var(--accent);color:white;border-bottom-right-radius:4px;':'background:var(--panel);color:var(--text);border:1px solid var(--glass-border);border-bottom-left-radius:4px;'}">
-        <div class="chat-msg-text" style="font-size:13px;line-height:1.4;word-break:break-word;">${escapeHtml(msg.text)}</div>
+      <div class="chat-msg-bubble" style="${isGif ? 'padding:0;background:transparent;border:none;' : `padding:10px 14px;${isOwn?'background:var(--accent);color:white;border-bottom-right-radius:4px;':'background:var(--panel);color:var(--text);border:1px solid var(--glass-border);border-bottom-left-radius:4px;'}`}border-radius:18px;position:relative;">
+        ${msgContent}
         <div class="msg-actions" style="position:absolute;top:-24px;${isOwn?'right:0;':'left:0;'}display:none;gap:4px;background:var(--panel);padding:2px 6px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);border:1px solid var(--glass-border);z-index:10;">
           <button class="msg-report" style="background:none;border:none;cursor:pointer;font-size:10px;padding:2px;" title="Report">🚩</button>
           ${(isAdmin || isOwn) ? `<button class="chat-msg-delete" style="background:none;border:none;cursor:pointer;font-size:10px;padding:2px;" title="Delete">🗑️</button>` : ''}
@@ -288,6 +299,7 @@ async function sendMessage() {
       badges: freshProfile.badges || [],
       roles: freshProfile.roles || [],
       text,
+      type: 'text',
       sentAt: serverTimestamp(),
     });
   } catch (e) {
@@ -302,6 +314,86 @@ async function deleteMessage(msgId) {
   try {
     await deleteDoc(doc(db, 'chat', msgId));
   } catch (e) { console.warn('Delete failed:', e); }
+}
+
+async function sendGifToChat(url) {
+  if (!_currentProfile) return;
+  try {
+    const freshProfile = await getProfile(auth.currentUser.uid) || _currentProfile;
+    if (freshProfile.isBanned) return;
+    await addDoc(collection(db, 'chat'), {
+      uid: auth.currentUser.uid,
+      username: freshProfile.username,
+      displayName: freshProfile.displayName,
+      avatarURL: freshProfile.avatarURL || '',
+      badges: freshProfile.badges || [],
+      roles: freshProfile.roles || [],
+      text: url,
+      type: 'gif',
+      sentAt: serverTimestamp(),
+    });
+  } catch (e) { console.warn('GIF send failed:', e); }
+}
+
+function showGlobalGifPicker() {
+  const existing = document.getElementById('global-gif-picker');
+  if (existing) { existing.remove(); return; }
+
+  const picker = document.createElement('div');
+  picker.id = 'global-gif-picker';
+  picker.style.cssText = 'position:absolute;bottom:60px;left:16px;z-index:600;width:300px;background:var(--panel);border-radius:16px;padding:14px;box-shadow:0 10px 40px rgba(0,0,0,0.2);border:1px solid var(--glass-border);';
+  picker.innerHTML = `
+    <h4 style="font-family:'Bebas Neue',sans-serif;font-size:18px;margin:0 0 10px;color:var(--text);">GIFs</h4>
+    <input id="global-gif-search" type="text" placeholder="Search GIFs..." style="width:100%;padding:8px;border-radius:10px;border:1px solid var(--glass-border);background:var(--bg);color:var(--text);font-size:13px;outline:none;box-sizing:border-box;margin-bottom:10px;font-family:inherit;">
+    <div id="global-gif-results" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-height:260px;overflow-y:auto;"></div>
+  `;
+
+  // Attach relative to the chat input area
+  const inputWrap = document.querySelector('.chat-input-wrap');
+  if (inputWrap) {
+    inputWrap.style.position = 'relative';
+    inputWrap.appendChild(picker);
+  } else {
+    document.body.appendChild(picker);
+  }
+
+  const runSearch = async (term) => {
+    const results = picker.querySelector('#global-gif-results');
+    results.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:16px;"><img src="assets/loading.gif" style="width:40px;height:auto;"></div>';
+    try {
+      const resp = await fetch(`https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(term || 'trending')}&key=LIVDSRZULEUB&limit=10&client_key=flux_app`);
+      const data = await resp.json();
+      results.innerHTML = '';
+      data.results.forEach(g => {
+        const img = document.createElement('img');
+        img.src = g.media_formats.tinygif.url;
+        img.style.cssText = 'width:100%;height:80px;object-fit:cover;border-radius:8px;cursor:pointer;';
+        img.addEventListener('click', async () => {
+          picker.remove();
+          await sendGifToChat(g.media_formats.gif.url);
+        });
+        results.appendChild(img);
+      });
+    } catch { results.innerHTML = '<div style="grid-column:1/-1;padding:10px;font-size:12px;color:var(--muted);text-align:center;">Failed to load GIFs.</div>'; }
+  };
+
+  let timer;
+  picker.querySelector('#global-gif-search').addEventListener('input', (e) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => runSearch(e.target.value.trim()), 500);
+  });
+
+  // Close when clicking outside
+  setTimeout(() => {
+    document.addEventListener('click', function handler(e) {
+      if (!picker.contains(e.target) && e.target.id !== 'global-gif-btn') {
+        picker.remove();
+        document.removeEventListener('click', handler);
+      }
+    });
+  }, 50);
+
+  runSearch('');
 }
 
 /* ══════════════════════════════════════
