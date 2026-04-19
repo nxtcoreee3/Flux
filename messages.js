@@ -672,19 +672,26 @@ async function showGifPicker() {
   const runSearch = async (term) => {
     results.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;"><img src="assets/loading.gif" style="width:40px;height:auto;"></div>';
     try {
-      const resp = await fetch(`https://tenor.googleapis.com/v2/search?q=${term || 'trending'}&key=LIVDSRZULEUB&limit=10&client_key=flux_app`);
+      const endpoint = term
+        ? `https://api.tenor.com/v1/search?q=${encodeURIComponent(term)}&key=LIVDSRZULEUB&limit=10&media_filter=minimal`
+        : `https://api.tenor.com/v1/trending?key=LIVDSRZULEUB&limit=10&media_filter=minimal`;
+      const resp = await fetch(endpoint);
       const data = await resp.json();
       results.innerHTML = '';
-      data.results.forEach(g => {
+      (data.results || []).forEach(g => {
+        const tiny = g.media?.[0]?.tinygif?.url || g.media?.[0]?.gif?.url;
+        const full = g.media?.[0]?.gif?.url || tiny;
+        if (!tiny) return;
         const img = document.createElement('img');
-        img.src = g.media_formats.tinygif.url;
+        img.src = tiny;
         img.style.cssText = 'width:100%;height:100px;object-fit:cover;border-radius:8px;cursor:pointer;';
         img.addEventListener('click', async () => {
-          await sendGif(g.media_formats.gif.url);
+          await sendGif(full);
           modal.remove();
         });
         results.appendChild(img);
       });
+      if (!results.children.length) results.innerHTML = '<div style="grid-column:1/-1;padding:10px;font-size:12px;color:var(--muted);">No GIFs found.</div>';
     } catch { results.innerHTML = '<div style="grid-column:1/-1;padding:10px;font-size:12px;color:var(--muted);">Failed to load GIFs.</div>'; }
   };
   

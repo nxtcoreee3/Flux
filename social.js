@@ -211,16 +211,22 @@ function renderMessageSync(msg, currentUser) {
     ? `<img src="${msg.text}" alt="GIF" style="max-width:180px;border-radius:10px;display:block;">`
     : `<div class="chat-msg-text" style="font-size:13px;line-height:1.4;word-break:break-word;">${escapeHtml(msg.text)}</div>`;
 
+  const bubbleStyle = isGif
+    ? 'padding:0;background:transparent;border:none;border-radius:18px;position:relative;'
+    : isOwn
+      ? 'padding:10px 14px;border-radius:18px;border-bottom-right-radius:4px;position:relative;background:var(--accent);color:white;'
+      : 'padding:10px 14px;border-radius:18px;border-bottom-left-radius:4px;position:relative;background:var(--panel);color:var(--text);border:1px solid var(--glass-border);';
+
   div.innerHTML = `
     ${avatarHTML}
-    <div class="chat-msg-body" style="max-width:60%;position:relative;">
+    <div class="chat-msg-body" style="max-width:55%;position:relative;">
       <div class="chat-msg-meta" style="display:flex;align-items:center;gap:6px;margin-bottom:2px;${isOwn?'flex-direction:row-reverse;':''}">
         <a class="chat-msg-name" href="profile.html?user=${msg.username}" style="font-size:11px;font-weight:700;color:var(--text);text-decoration:none;">@${msg.username}</a>
         <span class="msg-badges">${badgesHTML}</span>
         <span class="chat-msg-time" style="font-size:9px;color:var(--muted);">${time}</span>
       </div>
       <div class="msg-playing"></div>
-      <div class="chat-msg-bubble" style="${isGif ? 'padding:0;background:transparent;border:none;' : `padding:10px 14px;${isOwn?'background:var(--accent);color:white;border-bottom-right-radius:4px;':'background:var(--panel);color:var(--text);border:1px solid var(--glass-border);border-bottom-left-radius:4px;'}`}border-radius:18px;position:relative;">
+      <div class="chat-msg-bubble" style="${bubbleStyle}">
         ${msgContent}
         <div class="msg-actions" style="position:absolute;top:-24px;${isOwn?'right:0;':'left:0;'}display:none;gap:4px;background:var(--panel);padding:2px 6px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);border:1px solid var(--glass-border);z-index:10;">
           <button class="msg-report" style="background:none;border:none;cursor:pointer;font-size:10px;padding:2px;" title="Report">🚩</button>
@@ -361,20 +367,27 @@ function showGlobalGifPicker() {
     const results = picker.querySelector('#global-gif-results');
     results.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:16px;"><img src="assets/loading.gif" style="width:40px;height:auto;"></div>';
     try {
-      const resp = await fetch(`https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(term || 'trending')}&key=LIVDSRZULEUB&limit=10&client_key=flux_app`);
+      const endpoint = term
+        ? `https://api.tenor.com/v1/search?q=${encodeURIComponent(term)}&key=LIVDSRZULEUB&limit=12&media_filter=minimal`
+        : `https://api.tenor.com/v1/trending?key=LIVDSRZULEUB&limit=12&media_filter=minimal`;
+      const resp = await fetch(endpoint);
       const data = await resp.json();
       results.innerHTML = '';
-      data.results.forEach(g => {
+      (data.results || []).forEach(g => {
+        const tiny = g.media?.[0]?.tinygif?.url || g.media?.[0]?.gif?.url;
+        const full = g.media?.[0]?.gif?.url || tiny;
+        if (!tiny) return;
         const img = document.createElement('img');
-        img.src = g.media_formats.tinygif.url;
+        img.src = tiny;
         img.style.cssText = 'width:100%;height:80px;object-fit:cover;border-radius:8px;cursor:pointer;';
         img.addEventListener('click', async () => {
           picker.remove();
-          await sendGifToChat(g.media_formats.gif.url);
+          await sendGifToChat(full);
         });
         results.appendChild(img);
       });
-    } catch { results.innerHTML = '<div style="grid-column:1/-1;padding:10px;font-size:12px;color:var(--muted);text-align:center;">Failed to load GIFs.</div>'; }
+      if (!results.children.length) results.innerHTML = '<div style="grid-column:1/-1;padding:10px;font-size:12px;color:var(--muted);text-align:center;">No GIFs found.</div>';
+    } catch (e) { results.innerHTML = '<div style="grid-column:1/-1;padding:10px;font-size:12px;color:var(--muted);text-align:center;">Failed to load GIFs.</div>'; }
   };
 
   let timer;
