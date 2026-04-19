@@ -651,60 +651,75 @@ function showNewGroupModal() {
   });
 }
 
-/* ── GIF Picker ── */
+/* ── GIF / Sticker Picker ── */
 async function showGifPicker() {
   const existing = document.getElementById('gif-picker-modal');
   if (existing) { existing.remove(); return; }
-  
+
   const modal = document.createElement('div');
   modal.id = 'gif-picker-modal';
-  modal.style.cssText = 'position:fixed;bottom:80px;right:20px;z-index:600;width:300px;background:var(--panel);border-radius:20px;padding:16px;box-shadow:0 10px 40px rgba(0,0,0,0.2);border:1px solid var(--glass-border);';
+  modal.style.cssText = 'position:fixed;bottom:80px;right:20px;z-index:600;width:300px;background:var(--panel);border-radius:16px;padding:14px;box-shadow:0 10px 40px rgba(0,0,0,0.2);border:1px solid var(--glass-border);display:flex;flex-direction:column;max-height:340px;';
   modal.innerHTML = `
-    <h4 style="font-family:'Bebas Neue',sans-serif;font-size:20px;margin:0 0 10px;color:var(--text);">GIFs (Tenor)</h4>
-    <input id="gif-search" type="text" placeholder="Search GIFs..." style="width:100%;padding:8px;border-radius:10px;border:1px solid var(--glass-border);background:var(--bg);color:var(--text);margin-bottom:10px;">
-    <div id="gif-results" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-height:300px;overflow-y:auto;"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-shrink:0;">
+      <span style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--text);">🎬 Stickers</span>
+      <button id="gif-modal-close" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:0;">✕</button>
+    </div>
+    <input id="gif-search" type="text" placeholder="Search stickers..." style="width:100%;padding:8px 10px;border-radius:10px;border:1px solid var(--glass-border);background:var(--bg);color:var(--text);font-size:13px;outline:none;box-sizing:border-box;margin-bottom:10px;font-family:inherit;flex-shrink:0;">
+    <div id="gif-results" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;overflow-y:auto;flex:1;"></div>
   `;
   document.body.appendChild(modal);
-  
-  const search = document.getElementById('gif-search');
+
+  document.getElementById('gif-modal-close').addEventListener('click', () => modal.remove());
+
   const results = document.getElementById('gif-results');
-  
-  const runSearch = async (term) => {
-    results.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;"><img src="assets/loading.gif" style="width:40px;height:auto;"></div>';
-    try {
-      const endpoint = term
-        ? `https://api.tenor.com/v1/search?q=${encodeURIComponent(term)}&key=LIVDSRZULEUB&limit=10&media_filter=minimal`
-        : `https://api.tenor.com/v1/trending?key=LIVDSRZULEUB&limit=10&media_filter=minimal`;
-      const resp = await fetch(endpoint);
-      const data = await resp.json();
-      results.innerHTML = '';
-      (data.results || []).forEach(g => {
-        const tiny = g.media?.[0]?.tinygif?.url || g.media?.[0]?.gif?.url;
-        const full = g.media?.[0]?.gif?.url || tiny;
-        if (!tiny) return;
-        const img = document.createElement('img');
-        img.src = tiny;
-        img.style.cssText = 'width:100%;height:100px;object-fit:cover;border-radius:8px;cursor:pointer;';
-        img.addEventListener('click', async () => {
-          await sendGif(full);
-          modal.remove();
-        });
-        results.appendChild(img);
+  const search = document.getElementById('gif-search');
+  let _allStickers = [];
+
+  const renderStickers = (list) => {
+    if (!list.length) {
+      results.innerHTML = '<div style="grid-column:1/-1;padding:12px;font-size:12px;color:var(--muted);text-align:center;">No stickers found.<br><span style="font-size:10px;">Add GIFs to your GIFs/ folder.</span></div>';
+      return;
+    }
+    results.innerHTML = '';
+    list.forEach(s => {
+      const img = document.createElement('img');
+      img.src = s.url;
+      img.title = s.name;
+      img.style.cssText = 'width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid transparent;transition:border-color 0.15s;';
+      img.addEventListener('mouseenter', () => img.style.borderColor = 'var(--accent)');
+      img.addEventListener('mouseleave', () => img.style.borderColor = 'transparent');
+      img.addEventListener('click', async () => {
+        modal.remove();
+        await sendGif(s.url, s.name);
       });
-      if (!results.children.length) results.innerHTML = '<div style="grid-column:1/-1;padding:10px;font-size:12px;color:var(--muted);">No GIFs found.</div>';
-    } catch { results.innerHTML = '<div style="grid-column:1/-1;padding:10px;font-size:12px;color:var(--muted);">Failed to load GIFs.</div>'; }
+      results.appendChild(img);
+    });
   };
-  
-  let timer;
-  search.addEventListener('input', () => {
-    clearTimeout(timer);
-    timer = setTimeout(() => runSearch(search.value.trim()), 500);
+
+  results.innerHTML = '<div style="grid-column:1/-1;padding:12px;font-size:12px;color:var(--muted);text-align:center;">Loading stickers...</div>';
+  try {
+    const resp = await fetch(`GIFs/manifest.json?t=${Date.now()}`, { cache: 'no-store' });
+    if (!resp.ok) throw new Error('no manifest');
+    _allStickers = await resp.json();
+    renderStickers(_allStickers);
+  } catch {
+    results.innerHTML = '<div style="grid-column:1/-1;padding:12px;font-size:12px;color:var(--muted);text-align:center;">No stickers yet.<br><span style="font-size:10px;">Create a <strong>GIFs/manifest.json</strong> file.</span></div>';
+  }
+
+  search.addEventListener('input', (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    renderStickers(q ? _allStickers.filter(s => s.name.toLowerCase().includes(q)) : _allStickers);
   });
-  
-  runSearch(''); // trending
+
+  // Close on outside click
+  setTimeout(() => {
+    document.addEventListener('click', function handler(e) {
+      if (!modal.contains(e.target)) { modal.remove(); document.removeEventListener('click', handler); }
+    });
+  }, 50);
 }
 
-async function sendGif(url) {
+async function sendGif(url, name) {
   if (!_activeConvoId || !_currentProfile) return;
   try {
     await addDoc(collection(db, 'conversations', _activeConvoId, 'messages'), {
@@ -713,6 +728,7 @@ async function sendGif(url) {
       displayName: _currentProfile.displayName,
       senderAvatar: _currentProfile.avatarURL || '',
       text: url,
+      stickerName: name || '',
       type: 'gif',
       sentAt: serverTimestamp(),
     });

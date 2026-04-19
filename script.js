@@ -1496,8 +1496,9 @@ function openFullscreen(url, title) {
   fs.id = 'flux-fullscreen';
   fs.style.cssText = 'position:fixed;inset:0;z-index:9998;background:#000;display:flex;flex-direction:column;';
   fs.innerHTML = `
-    <div id="fs-bar" style="position:absolute;top:0;left:0;right:0;z-index:2;display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(to bottom,rgba(0,0,0,0.75),transparent);transition:opacity 0.3s;">
-      <button id="fs-exit" style="background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.2);color:white;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;cursor:pointer;backdrop-filter:blur(4px);">✕ Exit</button>
+    <div id="fs-hover-zone" style="position:absolute;top:0;left:0;right:0;height:60px;z-index:5;pointer-events:auto;"></div>
+    <div id="fs-bar" style="position:absolute;top:0;left:0;right:0;z-index:6;display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(to bottom,rgba(0,0,0,0.85),transparent);transition:opacity 0.3s;pointer-events:auto;">
+      <button id="fs-exit" style="background:rgba(0,0,0,0.7);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:8px;padding:8px 16px;font-size:14px;font-weight:700;cursor:pointer;backdrop-filter:blur(4px);pointer-events:auto;">✕ Exit</button>
       <span style="font-size:13px;font-weight:600;color:rgba(255,255,255,0.85);flex:1;">${title}</span>
     </div>
     <div id="fs-loading-bg" style="position:absolute;inset:0;background:#fff url('assets/loading.gif') center center / 250px no-repeat;z-index:1;"></div>
@@ -1511,16 +1512,33 @@ function openFullscreen(url, title) {
   `;
   document.body.appendChild(fs);
   const bar = fs.querySelector('#fs-bar');
+  const hoverZone = fs.querySelector('#fs-hover-zone');
   const fsIframe = fs.querySelector('#fs-iframe');
   const fsWarn = fs.querySelector('#fs-embed-warn');
   let barTimer;
-  const showBar = () => { bar.style.opacity = '1'; clearTimeout(barTimer); barTimer = setTimeout(() => { bar.style.opacity = '0'; }, 3000); };
-  showBar();
-  fs.addEventListener('mousemove', showBar);
+
+  const showBar = () => {
+    bar.style.opacity = '1';
+    clearTimeout(barTimer);
+    barTimer = setTimeout(() => { bar.style.opacity = '0'; }, 3000);
+  };
+  const hideBar = () => { bar.style.opacity = '0'; };
+
+  // Show bar on hover zone (transparent area at top of screen above iframe)
+  hoverZone.addEventListener('mouseenter', showBar);
+  hoverZone.addEventListener('mousemove', showBar);
+  bar.addEventListener('mouseenter', showBar);
+  bar.addEventListener('mousemove', showBar);
+
+  // Touch: tap anywhere shows bar
   fs.addEventListener('touchstart', showBar, { passive: true });
+
+  // Always show bar initially
+  showBar();
+
   fs.querySelector('#fs-exit').addEventListener('click', () => fs.remove());
   fs.querySelector('#fs-fallback-btn').addEventListener('click', () => { fsWarn.style.display = 'none'; });
-  // Detect embed failure
+
   let fsLoaded = false;
   fsIframe.addEventListener('load', () => {
     fsLoaded = true;

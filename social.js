@@ -322,7 +322,7 @@ async function deleteMessage(msgId) {
   } catch (e) { console.warn('Delete failed:', e); }
 }
 
-async function sendGifToChat(url) {
+async function sendGifToChat(url, name) {
   if (!_currentProfile) return;
   try {
     const freshProfile = await getProfile(auth.currentUser.uid) || _currentProfile;
@@ -335,6 +335,7 @@ async function sendGifToChat(url) {
       badges: freshProfile.badges || [],
       roles: freshProfile.roles || [],
       text: url,
+      stickerName: name || '',
       type: 'gif',
       sentAt: serverTimestamp(),
     });
@@ -347,14 +348,16 @@ function showGlobalGifPicker() {
 
   const picker = document.createElement('div');
   picker.id = 'global-gif-picker';
-  picker.style.cssText = 'position:absolute;bottom:60px;left:16px;z-index:600;width:300px;background:var(--panel);border-radius:16px;padding:14px;box-shadow:0 10px 40px rgba(0,0,0,0.2);border:1px solid var(--glass-border);';
+  picker.style.cssText = 'position:absolute;bottom:60px;left:0;right:0;z-index:600;background:var(--panel);border-radius:16px 16px 0 0;padding:14px;box-shadow:0 -4px 30px rgba(0,0,0,0.15);border-top:1px solid var(--glass-border);max-height:280px;display:flex;flex-direction:column;';
   picker.innerHTML = `
-    <h4 style="font-family:'Bebas Neue',sans-serif;font-size:18px;margin:0 0 10px;color:var(--text);">GIFs</h4>
-    <input id="global-gif-search" type="text" placeholder="Search GIFs..." style="width:100%;padding:8px;border-radius:10px;border:1px solid var(--glass-border);background:var(--bg);color:var(--text);font-size:13px;outline:none;box-sizing:border-box;margin-bottom:10px;font-family:inherit;">
-    <div id="global-gif-results" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-height:260px;overflow-y:auto;"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-shrink:0;">
+      <span style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--text);">🎬 Stickers</span>
+      <button id="global-gif-close" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:0;">✕</button>
+    </div>
+    <input id="global-gif-search" type="text" placeholder="Search stickers..." style="width:100%;padding:8px 10px;border-radius:10px;border:1px solid var(--glass-border);background:var(--bg);color:var(--text);font-size:13px;outline:none;box-sizing:border-box;margin-bottom:10px;font-family:inherit;flex-shrink:0;">
+    <div id="global-gif-results" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;overflow-y:auto;flex:1;"></div>
   `;
 
-  // Attach relative to the chat input area
   const inputWrap = document.querySelector('.chat-input-wrap');
   if (inputWrap) {
     inputWrap.style.position = 'relative';
@@ -363,37 +366,49 @@ function showGlobalGifPicker() {
     document.body.appendChild(picker);
   }
 
-  const runSearch = async (term) => {
+  picker.querySelector('#global-gif-close').addEventListener('click', () => picker.remove());
+
+  let _allStickers = [];
+
+  const renderStickers = (list) => {
     const results = picker.querySelector('#global-gif-results');
-    results.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:16px;"><img src="assets/loading.gif" style="width:40px;height:auto;"></div>';
-    try {
-      const endpoint = term
-        ? `https://api.tenor.com/v1/search?q=${encodeURIComponent(term)}&key=LIVDSRZULEUB&limit=12&media_filter=minimal`
-        : `https://api.tenor.com/v1/trending?key=LIVDSRZULEUB&limit=12&media_filter=minimal`;
-      const resp = await fetch(endpoint);
-      const data = await resp.json();
-      results.innerHTML = '';
-      (data.results || []).forEach(g => {
-        const tiny = g.media?.[0]?.tinygif?.url || g.media?.[0]?.gif?.url;
-        const full = g.media?.[0]?.gif?.url || tiny;
-        if (!tiny) return;
-        const img = document.createElement('img');
-        img.src = tiny;
-        img.style.cssText = 'width:100%;height:80px;object-fit:cover;border-radius:8px;cursor:pointer;';
-        img.addEventListener('click', async () => {
-          picker.remove();
-          await sendGifToChat(full);
-        });
-        results.appendChild(img);
+    if (!list.length) {
+      results.innerHTML = '<div style="grid-column:1/-1;padding:12px;font-size:12px;color:var(--muted);text-align:center;">No stickers found.<br><span style="font-size:10px;">Add GIFs to your GIFs/ folder.</span></div>';
+      return;
+    }
+    results.innerHTML = '';
+    list.forEach(s => {
+      const img = document.createElement('img');
+      img.src = s.url;
+      img.title = s.name;
+      img.style.cssText = 'width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid transparent;transition:border-color 0.15s;';
+      img.addEventListener('mouseenter', () => img.style.borderColor = 'var(--accent)');
+      img.addEventListener('mouseleave', () => img.style.borderColor = 'transparent');
+      img.addEventListener('click', async () => {
+        picker.remove();
+        await sendGifToChat(s.url, s.name);
       });
-      if (!results.children.length) results.innerHTML = '<div style="grid-column:1/-1;padding:10px;font-size:12px;color:var(--muted);text-align:center;">No GIFs found.</div>';
-    } catch (e) { results.innerHTML = '<div style="grid-column:1/-1;padding:10px;font-size:12px;color:var(--muted);text-align:center;">Failed to load GIFs.</div>'; }
+      results.appendChild(img);
+    });
   };
 
-  let timer;
+  const loadStickers = async () => {
+    const results = picker.querySelector('#global-gif-results');
+    results.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--muted);font-size:12px;">Loading stickers...</div>';
+    try {
+      const resp = await fetch(`GIFs/manifest.json?t=${Date.now()}`, { cache: 'no-store' });
+      if (!resp.ok) throw new Error('No manifest');
+      _allStickers = await resp.json();
+      renderStickers(_allStickers);
+    } catch {
+      // Fallback: try to auto-discover common filenames
+      results.innerHTML = '<div style="grid-column:1/-1;padding:12px;font-size:12px;color:var(--muted);text-align:center;">No stickers yet.<br><span style="font-size:10px;">Create a <strong>GIFs/manifest.json</strong> file.</span></div>';
+    }
+  };
+
   picker.querySelector('#global-gif-search').addEventListener('input', (e) => {
-    clearTimeout(timer);
-    timer = setTimeout(() => runSearch(e.target.value.trim()), 500);
+    const q = e.target.value.trim().toLowerCase();
+    renderStickers(q ? _allStickers.filter(s => s.name.toLowerCase().includes(q)) : _allStickers);
   });
 
   // Close when clicking outside
@@ -406,7 +421,7 @@ function showGlobalGifPicker() {
     });
   }, 50);
 
-  runSearch('');
+  loadStickers();
 }
 
 /* ══════════════════════════════════════
