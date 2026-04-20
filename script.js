@@ -920,7 +920,7 @@ function showNoAdsModal() {
 }
 
 /* ===================== INIT ===================== */
-document.addEventListener('DOMContentLoaded', () => {
+function bootFlux() {
   initCookieConsent();
   initDarkMode();
   initUpdateNotification();
@@ -1001,7 +1001,13 @@ document.addEventListener('DOMContentLoaded', () => {
       renderGames(GAMES);
     }
   }).catch(() => { });
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', bootFlux);
+} else {
+  bootFlux();
+}
 
 /* ===================== MOBILE WARNING ===================== */
 function initMobileWarning() {

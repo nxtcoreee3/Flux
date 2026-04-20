@@ -46,6 +46,20 @@
   <div id="global-page-loader" style="position:fixed;inset:0;background:#ffffff;z-index:9999999;display:flex;justify-content:center;align-items:center;transition:opacity 0.4s ease;pointer-events:none;">
     <img src="assets/loading.gif" style="width:250px;height:auto;" alt="Loading...">
   </div>
+  <script>
+    // Kill the loader fast so the homepage never feels stuck waiting on JS/network
+    (function(){
+      const hide = () => {
+        const el = document.getElementById('global-page-loader');
+        if (!el) return;
+        el.style.opacity = '0';
+        setTimeout(() => { try { el.remove(); } catch(e){} }, 420);
+      };
+      setTimeout(hide, 80);
+      requestAnimationFrame(hide);
+      window.addEventListener('pageshow', hide, { once: true });
+    })();
+  </script>
 
   <header class="topbar">
     <div class="brand">
@@ -155,6 +169,6 @@
     </aside>
   </div>
 
-  <script type="module" src="script.js"></script>
+  <script type="module" src="index-boot.js"></script>
 </body>
 </html>
