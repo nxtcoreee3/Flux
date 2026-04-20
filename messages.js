@@ -377,6 +377,18 @@ function loadConversationMessages(convoId, name, isGroup) {
         updateDoc(doc(db, 'conversations', convoId), { [`unread.${_currentUser.uid}`]: 0 }).catch(() => {});
       }, 350);
     }
+  }, (err) => {
+    const list = document.getElementById('messages-list');
+    if (!list) return;
+    console.warn('DM snapshot error:', err);
+    const msg = String(err?.message || '');
+    const isPerm = err?.code === 'permission-denied' || /insufficient permissions/i.test(msg);
+    list.innerHTML = `
+      <div style="padding:18px;text-align:center;color:var(--muted);font-size:13px;">
+        ${isPerm ? '🔒 You do not have permission to read messages in this chat.' : '⚠️ Could not load messages.'}
+        <div style="margin-top:8px;font-size:11px;opacity:0.9;">${escapeHtml(msg)}</div>
+      </div>
+    `;
   });
 }
 
@@ -494,7 +506,12 @@ async function sendMessage() {
         ...unreadUpdate
       });
     }
-  } catch (e) { console.warn('Send failed:', e); }
+  } catch (e) {
+    console.warn('Send failed:', e);
+    const msg = String(e?.message || '');
+    const isPerm = e?.code === 'permission-denied' || /insufficient permissions/i.test(msg);
+    alert(isPerm ? 'Message failed to send: permissions blocked by Firestore rules.' : `Message failed to send: ${msg || 'unknown error'}`);
+  }
 
   input.disabled = false;
   input.focus();
@@ -822,7 +839,12 @@ async function sendGif(url, name) {
         ...unreadUpdate
       });
     }
-  } catch (e) { console.warn('GIF Send failed:', e); }
+  } catch (e) {
+    console.warn('GIF Send failed:', e);
+    const msg = String(e?.message || '');
+    const isPerm = e?.code === 'permission-denied' || /insufficient permissions/i.test(msg);
+    alert(isPerm ? 'Sticker failed to send: permissions blocked by Firestore rules.' : `Sticker failed to send: ${msg || 'unknown error'}`);
+  }
 }
 
 function escapeHtml(str = '') {
