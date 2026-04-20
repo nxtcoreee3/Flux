@@ -490,7 +490,7 @@ function createCard(game) {
     ${saleBadge}
     ${lockOverlay}
     ${isModLocked && !isOwnerView ? `<div class="card-modlock-overlay" style="position:absolute;inset:0;z-index:5;background:rgba(239,68,68,0.15);border-radius:inherit;border:2px solid rgba(239,68,68,0.4);pointer-events:none;"></div>` : ''}
-    <img class="thumb" src="${game.thumb}" alt="${game.title} thumbnail" loading="lazy" style="${isModLocked && !isOwnerView ? 'opacity:0.45;filter:grayscale(0.3);' : ''}">
+    <img class="thumb" src="${game.thumb}" alt="${game.title} thumbnail" loading="lazy" decoding="async" style="${isModLocked && !isOwnerView ? 'opacity:0.45;filter:grayscale(0.3);' : ''}">
     <div class="card-body" style="cursor:pointer;${isModLocked && !isOwnerView ? 'opacity:0.5;' : ''}" title="View details">
       <h3 class="title">${game.title}</h3>
       <div class="meta">${game.desc || ''}</div>
@@ -719,7 +719,21 @@ function renderGames(list) {
   const grid = document.getElementById('game-grid') || document.getElementById('games-grid');
   if (!grid) return;
   grid.innerHTML = '';
-  list.forEach(g => grid.appendChild(createCard(g)));
+
+  const isIndex = grid.id === 'game-grid';
+  const queryText = (quickSearch?.value || '').toLowerCase().trim();
+  const limit = (isIndex && !queryText) ? 24 : list.length;
+  const slice = list.slice(0, limit);
+  slice.forEach(g => grid.appendChild(createCard(g)));
+
+  if (isIndex && !queryText && list.length > limit) {
+    const more = document.createElement('a');
+    more.href = 'games.html';
+    more.style.cssText = 'display:flex;align-items:center;justify-content:center;min-height:120px;border-radius:18px;border:1px dashed var(--glass-border);background:rgba(58,125,255,0.04);color:var(--accent);font-weight:900;text-decoration:none;font-size:14px;letter-spacing:0.2px;';
+    more.textContent = `Browse all games → (${list.length})`;
+    grid.appendChild(more);
+  }
+
   renderFavouritesSection();
   renderRecentSection();
 }
