@@ -50,11 +50,20 @@ document.addEventListener('DOMContentLoaded', () => {
   if (el) el.textContent = new Date().getFullYear();
 
   initCookieConsent();
-  initPresence();
-  initServerStatus();
-  initBroadcast();
-  initChaos();
-  initJumpscare();
+
+  const defer = (fn, timeout = 800) => {
+    try {
+      if ('requestIdleCallback' in window) return requestIdleCallback(fn, { timeout });
+    } catch {}
+    return setTimeout(fn, 0);
+  };
+
+  // Defer non-essential effects/network work to speed up first paint
+  defer(() => initPresence(), 1200);
+  defer(() => initServerStatus(), 1200);
+  defer(() => initBroadcast(), 1400);
+  defer(() => initChaos(), 1600);
+  defer(() => initJumpscare(), 1600);
   initAuthUI(null);
 
   loadProfilePage();

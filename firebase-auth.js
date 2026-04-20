@@ -3544,6 +3544,12 @@ export function initBroadcast() {
   import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(async ({ onSnapshot, getDoc, doc: firestoreDoc }) => {
     let _lastBroadcastId = null;
     const broadcastRef = firestoreDoc(db, 'stats', 'broadcast');
+    const isIOSSafari = (() => {
+      const ua = navigator.userAgent || '';
+      const isIOS = /iP(ad|hone|od)/.test(ua);
+      const isSafari = /Safari/.test(ua) && !/CriOS|FxiOS|OPiOS|EdgiOS/.test(ua);
+      return isIOS && isSafari;
+    })();
 
     // Pre-load current ID so we don't show old broadcast on page load
     try {
@@ -3588,17 +3594,19 @@ export function initBroadcast() {
       showBroadcastToast(message);
     });
 
-    // Fallback poll every 1.5s for mobile browsers
-    setInterval(async () => {
-      try {
-        const snap = await getDoc(broadcastRef);
-        if (!snap.exists()) return;
-        const { message, id } = snap.data();
-        if (!message || id === _lastBroadcastId) return;
-        _lastBroadcastId = id;
-        showBroadcastToast(message);
-      } catch {}
-    }, 1500);
+    // Fallback poll (only on iOS Safari where listeners can be flaky)
+    if (isIOSSafari) {
+      setInterval(async () => {
+        try {
+          const snap = await getDoc(broadcastRef);
+          if (!snap.exists()) return;
+          const { message, id } = snap.data();
+          if (!message || id === _lastBroadcastId) return;
+          _lastBroadcastId = id;
+          showBroadcastToast(message);
+        } catch {}
+      }, 1500);
+    }
   });
 }
 

@@ -39,11 +39,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   initCookieConsent();
   initDarkMode();
-  initPresence();
-  initServerStatus();
-  initBroadcast();
-  initChaos();
-  initJumpscare();
+
+  const defer = (fn, timeout = 800) => {
+    try {
+      if ('requestIdleCallback' in window) return requestIdleCallback(fn, { timeout });
+    } catch {}
+    return setTimeout(fn, 0);
+  };
+
+  // Defer non-essential effects/network work to speed up first paint
+  defer(() => initPresence(), 1200);
+  defer(() => initServerStatus(), 1200);
+  defer(() => initBroadcast(), 1400);
+  defer(() => initChaos(), 1600);
+  defer(() => initJumpscare(), 1600);
   initAuthUI(null);
 
   initChat();
@@ -173,17 +182,25 @@ function startChatListener(currentUser) {
     renderChatSnap(snap, currentUser);
   });
 
-  // Fallback poll every 2s for mobile Safari
-  setInterval(async () => {
-    try {
-      const { getDocs } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-      const snap = await getDocs(q);
-      const latestId = snap.docs[snap.docs.length - 1]?.id || null;
-      if (latestId !== _lastChatDocId) {
-        renderChatSnap(snap, currentUser);
-      }
-    } catch {}
-  }, 2000);
+  // Fallback poll every 2s (only on iOS Safari where listeners can be flaky)
+  const isIOSSafari = (() => {
+    const ua = navigator.userAgent || '';
+    const isIOS = /iP(ad|hone|od)/.test(ua);
+    const isSafari = /Safari/.test(ua) && !/CriOS|FxiOS|OPiOS|EdgiOS/.test(ua);
+    return isIOS && isSafari;
+  })();
+  if (isIOSSafari) {
+    setInterval(async () => {
+      try {
+        const { getDocs } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+        const snap = await getDocs(q);
+        const latestId = snap.docs[snap.docs.length - 1]?.id || null;
+        if (latestId !== _lastChatDocId) {
+          renderChatSnap(snap, currentUser);
+        }
+      } catch {}
+    }, 2000);
+  }
 }
 
 function renderMessageSync(msg, currentUser) {

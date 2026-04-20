@@ -911,20 +911,29 @@ document.addEventListener('DOMContentLoaded', () => {
   initDarkMode();
   initUpdateNotification();
   if (window.hideGlobalLoader) window.hideGlobalLoader();
-  initFirestoreHealthCheck();
-  initIncidentBanner();
-  initStatsButton();
-  initPresence();
-  initServerStatus();
-  initBroadcast();
-  initChaos();
-  initJumpscare();
-  trackDailyVisitor();
-  injectBuildNumber();
-  showSocialBanner();
-  initAIPicker();
-  initMobileWarning();
-  initAds();
+
+  const defer = (fn, timeout = 800) => {
+    try {
+      if ('requestIdleCallback' in window) return requestIdleCallback(fn, { timeout });
+    } catch {}
+    return setTimeout(fn, 0);
+  };
+
+  // Defer non-critical boot work so the page feels instant
+  defer(() => initFirestoreHealthCheck(), 1200);
+  defer(() => initIncidentBanner(), 1200);
+  defer(() => initStatsButton(), 1200);
+  defer(() => initPresence(), 1200);
+  defer(() => initServerStatus(), 1400);
+  defer(() => initBroadcast(), 1400);
+  defer(() => initChaos(), 1600);
+  defer(() => initJumpscare(), 1600);
+  defer(() => trackDailyVisitor(), 1800);
+  defer(() => injectBuildNumber(), 1800);
+  defer(() => showSocialBanner(), 2000);
+  defer(() => initAIPicker(), 2200);
+  defer(() => initMobileWarning(), 2200);
+  defer(() => initAds(), 2500);
 
   if (document.getElementById('quick-search')) {
     document.getElementById('quick-search').addEventListener('input', debounce(applyFilters, 120));
@@ -935,8 +944,8 @@ document.addEventListener('DOMContentLoaded', () => {
     window._fluxIsOwner = user?.uid === 'zEy6TO5ligf2um4rssIZs9C9X7f2';
     await refreshFavsCache();
     if (user && !user.isAnonymous) {
-      trackLoginStreak();
-      trackTimeOnSite();
+      defer(() => trackLoginStreak(), 1400);
+      defer(() => trackTimeOnSite(), 1400);
 
       // Re-check no-ads status now that we're signed in
       if (!_adsDisabled) {
