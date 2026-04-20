@@ -3,7 +3,7 @@
    favorites (cloud+local), dark mode, toasts, recently played, new badge, stats button
 */
 
-import { initAuthUI, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, fetchAllGameStats, setCurrentlyPlaying, clearCurrentlyPlaying, rateGame, getUserRating, reportGame, checkFirestoreHealth, fetchGameDetail, getAiGameDescription, getGameReviews, submitReview, addReviewComment, likeReview, deleteReview, fetchGamePricing, getUnlockedGames, unlockGame, SPIN_SEGMENTS, getLastSpin, spinWheel, giftPointsToUser, redeemCode, createRewardCode, getRewardCodes, deactivateRewardCode, initIncidentBanner, setServiceStatus, autoCheckServiceHealth, setIncidentBanner, checkNoAds, purchaseNoAds, NO_ADS_COST, setGameLockdown, initUpdateNotification } from './firebase-auth.js';
+import { initAuthUI, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, fetchAllGameStats, setCurrentlyPlaying, clearCurrentlyPlaying, rateGame, getUserRating, reportGame, checkFirestoreHealth, fetchGameDetail, getAiGameDescription, getGameReviews, submitReview, addReviewComment, likeReview, deleteReview, fetchGamePricing, getUnlockedGames, unlockGame, SPIN_SEGMENTS, getLastSpin, spinWheel, giftPointsToUser, redeemCode, createRewardCode, getRewardCodes, deactivateRewardCode, initIncidentBanner, setServiceStatus, autoCheckServiceHealth, setIncidentBanner, checkNoAds, purchaseNoAds, NO_ADS_COST, setGameLockdown, initUpdateNotification, watchUnreadMessages, getProfile } from './firebase-auth.js';
 
 const GAMES = [
   {
@@ -490,7 +490,7 @@ function createCard(game) {
     ${saleBadge}
     ${lockOverlay}
     ${isModLocked && !isOwnerView ? `<div class="card-modlock-overlay" style="position:absolute;inset:0;z-index:5;background:rgba(239,68,68,0.15);border-radius:inherit;border:2px solid rgba(239,68,68,0.4);pointer-events:none;"></div>` : ''}
-    <img class="thumb" src="${game.thumb}" alt="${game.title} thumbnail" loading="lazy" decoding="async" style="${isModLocked && !isOwnerView ? 'opacity:0.45;filter:grayscale(0.3);' : ''}">
+    <img class="thumb" src="${game.thumb}" alt="${game.title} thumbnail" loading="lazy" style="${isModLocked && !isOwnerView ? 'opacity:0.45;filter:grayscale(0.3);' : ''}">
     <div class="card-body" style="cursor:pointer;${isModLocked && !isOwnerView ? 'opacity:0.5;' : ''}" title="View details">
       <h3 class="title">${game.title}</h3>
       <div class="meta">${game.desc || ''}</div>
@@ -719,21 +719,7 @@ function renderGames(list) {
   const grid = document.getElementById('game-grid') || document.getElementById('games-grid');
   if (!grid) return;
   grid.innerHTML = '';
-
-  const isIndex = grid.id === 'game-grid';
-  const queryText = (quickSearch?.value || '').toLowerCase().trim();
-  const limit = (isIndex && !queryText) ? 24 : list.length;
-  const slice = list.slice(0, limit);
-  slice.forEach(g => grid.appendChild(createCard(g)));
-
-  if (isIndex && !queryText && list.length > limit) {
-    const more = document.createElement('a');
-    more.href = 'games.html';
-    more.style.cssText = 'display:flex;align-items:center;justify-content:center;min-height:120px;border-radius:18px;border:1px dashed var(--glass-border);background:rgba(58,125,255,0.04);color:var(--accent);font-weight:900;text-decoration:none;font-size:14px;letter-spacing:0.2px;';
-    more.textContent = `Browse all games → (${list.length})`;
-    grid.appendChild(more);
-  }
-
+  list.forEach(g => grid.appendChild(createCard(g)));
   renderFavouritesSection();
   renderRecentSection();
 }
@@ -920,34 +906,25 @@ function showNoAdsModal() {
 }
 
 /* ===================== INIT ===================== */
-function bootFlux() {
+document.addEventListener('DOMContentLoaded', () => {
   initCookieConsent();
   initDarkMode();
   initUpdateNotification();
   if (window.hideGlobalLoader) window.hideGlobalLoader();
-
-  const defer = (fn, timeout = 800) => {
-    try {
-      if ('requestIdleCallback' in window) return requestIdleCallback(fn, { timeout });
-    } catch {}
-    return setTimeout(fn, 0);
-  };
-
-  // Defer non-critical boot work so the page feels instant
-  defer(() => initFirestoreHealthCheck(), 1200);
-  defer(() => initIncidentBanner(), 1200);
-  defer(() => initStatsButton(), 1200);
-  defer(() => initPresence(), 1200);
-  defer(() => initServerStatus(), 1400);
-  defer(() => initBroadcast(), 1400);
-  defer(() => initChaos(), 1600);
-  defer(() => initJumpscare(), 1600);
-  defer(() => trackDailyVisitor(), 1800);
-  defer(() => injectBuildNumber(), 1800);
-  defer(() => showSocialBanner(), 2000);
-  defer(() => initAIPicker(), 2200);
-  defer(() => initMobileWarning(), 2200);
-  defer(() => initAds(), 2500);
+  initFirestoreHealthCheck();
+  initIncidentBanner();
+  initStatsButton();
+  initPresence();
+  initServerStatus();
+  initBroadcast();
+  initChaos();
+  initJumpscare();
+  trackDailyVisitor();
+  injectBuildNumber();
+  showSocialBanner();
+  initAIPicker();
+  initMobileWarning();
+  initAds();
 
   if (document.getElementById('quick-search')) {
     document.getElementById('quick-search').addEventListener('input', debounce(applyFilters, 120));
@@ -958,8 +935,31 @@ function bootFlux() {
     window._fluxIsOwner = user?.uid === 'zEy6TO5ligf2um4rssIZs9C9X7f2';
     await refreshFavsCache();
     if (user && !user.isAnonymous) {
-      defer(() => trackLoginStreak(), 1400);
-      defer(() => trackTimeOnSite(), 1400);
+      trackLoginStreak();
+      trackTimeOnSite();
+      
+      // Global message listener
+      let totalRead = 0;
+      watchUnreadMessages(user.uid, async (total, latest) => {
+        // Only notify if unread count increased
+        if (total > totalRead && latest && !location.pathname.includes('messages.html')) {
+          const sender = await getProfile(latest.senderUid);
+          const senderName = sender?.displayName || sender?.username || 'Someone';
+          const senderAvatar = sender?.avatarURL || '';
+          
+          showNotificationToast(
+            `New ${latest.type === 'dm' ? 'message' : 'group message'} from ${senderName}`,
+            latest.text,
+            senderAvatar,
+            'messages.html'
+          );
+          
+          // Play subtle sound if approved
+          try { new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3').play(); } catch(e){}
+        }
+        totalRead = total;
+        updateGlobalUnreadBadge(total);
+      });
 
       // Re-check no-ads status now that we're signed in
       if (!_adsDisabled) {
@@ -1001,13 +1001,7 @@ function bootFlux() {
       renderGames(GAMES);
     }
   }).catch(() => { });
-}
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', bootFlux);
-} else {
-  bootFlux();
-}
+});
 
 /* ===================== MOBILE WARNING ===================== */
 function initMobileWarning() {
@@ -1467,18 +1461,188 @@ function showSocialBanner() {
 }
 
 /* ===================== BUILD SHA ===================== */
-async function injectBuildNumber() {
+/* ===================== COMMITS PANEL + BUILD NUMBER ===================== */
+
+// Maps changed files → page links users can navigate to
+const FILE_TO_PAGE = {
+  'social.js':        { label: 'Social', url: 'social.html' },
+  'social.html':      { label: 'Social', url: 'social.html' },
+  'messages.js':      { label: 'Messages', url: 'messages.html' },
+  'messages.html':    { label: 'Messages', url: 'messages.html' },
+  'profile.js':       { label: 'Profiles', url: 'profile.html' },
+  'profile.html':     { label: 'Profiles', url: 'profile.html' },
+  'games.html':       { label: 'Games', url: 'games.html' },
+  'script.js':        { label: 'Home', url: 'index.html' },
+  'index.html':       { label: 'Home', url: 'index.html' },
+  'settings.html':    { label: 'Settings', url: 'settings.html' },
+  'status.html':      { label: 'Status', url: 'status.html' },
+  'firebase-auth.js': { label: 'Core', url: null },
+  'style.css':        { label: 'Design', url: null },
+};
+
+const COMMITS_CACHE_KEY = 'flux_commits_cache';
+const COMMITS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+function timeAgoShort(isoDate) {
+  const diff = Date.now() - new Date(isoDate).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
+async function fetchCommits(force = false) {
+  // Return cache if fresh
+  if (!force) {
+    try {
+      const cached = JSON.parse(sessionStorage.getItem(COMMITS_CACHE_KEY) || 'null');
+      if (cached && Date.now() - cached.ts < COMMITS_CACHE_TTL) return cached.data;
+    } catch {}
+  }
+  const res = await fetch('https://api.github.com/repos/nxtcoreee3/Flux/commits?per_page=5&branch=main', {
+    headers: { 'Accept': 'application/vnd.github.v3+json' }
+  });
+  if (!res.ok) throw new Error('GitHub API error');
+  const data = await res.json();
+  sessionStorage.setItem(COMMITS_CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
+  return data;
+}
+
+async function getCommitFiles(sha) {
   try {
-    const res = await fetch('https://api.github.com/repos/nxtcoreee3/Flux/commits/main', {
+    const res = await fetch(`https://api.github.com/repos/nxtcoreee3/Flux/commits/${sha}`, {
       headers: { 'Accept': 'application/vnd.github.v3+json' }
     });
-    if (!res.ok) return;
+    if (!res.ok) return [];
     const data = await res.json();
-    const sha = data.sha?.slice(0, 7);
-    if (!sha) return;
+    return (data.files || []).map(f => f.filename.split('/').pop());
+  } catch { return []; }
+}
+
+async function getAICommitDescription(commitMsg, files) {
+  // Check local cache first
+  const cacheKey = `flux_commit_ai_${commitMsg.slice(0, 30)}`;
+  const cached = localStorage.getItem(cacheKey);
+  if (cached) return JSON.parse(cached);
+
+  try {
+    const fileList = files.length ? `Changed files: ${files.join(', ')}.` : '';
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{
+          role: 'user',
+          content: `You are writing a short, friendly update summary for users of "Flux" — a browser game portal with social features, chat, profiles, and messages.
+
+Commit message: "${commitMsg}"
+${fileList}
+
+Write ONE sentence (max 12 words) telling users what's new or improved in plain English. No technical jargon. No "the code" or "refactor" — speak to the user ("You can now...", "Fixed...", "Improved..."). If it's a bug fix, say what was fixed. If it adds a feature, say what you can do now. Return ONLY the sentence, nothing else.`
+        }]
+      })
+    });
+    if (!res.ok) return null;
+    const aiData = await res.json();
+    const desc = aiData.content?.[0]?.text?.trim() || null;
+    if (desc) localStorage.setItem(cacheKey, JSON.stringify(desc));
+    return desc;
+  } catch { return null; }
+}
+
+function getPageLinkFromFiles(files) {
+  for (const file of files) {
+    const match = FILE_TO_PAGE[file];
+    if (match) return match;
+  }
+  return null;
+}
+
+async function renderCommitsPanel(commits) {
+  const list = document.getElementById('commits-list');
+  if (!list) return;
+
+  // Mark commits newer than last seen
+  const lastSeenSha = localStorage.getItem('flux_last_seen_commit');
+  const latestSha = commits[0]?.sha;
+
+  list.innerHTML = '';
+
+  for (let i = 0; i < commits.length; i++) {
+    const c = commits[i];
+    const sha = c.sha.slice(0, 7);
+    const msg = (c.commit?.message || '').split('\n')[0];
+    const date = c.commit?.committer?.date || c.commit?.author?.date;
+    const isNew = lastSeenSha && c.sha !== lastSeenSha && i === 0;
+    const commitUrl = `https://github.com/nxtcoreee3/Flux/commit/${c.sha}`;
+    const num = (parseInt(localStorage.getItem('flux_commit_base') || '0') + commits.length - i);
+
+    const row = document.createElement('div');
+    row.className = 'commit-row';
+
+    row.innerHTML = `
+      <div class="commit-sha-line">
+        <a class="commit-sha" href="${commitUrl}" target="_blank" rel="noopener" title="Open commit on GitHub" onclick="event.stopPropagation();">#${num > 0 ? num : sha}</a>
+        ${isNew ? '<span class="commit-new-badge">New</span>' : ''}
+        <span class="commit-msg">${msg}</span>
+      </div>
+      <div class="commit-ai-desc" id="ai-desc-${sha}">
+        <span style="color:var(--muted);font-size:10px;">✨ Summarising...</span>
+      </div>
+      <span class="commit-time">${timeAgoShort(date)}</span>
+    `;
+
+    // Clicking the row opens the commit on GitHub
+    row.addEventListener('click', () => {
+      window.open(commitUrl, '_blank', 'noopener');
+    });
+
+    list.appendChild(row);
+
+    // Fetch AI description + files asynchronously per commit
+    (async (sha7, fullSha, rowEl) => {
+      const descEl = rowEl.querySelector(`#ai-desc-${sha7}`);
+      if (!descEl) return;
+      try {
+        const files = await getCommitFiles(fullSha);
+        const aiDesc = await getAICommitDescription(msg, files);
+        const pageLink = getPageLinkFromFiles(files);
+
+        if (aiDesc) {
+          if (pageLink?.url) {
+            descEl.innerHTML = `<a href="${pageLink.url}" onclick="event.stopPropagation();" style="color:var(--accent);text-decoration:none;font-weight:600;" title="Go to ${pageLink.label}">→ ${pageLink.label}:</a> ${aiDesc}`;
+          } else {
+            descEl.textContent = aiDesc;
+          }
+        } else {
+          descEl.textContent = msg.length > 60 ? msg.slice(0, 60) + '…' : msg;
+        }
+      } catch {
+        descEl.textContent = msg.length > 60 ? msg.slice(0, 60) + '…' : msg;
+      }
+    })(sha, c.sha, row);
+  }
+
+  // Store latest sha so we know what's "new" next time
+  if (latestSha) localStorage.setItem('flux_last_seen_commit', latestSha);
+}
+
+async function injectBuildNumber() {
+  try {
+    const commits = await fetchCommits();
+    if (!commits?.length) return;
+
+    const latest = commits[0];
+    const sha = latest.sha.slice(0, 7);
     window._fluxBuildSHA = sha;
-    window._fluxBuildURL = `https://github.com/nxtcoreee3/Flux/commit/${data.sha}`;
-    window._fluxBuildMsg = (data.commit?.message || '').replace(/"/g, '').split('\n')[0];
+    window._fluxBuildURL = `https://github.com/nxtcoreee3/Flux/commit/${latest.sha}`;
+    window._fluxBuildMsg = (latest.commit?.message || '').split('\n')[0];
+
+    // Inject SHA into profile dropdown
     const tryInject = () => {
       const dd = document.getElementById('profile-dropdown');
       if (!dd || dd.querySelector('.build-sha-item')) return;
@@ -1492,6 +1656,19 @@ async function injectBuildNumber() {
     const obs = new MutationObserver(tryInject);
     obs.observe(document.body, { childList: true, subtree: true });
     setTimeout(() => obs.disconnect(), 30000);
+
+    // Render commits panel (index.html only)
+    if (document.getElementById('hero-commits')) {
+      await renderCommitsPanel(commits);
+
+      // Auto-refresh every 5 minutes
+      setInterval(async () => {
+        try {
+          const fresh = await fetchCommits(true);
+          if (fresh?.length) await renderCommitsPanel(fresh);
+        } catch {}
+      }, COMMITS_CACHE_TTL);
+    }
   } catch { }
 }
 

@@ -93,7 +93,7 @@ body {
 
 .hero {
   max-width: 1200px; margin: 28px auto; padding: 36px; border-radius: 18px;
-  display: grid; grid-template-columns: 1fr 360px; gap: 26px; align-items: center;
+  display: grid; grid-template-columns: 1fr 340px; gap: 26px; align-items: start;
   background: var(--glass-gradient); border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shadow); backdrop-filter: blur(var(--glass-blur));
 }
@@ -107,6 +107,86 @@ body {
 .tile-1 { width: 220px; height: 120px; right: 8px; top: 0; transform: rotate(-6deg); }
 .tile-2 { width: 160px; height: 92px; right: 40px; top: 60px; transform: rotate(6deg); }
 .tile-3 { width: 120px; height: 70px; left: 20px; bottom: 0; transform: rotate(-4deg); }
+
+/* ── Commits Panel ── */
+.hero-commits {
+  border-left: 1px solid var(--glass-border);
+  padding-left: 24px;
+  min-width: 0;
+  flex-shrink: 0;
+  width: 340px;
+}
+.commits-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.commit-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  transition: background 0.15s;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.commit-row:hover { background: rgba(58,125,255,0.06); border-color: rgba(58,125,255,0.15); }
+.commit-sha-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.commit-sha {
+  font-family: monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  background: rgba(58,125,255,0.1);
+  padding: 1px 6px;
+  border-radius: 6px;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+.commit-sha:hover { background: rgba(58,125,255,0.2); }
+.commit-msg {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.commit-ai-desc {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.4;
+  margin-top: 2px;
+}
+.commit-ai-desc a {
+  color: var(--accent);
+  text-decoration: underline;
+  font-weight: 600;
+}
+.commit-time {
+  font-size: 10px;
+  color: var(--muted);
+}
+.commit-new-badge {
+  background: linear-gradient(135deg,#22c55e,#16a34a);
+  color: white;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 20px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+@media (max-width: 900px) {
+  .hero-commits { display: none; }
+}
 
 .section { max-width: 1200px; margin: 28px auto; padding: 0 20px; }
 .section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
