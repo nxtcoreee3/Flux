@@ -4,6 +4,7 @@ const GH_OWNER = 'nxtcoreee3';
 const GH_REPO = 'Flux';
 const GH_BRANCH = 'main';
 const PER_PAGE = 3;
+const FETCH_WINDOW = 10; // fetch more so we can detect how many new commits happened between refreshes
 
 const CACHE_KEY = 'flux_commits_panel_cache_v1';
 const CACHE_TTL = 4 * 60 * 1000;
@@ -11,10 +12,11 @@ const ETAG_KEY = 'flux_commits_panel_etag';
 
 const TOTAL_KEY = 'flux_commits_total';
 const TOTAL_TS_KEY = 'flux_commits_total_ts';
-const TOTAL_TTL = 60 * 60 * 1000;
+const TOTAL_TTL = 5 * 60 * 1000;
 
 const LATEST_SHA_KEY = 'flux_commits_panel_latest_sha';
 const SEEN_SHA_KEY = 'flux_commits_panel_seen_sha';
+const TOTAL_VERIFIED_KEY = 'flux_commits_total_verified';
 
 function escapeHtml(str = '') {
   return String(str)
@@ -42,6 +44,26 @@ function parseLastPageFromLinkHeader(link) {
   return m ? parseInt(m[1], 10) : null;
 }
 
+async function fetchCommitTotalViaSearch() {
+  // Fallback for cases where the `Link` header isn't accessible (CORS/exposed headers)
+  // Uses GitHub Search API which returns a JSON `total_count`.
+  try {
+    const q = encodeURIComponent(`repo:${GH_OWNER}/${GH_REPO}`);
+    const res = await fetch(`https://api.github.com/search/commits?q=${q}&per_page=1`, {
+      headers: {
+        'Accept': 'application/vnd.github+json, application/vnd.github.cloak-preview'
+      },
+      cache: 'no-store'
+    });
+    if (!res.ok) return 0;
+    const data = await res.json();
+    const total = parseInt(data?.total_count || '0', 10) || 0;
+    return total;
+  } catch {
+    return 0;
+  }
+}
+
 async function fetchCommitTotal(force = false) {
   const cached = parseInt(localStorage.getItem(TOTAL_KEY) || '0', 10) || 0;
   const ts = parseInt(localStorage.getItem(TOTAL_TS_KEY) || '0', 10) || 0;
@@ -55,7 +77,7 @@ async function fetchCommitTotal(force = false) {
     if (!res.ok) return cached || 0;
     const link = res.headers.get('Link') || '';
     const lastPage = parseLastPageFromLinkHeader(link);
-    const total = lastPage || cached || 0;
+    const total = lastPage || (await fetchCommitTotalViaSearch()) || cached || 0;
     if (total) {
       localStorage.setItem(TOTAL_KEY, String(total));
       localStorage.setItem(TOTAL_TS_KEY, String(Date.now()));
@@ -78,7 +100,7 @@ async function fetchCommits(force = false) {
   const etag = localStorage.getItem(ETAG_KEY) || '';
   if (etag) headers['If-None-Match'] = etag;
 
-  const url = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/commits?per_page=${PER_PAGE}&sha=${GH_BRANCH}`;
+  const url = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/commits?per_page=${FETCH_WINDOW}&sha=${GH_BRANCH}`;
   const res = await fetch(url, { headers, cache: 'no-store' });
   if (res.status === 304) {
     try {
@@ -118,7 +140,7 @@ function inferPageFromMessage(commitMsg = '') {
   return null;
 }
 
-async function renderPanel() {
+async function renderPanel(force = false) {
   const list = document.getElementById('commits-list');
   if (!list) return;
   const label = document.getElementById('commits-total-label');
@@ -127,21 +149,60 @@ async function renderPanel() {
 
   const prevLatest = localStorage.getItem(LATEST_SHA_KEY) || '';
 
-  const commits = await fetchCommits(false);
+  if (label && !label.dataset.fluxBound) {
+    label.dataset.fluxBound = '1';
+    label.style.cursor = 'pointer';
+    label.title = 'Click to resync';
+    label.addEventListener('click', async (e) => {
+      e.preventDefault();
+      try {
+        localStorage.removeItem(TOTAL_KEY);
+        localStorage.removeItem(TOTAL_TS_KEY);
+        localStorage.removeItem(LATEST_SHA_KEY);
+        try { sessionStorage.removeItem(CACHE_KEY); } catch {}
+        try { sessionStorage.removeItem(TOTAL_VERIFIED_KEY); } catch {}
+      } catch {}
+      const listEl = document.getElementById('commits-list');
+      if (listEl) listEl.innerHTML = '<div style="padding:16px 0;text-align:center;color:var(--muted);font-size:12px;">Resyncing…</div>';
+      await renderPanel(true);
+    });
+  }
+
+  const commits = await fetchCommits(force);
   const latestSha = commits?.[0]?.sha || '';
 
-  let total = await fetchCommitTotal(false);
+  const cachedTotal = parseInt(localStorage.getItem(TOTAL_KEY) || '0', 10) || 0;
 
-  // If we detect a new latest commit, bump the total immediately so the numbers count up
+  // Verify total at least once per tab session so we don't get stuck with bad cached values
+  let verified = false;
+  try { verified = sessionStorage.getItem(TOTAL_VERIFIED_KEY) === '1'; } catch {}
+  let total = await fetchCommitTotal(force || !verified);
+  if (total) {
+    try { sessionStorage.setItem(TOTAL_VERIFIED_KEY, '1'); } catch {}
+  }
+  if (!total && cachedTotal) total = cachedTotal;
+
+  // If we detect a new latest commit, bump the total so the numbers always count up.
+  // Try to verify via API, but fall back to cachedTotal + newCount if verification doesn't move.
   if (latestSha && prevLatest && latestSha !== prevLatest) {
     const idx = (commits || []).findIndex(c => c?.sha === prevLatest);
-    if (idx > 0) {
-      total = Math.max(total || 1, 1) + idx;
-      localStorage.setItem(TOTAL_KEY, String(total));
-      localStorage.setItem(TOTAL_TS_KEY, String(Date.now()));
-    } else {
-      total = await fetchCommitTotal(true);
-    }
+    const newCount = idx > 0 ? idx : 1;
+
+    const verifiedTotal = await fetchCommitTotal(true);
+    const base = verifiedTotal || total || cachedTotal || 0;
+
+    // If verifiedTotal didn't change (rate limit / stale / missing Link), still bump based on detection.
+    const verifiedMoved = verifiedTotal && cachedTotal && verifiedTotal !== cachedTotal;
+    total = verifiedMoved ? verifiedTotal : (base + newCount);
+
+    localStorage.setItem(TOTAL_KEY, String(total));
+    localStorage.setItem(TOTAL_TS_KEY, String(Date.now()));
+  }
+
+  // If cached total is wildly off, prefer the verified total (helps resync if cache got corrupted)
+  if (total && cachedTotal && Math.abs(total - cachedTotal) > 20) {
+    localStorage.setItem(TOTAL_KEY, String(total));
+    localStorage.setItem(TOTAL_TS_KEY, String(Date.now()));
   }
 
   if (latestSha) localStorage.setItem(LATEST_SHA_KEY, latestSha);
@@ -187,6 +248,13 @@ async function renderPanel() {
 
   // Mark latest as "seen" after render (so New shows once)
   if (latestSha) localStorage.setItem(SEEN_SHA_KEY, latestSha);
+
+  // If we just bumped total based on SHA-change detection, we already wrote TOTAL_KEY above.
+  // Otherwise keep cache aligned with verified total (small drift tolerance).
+  if (total && (!cachedTotal || Math.abs(total - cachedTotal) > 2)) {
+    localStorage.setItem(TOTAL_KEY, String(total));
+    localStorage.setItem(TOTAL_TS_KEY, String(Date.now()));
+  }
 }
 
 async function start() {
@@ -208,4 +276,3 @@ async function start() {
 }
 
 start();
-

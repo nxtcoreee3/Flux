@@ -1484,7 +1484,7 @@ const COMMITS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const COMMITS_PER_PAGE = 3;
 const COMMITS_TOTAL_KEY = 'flux_commits_total';
 const COMMITS_TOTAL_TS_KEY = 'flux_commits_total_ts';
-const COMMITS_TOTAL_TTL = 60 * 60 * 1000; // 1 hour
+const COMMITS_TOTAL_TTL = 5 * 60 * 1000; // 5 minutes
 
 function timeAgoShort(isoDate) {
   const diff = Date.now() - new Date(isoDate).getTime();
@@ -1536,9 +1536,11 @@ async function fetchCommitTotal(force = false) {
     if (!res.ok) return cached || 0;
     const link = res.headers.get('Link') || '';
     const lastPage = parseLastPageFromLinkHeader(link);
-    const total = lastPage || 1;
-    localStorage.setItem(COMMITS_TOTAL_KEY, String(total));
-    localStorage.setItem(COMMITS_TOTAL_TS_KEY, String(Date.now()));
+    const total = lastPage || cached || 0;
+    if (total) {
+      localStorage.setItem(COMMITS_TOTAL_KEY, String(total));
+      localStorage.setItem(COMMITS_TOTAL_TS_KEY, String(Date.now()));
+    }
     return total;
   } catch {
     return cached || 0;
@@ -1598,7 +1600,8 @@ async function renderCommitsPanel(commits) {
   if (!list) return;
 
   const totalLabel = document.getElementById('commits-total-label');
-  const commitTotal = await fetchCommitTotal(false);
+  // If commit list changed, force-refresh the total so the displayed numbers stay in sync
+  const commitTotal = await fetchCommitTotal(true);
   if (totalLabel && commitTotal) totalLabel.textContent = `${commitTotal} Commits`;
 
   // Mark commits newer than last seen
