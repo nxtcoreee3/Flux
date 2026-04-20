@@ -1551,6 +1551,11 @@ export async function initAuthUI(onUserChange) {
       <a href="settings.html" style="display:flex;align-items:center;gap:10px;padding:10px 16px;font-size:13px;color:var(--text,#111827);text-decoration:none;border-bottom:1px solid var(--glass-border,rgba(0,0,0,0.06));">
         <span>⚙️</span> Settings
       </a>
+      <button id="fast-boot-btn" style="width:100%;padding:10px 16px;background:none;border:none;border-bottom:1px solid var(--glass-border,rgba(0,0,0,0.06));text-align:left;cursor:pointer;font-size:13px;color:var(--text,#111827);display:flex;align-items:center;gap:10px;">
+        <span>⚡</span> Boost Mode
+        <span style="font-size:9px;font-weight:900;letter-spacing:0.6px;padding:2px 7px;border-radius:999px;background:linear-gradient(135deg,#7c6aff,#a855f7);color:#fff;">BETA</span>
+        <span id="fast-boot-state" style="margin-left:auto;font-size:10px;font-weight:900;padding:2px 8px;border-radius:999px;background:rgba(58,125,255,0.12);color:var(--accent,#3a7dff);border:1px solid rgba(58,125,255,0.18);">OFF</span>
+      </button>
       <a href="status.html" style="display:flex;align-items:center;gap:10px;padding:10px 16px;font-size:13px;color:var(--text,#111827);text-decoration:none;border-bottom:1px solid var(--glass-border,rgba(0,0,0,0.06));">
         <span>🛰️</span> Status
       </a>
@@ -1675,6 +1680,38 @@ export async function initAuthUI(onUserChange) {
     e.stopPropagation();
     document.getElementById('profile-dropdown').style.display = 'none';
     if (typeof window.openRedeemCode === 'function') window.openRedeemCode();
+  });
+
+  // Fast boot toggle
+  const fastBootBtn = document.getElementById('fast-boot-btn');
+  const fastBootState = document.getElementById('fast-boot-state');
+  const applyFastBootState = () => {
+    let on = false;
+    try { on = localStorage.getItem('flux_fast_boot') === '1'; } catch {}
+    if (fastBootState) {
+      fastBootState.textContent = on ? 'ON' : 'OFF';
+      fastBootState.style.background = on ? 'rgba(34,197,94,0.14)' : 'rgba(58,125,255,0.12)';
+      fastBootState.style.borderColor = on ? 'rgba(34,197,94,0.22)' : 'rgba(58,125,255,0.18)';
+      fastBootState.style.color = on ? '#16a34a' : 'var(--accent,#3a7dff)';
+    }
+  };
+  applyFastBootState();
+  fastBootBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.getElementById('profile-dropdown').style.display = 'none';
+    let on = false;
+    try { on = localStorage.getItem('flux_fast_boot') === '1'; } catch {}
+    try { localStorage.setItem('flux_fast_boot', on ? '0' : '1'); } catch {}
+    applyFastBootState();
+
+    const toast = document.createElement('div');
+    toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:99999;background:#111827;color:white;padding:12px 18px;border-radius:18px;font-size:13px;font-weight:800;box-shadow:0 10px 40px rgba(0,0,0,0.3);opacity:0;transition:opacity 0.2s;';
+    toast.textContent = on ? 'Boost Mode disabled.' : 'Boost Mode enabled — reloading…';
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => { toast.style.opacity = '1'; });
+    setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 200); }, 1600);
+
+    setTimeout(() => location.reload(), 300);
   });
 
   // dark-toggle moved to settings.html

@@ -3,7 +3,7 @@
    favorites (cloud+local), dark mode, toasts, recently played, new badge, stats button
 */
 
-import { initAuthUI, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, fetchAllGameStats, setCurrentlyPlaying, clearCurrentlyPlaying, rateGame, getUserRating, reportGame, checkFirestoreHealth, fetchGameDetail, getAiGameDescription, getGameReviews, submitReview, addReviewComment, likeReview, deleteReview, fetchGamePricing, getUnlockedGames, unlockGame, SPIN_SEGMENTS, getLastSpin, spinWheel, giftPointsToUser, redeemCode, createRewardCode, getRewardCodes, deactivateRewardCode, initIncidentBanner, setServiceStatus, autoCheckServiceHealth, setIncidentBanner, checkNoAds, purchaseNoAds, NO_ADS_COST, setGameLockdown, initUpdateNotification, watchUnreadMessages, getProfile } from './firebase-auth.js';
+import { initAuthUI, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, fetchAllGameStats, setCurrentlyPlaying, clearCurrentlyPlaying, rateGame, getUserRating, reportGame, checkFirestoreHealth, fetchGameDetail, getAiGameDescription, getGameReviews, submitReview, addReviewComment, likeReview, deleteReview, fetchGamePricing, getUnlockedGames, unlockGame, SPIN_SEGMENTS, getLastSpin, spinWheel, giftPointsToUser, redeemCode, createRewardCode, getRewardCodes, deactivateRewardCode, initIncidentBanner, setServiceStatus, autoCheckServiceHealth, setIncidentBanner, checkNoAds, purchaseNoAds, NO_ADS_COST, setGameLockdown, initUpdateNotification } from './firebase-auth.js';
 
 const GAMES = [
   {
@@ -906,70 +906,65 @@ function showNoAdsModal() {
 }
 
 /* ===================== INIT ===================== */
-document.addEventListener('DOMContentLoaded', () => {
+function bootFlux() {
   initCookieConsent();
   initDarkMode();
   initUpdateNotification();
   if (window.hideGlobalLoader) window.hideGlobalLoader();
-  initFirestoreHealthCheck();
-  initIncidentBanner();
-  initStatsButton();
-  initPresence();
-  initServerStatus();
-  initBroadcast();
-  initChaos();
-  initJumpscare();
-  trackDailyVisitor();
-  injectBuildNumber();
-  showSocialBanner();
-  initAIPicker();
-  initMobileWarning();
-  initAds();
+
+  const fastBoot = (() => { try { return localStorage.getItem('flux_fast_boot') === '1'; } catch { return false; } })();
+  const defer = (fn, timeout = 800) => {
+    try {
+      if ('requestIdleCallback' in window) return requestIdleCallback(fn, { timeout });
+    } catch {}
+    return setTimeout(fn, 0);
+  };
+
+  // Render immediately so the page never feels empty
+  if (document.getElementById('game-grid') || document.getElementById('games-grid')) {
+    renderGames(GAMES);
+  }
 
   if (document.getElementById('quick-search')) {
     document.getElementById('quick-search').addEventListener('input', debounce(applyFilters, 120));
   }
 
-  initAuthUI(async (user) => {
+  // Non-critical boot work (delay more aggressively in Fast Boot)
+  const base = fastBoot ? 2200 : 1200;
+  defer(() => initFirestoreHealthCheck(), base);
+  defer(() => initIncidentBanner(), base);
+  defer(() => initStatsButton(), base);
+  defer(() => initPresence(), base);
+  defer(() => initServerStatus(), base + 200);
+  defer(() => initBroadcast(), base + 200);
+  defer(() => initChaos(), base + 400);
+  defer(() => initJumpscare(), base + 400);
+  defer(() => trackDailyVisitor(), base + 600);
+  defer(() => injectBuildNumber(), base + 800);
+  defer(() => showSocialBanner(), base + 900);
+  defer(() => initAIPicker(), base + 1000);
+  defer(() => initMobileWarning(), base + 1100);
+  defer(() => initAds(), base + 1400);
+
+  const initAuth = () => initAuthUI(async (user) => {
     window._currentUserUid = user?.uid || null;
     window._fluxIsOwner = user?.uid === 'zEy6TO5ligf2um4rssIZs9C9X7f2';
     await refreshFavsCache();
     if (user && !user.isAnonymous) {
-      trackLoginStreak();
-      trackTimeOnSite();
-      
-      // Global message listener
-      let totalRead = 0;
-      watchUnreadMessages(user.uid, async (total, latest) => {
-        // Only notify if unread count increased
-        if (total > totalRead && latest && !location.pathname.includes('messages.html')) {
-          const sender = await getProfile(latest.senderUid);
-          const senderName = sender?.displayName || sender?.username || 'Someone';
-          const senderAvatar = sender?.avatarURL || '';
-          
-          showNotificationToast(
-            `New ${latest.type === 'dm' ? 'message' : 'group message'} from ${senderName}`,
-            latest.text,
-            senderAvatar,
-            'messages.html'
-          );
-          
-          // Play subtle sound if approved
-          try { new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3').play(); } catch(e){}
-        }
-        totalRead = total;
-        updateGlobalUnreadBadge(total);
-      });
+      defer(() => trackLoginStreak(), base);
+      defer(() => trackTimeOnSite(), base);
 
       // Re-check no-ads status now that we're signed in
       if (!_adsDisabled) {
-        const noAds = await checkNoAds();
-        if (noAds) {
-          _adsDisabled = true;
-          localStorage.setItem('flux_no_ads', '1');
-          const slot = document.getElementById('flux-ad-banner');
-          if (slot) slot.innerHTML = '';
-        }
+        try {
+          const noAds = await checkNoAds();
+          if (noAds) {
+            _adsDisabled = true;
+            localStorage.setItem('flux_no_ads', '1');
+            const slot = document.getElementById('flux-ad-banner');
+            if (slot) slot.innerHTML = '';
+          }
+        } catch {}
       }
       if (!sessionStorage.getItem('flux_welcomed')) {
         showToast(`Welcome back! 👋`, 'success');
@@ -978,30 +973,34 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Render immediately so grid always shows
-  if (document.getElementById('game-grid') || document.getElementById('games-grid')) {
-    renderGames(GAMES);
-  }
+  // Fast Boot: defer Firebase/auth work so first paint is instant
+  if (fastBoot) defer(() => initAuth(), base + 400);
+  else initAuth();
 
   // Load cloud data in background then re-render with full info
-  loadCloudFavs().then(async cloud => {
-    if (cloud !== null) { _favsCache = cloud; saveLocalFavs(cloud); }
-    try {
-      const [stats, hotGame, pricing, unlocked] = await Promise.all([
-        fetchAllGameStats(), fetchHotGame(), fetchGamePricing(), getUnlockedGames()
-      ]);
-      _allGameStats = stats || {};
-      if (hotGame) _hotGameId = hotGame.id;
-      GAMES.forEach(g => { _newGameCache[g.id] = _allGameStats[g.id]?.firstSeen || null; });
-      Object.assign(_gamePricing, pricing || {});
-      window._fluxGamePricing = _gamePricing;
-      _unlockedGames = unlocked || [];
-    } catch { /* Firebase down — grid already showing */ }
-    if (document.getElementById('game-grid') || document.getElementById('games-grid')) {
-      renderGames(GAMES);
-    }
-  }).catch(() => { });
-});
+  defer(() => {
+    loadCloudFavs().then(async cloud => {
+      if (cloud !== null) { _favsCache = cloud; saveLocalFavs(cloud); }
+      try {
+        const [stats, hotGame, pricing, unlocked] = await Promise.all([
+          fetchAllGameStats(), fetchHotGame(), fetchGamePricing(), getUnlockedGames()
+        ]);
+        _allGameStats = stats || {};
+        if (hotGame) _hotGameId = hotGame.id;
+        GAMES.forEach(g => { _newGameCache[g.id] = _allGameStats[g.id]?.firstSeen || null; });
+        Object.assign(_gamePricing, pricing || {});
+        window._fluxGamePricing = _gamePricing;
+        _unlockedGames = unlocked || [];
+      } catch { /* Firebase down — grid already showing */ }
+      if (document.getElementById('game-grid') || document.getElementById('games-grid')) {
+        renderGames(GAMES);
+      }
+    }).catch(() => { });
+  }, base + 600);
+}
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bootFlux);
+else bootFlux();
 
 /* ===================== MOBILE WARNING ===================== */
 function initMobileWarning() {

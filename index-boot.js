@@ -1,7 +1,12 @@
 // index-boot.js — minimal homepage boot to keep first paint fast
 
-// Hide loader ASAP (do not wait for big modules)
+// Hide loader ASAP (do not wait for big modules) when Fast Boot is enabled
 function hideLoaderFast() {
+  try {
+    if (localStorage.getItem('flux_fast_boot') !== '1') return;
+  } catch {
+    return;
+  }
   const loader = document.getElementById('global-page-loader');
   if (!loader) return;
   loader.style.opacity = '0';
@@ -44,4 +49,3 @@ try {
 } catch {
   setTimeout(loadFull, 350);
 }
-
