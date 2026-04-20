@@ -49,3 +49,6 @@ try {
 } catch {
   setTimeout(loadFull, 350);
 }
+
+// Commits panel should be fast and not wait for the full bundle
+import('./commits-panel.js').catch(() => {});

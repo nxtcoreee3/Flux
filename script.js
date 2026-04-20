@@ -1692,8 +1692,8 @@ async function injectBuildNumber() {
     obs.observe(document.body, { childList: true, subtree: true });
     setTimeout(() => obs.disconnect(), 30000);
 
-    // Render commits panel (index.html only)
-    if (document.getElementById('hero-commits')) {
+    // Render commits panel (index.html only) — skip if lightweight panel is already managing it
+    if (document.getElementById('hero-commits') && !window.__fluxCommitsPanelManaged) {
       await renderCommitsPanel(commits);
 
       // Auto-refresh every 5 minutes
