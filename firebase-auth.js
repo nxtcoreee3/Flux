@@ -1211,45 +1211,58 @@ export function initMessagePopupNotifications() {
     }
   } catch {}
 
-  let lastTotal = 0;
-  let lastKey = '';
+  let lastLatestAtMs = 0;
+  try { lastLatestAtMs = Number(sessionStorage.getItem('_fluxLastMsgAtMs') || '0') || 0; } catch {}
+  let pendingBgTimer = null;
+  let pendingBgTotal = 0;
+  let pendingBgLink = 'messages.html';
 
   watchUnreadMessages(user.uid, async (total, latest) => {
     _updateUnreadNavBadge(total);
 
-    // Avoid duplicates across refreshes within a session
-    if (!Number.isFinite(lastTotal)) lastTotal = 0;
-
-    if (!latest) { lastTotal = total; return; }
+    if (!latest) return;
+    if (total <= 0) return;
 
     const latestAtMs = _toMillis(latest.lastMessageAt);
-    const key = `${latest.convoId || ''}:${latestAtMs}:${latest.text || ''}:${total}`;
-    const shouldNotify = total > lastTotal && key !== lastKey;
-    lastTotal = total;
-    if (!shouldNotify) return;
-    lastKey = key;
+    if (!latestAtMs || latestAtMs <= lastLatestAtMs) return;
+    lastLatestAtMs = latestAtMs;
+    try { sessionStorage.setItem('_fluxLastMsgAtMs', String(lastLatestAtMs)); } catch {}
 
     // Skip if user is currently inside the active DM/group
     const isMessagesPage = location.pathname.includes('messages.html');
     const activeConvo = window._fluxActiveConvoId || null;
     if (isMessagesPage && activeConvo && latest.convoId === activeConvo && document.hasFocus() && !document.hidden) return;
 
+    const isForeground = !document.hidden && document.hasFocus();
+
     let sender = null;
     try { sender = latest.senderUid ? await getProfile(latest.senderUid) : null; } catch {}
     const senderName = sender?.displayName || sender?.username || (latest.senderUsername ? `@${latest.senderUsername}` : 'Someone');
     const senderAvatar = sender?.avatarURL || '';
-    const title = `New ${latest.type === 'group' ? 'group message' : 'message'} from ${senderName}`;
-    const body = latest.text || '';
 
     const link = latest.type === 'dm' && sender?.username
       ? `messages.html?with=${encodeURIComponent(sender.username)}`
       : 'messages.html';
 
-    _showMsgToast({ title, text: body, avatarURL: senderAvatar, link });
-    _maybeShowBrowserNotification({ title, body, icon: senderAvatar, link, tag: `flux-msg-${latest.convoId || 'inbox'}` });
+    if (isForeground) {
+      const title = `New ${latest.type === 'group' ? 'group message' : 'message'} from ${senderName}`;
+      const body = latest.text || '';
+      _showMsgToast({ title, text: body, avatarURL: senderAvatar, link });
+      // Subtle sound (may be blocked unless user interacted)
+      try { new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3').play(); } catch {}
+      return;
+    }
 
-    // Subtle sound (may be blocked unless user interacted)
-    try { new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3').play(); } catch {}
+    // Background/unfocused: aggregate into a single OS notification with count
+    pendingBgTotal = total;
+    pendingBgLink = link || 'messages.html';
+    clearTimeout(pendingBgTimer);
+    pendingBgTimer = setTimeout(() => {
+      const count = pendingBgTotal || total || 0;
+      const title = `Flux (${count} new messages!)`;
+      const body = `(${count} new messages!)`;
+      _maybeShowBrowserNotification({ title, body, icon: senderAvatar, link: pendingBgLink, tag: 'flux-unread' });
+    }, 900);
   });
 }
 

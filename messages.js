@@ -255,8 +255,19 @@ async function buildRequestItem(convo) {
   `;
 
   item.querySelector('.accept-btn').addEventListener('click', async () => {
-    await updateDoc(doc(db, 'conversations', convo.id), { status: 'accepted' });
-    switchTab('inbox');
+    const btn = item.querySelector('.accept-btn');
+    btn.disabled = true;
+    btn.textContent = '...';
+    try {
+      await updateDoc(doc(db, 'conversations', convo.id), { status: 'accepted', lastMessageAt: serverTimestamp() });
+      // Open immediately so it feels instant even if the list takes a second to refresh
+      await openDMWithUsername(senderProfile?.username || '');
+      switchTab('inbox');
+    } catch (e) {
+      alert(`Could not accept request: ${e?.message || 'unknown error'}`);
+      btn.disabled = false;
+      btn.textContent = '✓ Accept';
+    }
   });
   item.querySelector('.decline-btn').addEventListener('click', async () => {
     await deleteDoc(doc(db, 'conversations', convo.id));
@@ -376,12 +387,12 @@ function renderMessage(msg) {
     : '';
 
   const avatarHTML = msg.senderAvatar
-    ? `<img src="${msg.senderAvatar}" style="width:28px;height:28px;border-radius:8px;object-fit:cover;margin-${isOwn?'left':'right'}:8px;flex-shrink:0;">`
-    : `<div style="width:28px;height:28px;border-radius:8px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-size:12px;font-weight:700;margin-${isOwn?'left':'right'}:8px;flex-shrink:0;">${(msg.username||'?')[0].toUpperCase()}</div>`;
+    ? `<img src="${msg.senderAvatar}" style="width:28px;height:28px;border-radius:8px;object-fit:cover;flex-shrink:0;">`
+    : `<div style="width:28px;height:28px;border-radius:8px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-size:12px;font-weight:700;flex-shrink:0;">${(msg.username||'?')[0].toUpperCase()}</div>`;
 
   const div = document.createElement('div');
   div.className = `message-row ${isOwn ? 'own' : 'other'}`;
-  div.style.cssText = `display:flex;align-items:flex-end;margin-bottom:12px;flex-direction:${isOwn?'row-reverse':'row'}`;
+  div.style.cssText = `display:flex;align-items:flex-end;gap:8px;margin-bottom:12px;flex-direction:${isOwn?'row-reverse':'row'};max-width:100%;`;
   
   const isGif = msg.type === 'gif';
   const gifAlt = msg.stickerName ? `Sticker: ${msg.stickerName}` : 'Sticker';
@@ -395,7 +406,7 @@ function renderMessage(msg) {
 
   div.innerHTML = `
     ${avatarHTML}
-    <div class="message-body" style="max-width:70%;group;">
+    <div class="message-body" style="max-width:calc(100% - 36px);min-width:0;${isOwn ? 'display:flex;flex-direction:column;align-items:flex-end;' : ''}">
       ${!isOwn ? `<div style="font-size:10px;color:var(--muted);margin-bottom:2px;padding-left:2px;">@${escapeHtml(msg.username || '')}</div>` : ''}
       <div class="message-bubble ${isOwn ? 'bubble-own' : 'bubble-other'}" style="${bubbleStyle}">
         ${content}
@@ -511,7 +522,13 @@ async function startDM(targetUid, targetProfile) {
   const convoId = [_currentUser.uid, targetUid].sort().join('_dm_');
 
   const convoRef = doc(db, 'conversations', convoId);
-  const convoSnap = await getDoc(convoRef);
+  let convoSnap = null;
+  try {
+    convoSnap = await getDoc(convoRef);
+  } catch (e) {
+    alert(`Could not start chat: ${e?.message || 'unknown error'}`);
+    return;
+  }
 
   if (convoSnap.exists()) {
     const data = convoSnap.data();
@@ -530,17 +547,24 @@ async function startDM(targetUid, targetProfile) {
   const mutuals = myFollowing.includes(targetUid) && theyFollowMe;
   const status = mutuals ? 'accepted' : 'pending';
 
-  await setDoc(convoRef, {
-    type: 'dm',
-    members: [_currentUser.uid, targetUid],
-    from: _currentUser.uid,
-    to: targetUid,
-    status,
-    createdAt: serverTimestamp(),
-    lastMessageAt: serverTimestamp(),
-    lastMessage: '',
-    unread: { [targetUid]: 0, [_currentUser.uid]: 0 }
-  });
+  try {
+    await setDoc(convoRef, {
+      type: 'dm',
+      members: [_currentUser.uid, targetUid],
+      from: _currentUser.uid,
+      to: targetUid,
+      status,
+      createdAt: serverTimestamp(),
+      lastMessageAt: serverTimestamp(),
+      lastMessage: '',
+      lastSenderUid: _currentUser.uid,
+      lastSenderUsername: _currentProfile.username || '',
+      unread: { [targetUid]: 0, [_currentUser.uid]: 0 }
+    });
+  } catch (e) {
+    alert(`Could not create chat: ${e?.message || 'unknown error'}`);
+    return;
+  }
 
   openConversation(convoId, targetProfile.displayName || targetProfile.username, false);
 }
@@ -588,7 +612,11 @@ function showNewChatModal() {
         `;
         item.addEventListener('mouseenter', () => item.style.background = 'var(--bg)');
         item.addEventListener('mouseleave', () => item.style.background = '');
-        item.addEventListener('click', () => { modal.remove(); startDM(p.uid, p); });
+        item.addEventListener('click', async () => {
+          item.style.pointerEvents = 'none';
+          item.style.opacity = '0.7';
+          try { await startDM(p.uid, p); } finally { modal.remove(); }
+        });
         container.appendChild(item);
       });
       if (!results.length) container.innerHTML = '<div style="padding:12px;color:var(--muted);font-size:13px;text-align:center;">No users found</div>';
