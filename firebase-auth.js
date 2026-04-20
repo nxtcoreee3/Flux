@@ -573,260 +573,6 @@ export function initUpdateNotification() {
   const STORAGE_KEY = 'flux_build';
   let _notifShown = false;
 
-  // GitHub commit changelog (public repo)
-  const GH_OWNER = 'nxtcoreee3';
-  const GH_REPO = 'flux';
-  const GH_COMMITS_URL = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/commits?per_page=20`;
-  const GH_COMMIT_URL = (sha) => `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/commits/${sha}`;
-  const GH_STORAGE_LAST_SEEN = 'flux_last_seen_commit';
-  const GH_STORAGE_ETAG = 'flux_commits_etag';
-  const GH_STORAGE_CACHE = 'flux_commits_cache';
-  const GH_STORAGE_LAST_NOTIF_SHA = 'flux_last_commit_notified';
-  const GH_STORAGE_LAST_BG_COUNT = 'flux_last_commit_bg_count';
-
-  const defer = (fn, timeout = 800) => {
-    try {
-      if ('requestIdleCallback' in window) return requestIdleCallback(fn, { timeout });
-    } catch {}
-    return setTimeout(fn, 0);
-  };
-
-  function _safeJsonParse(str, fallback = null) {
-    try { return JSON.parse(str); } catch { return fallback; }
-  }
-
-  function _isForeground() {
-    return !document.hidden && document.hasFocus();
-  }
-
-  async function fetchCommitsCached() {
-    const etag = localStorage.getItem(GH_STORAGE_ETAG) || '';
-    const headers = {};
-    if (etag) headers['If-None-Match'] = etag;
-
-    try {
-      const res = await fetch(GH_COMMITS_URL, { headers, cache: 'no-store' });
-      if (res.status === 304) {
-        return _safeJsonParse(localStorage.getItem(GH_STORAGE_CACHE) || 'null', []);
-      }
-      if (!res.ok) return [];
-      const data = await res.json();
-      const newEtag = res.headers.get('ETag');
-      if (newEtag) localStorage.setItem(GH_STORAGE_ETAG, newEtag);
-      localStorage.setItem(GH_STORAGE_CACHE, JSON.stringify(data));
-      return data;
-    } catch {
-      return _safeJsonParse(localStorage.getItem(GH_STORAGE_CACHE) || 'null', []);
-    }
-  }
-
-  function getNewCommitsSince(lastSeenSha, commits) {
-    if (!Array.isArray(commits) || !commits.length) return [];
-    if (!lastSeenSha) return commits.slice(0, 5);
-    const out = [];
-    for (const c of commits) {
-      if (c?.sha === lastSeenSha) break;
-      out.push(c);
-      if (out.length >= 10) break;
-    }
-    return out;
-  }
-
-  function inferRouteFromFiles(files = []) {
-    const names = files.map(f => (f?.filename || '')).join(' ').toLowerCase();
-    if (!names) return null;
-    if (/(^|\/)social(\.js|\.html)?\b/.test(names) || /\bsocial\.js\b/.test(names)) return 'social.html';
-    if (/(^|\/)messages(\.js|\.html)?\b/.test(names) || /\bmessages\.js\b/.test(names)) return 'messages.html';
-    if (/(^|\/)profile(\.js|\.html)?\b/.test(names) || /\bprofile\.js\b/.test(names)) return 'profile.html';
-    if (/(^|\/)games(\.js|\.html)?\b/.test(names) || /\bgames\.html\b/.test(names)) return 'games.html';
-    if (/(^|\/)settings(\.js|\.html)?\b/.test(names) || /\bsettings\.html\b/.test(names)) return 'settings.html';
-    if (/(^|\/)style\.css\b/.test(names)) return location.pathname.split('/').pop() || 'index.html';
-    if (/(^|\/)index\.html\b/.test(names)) return 'index.html';
-    return null;
-  }
-
-  function summarizeCommitAI(commitMessage = '', files = []) {
-    // Lightweight “AI” summarizer: heuristics based on touched files + message
-    const msg = String(commitMessage || '').split('\n')[0].trim();
-    const route = inferRouteFromFiles(files);
-    const areas = [];
-    const names = files.map(f => (f?.filename || '')).join(' ').toLowerCase();
-    if (/messages(\.js|\.html)|conversations|dm/.test(names) || /dm|message/.test(msg.toLowerCase())) areas.push('Messaging');
-    if (/social(\.js|\.html)|chat\b/.test(names) || /\bchat\b/.test(msg.toLowerCase())) areas.push('Social');
-    if (/profile(\.js|\.html)|follow/.test(names) || /follow|profile/.test(msg.toLowerCase())) areas.push('Profiles');
-    if (/games(\.html|\.js)|game\b/.test(names) || /\bgame\b/.test(msg.toLowerCase())) areas.push('Games');
-    if (/firebase-auth\.js|rules|firestore|auth/.test(names) || /auth|firestore|rules/.test(msg.toLowerCase())) areas.push('Backend');
-    if (/style\.css|css/.test(names) || /ui|style|design/.test(msg.toLowerCase())) areas.push('UI');
-
-    const areaPrefix = areas.length ? `${areas.slice(0, 2).join(' + ')}: ` : '';
-    const cleaned = msg
-      .replace(/^(\w+(\(\w+\))?:\s*)/i, '') // conventional commit-ish prefixes
-      .replace(/\s+/g, ' ')
-      .trim();
-    const description = (areaPrefix + (cleaned || 'Updates and improvements')).slice(0, 120);
-
-    return { description, route };
-  }
-
-  function showChangelogModal({ commits = [], title = "What's new" } = {}) {
-    document.getElementById('flux-changelog-modal')?.remove();
-
-    const modal = document.createElement('div');
-    modal.id = 'flux-changelog-modal';
-    modal.style.cssText = 'position:fixed;inset:0;z-index:10001;background:rgba(0,0,0,0.55);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:18px;box-sizing:border-box;';
-    modal.innerHTML = `
-      <div style="width:100%;max-width:720px;max-height:86vh;overflow:hidden;background:var(--panel,#fff);border:1px solid var(--glass-border,rgba(0,0,0,0.08));border-radius:22px;box-shadow:0 30px 90px rgba(0,0,0,0.28);display:flex;flex-direction:column;">
-        <div style="padding:16px 18px;border-bottom:1px solid var(--glass-border,rgba(0,0,0,0.08));display:flex;align-items:center;gap:12px;">
-          <div style="flex:1;min-width:0;">
-            <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--text,#111827);line-height:1;">${title}</div>
-            <div style="font-size:12px;color:var(--muted,#6b7280);margin-top:4px;">Latest commits from GitHub • Tap a commit to open it</div>
-          </div>
-          <button id="flux-changelog-close" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted,#6b7280);padding:6px 10px;">✕</button>
-        </div>
-        <div id="flux-changelog-list" style="padding:10px 10px 14px;overflow:auto;flex:1;"></div>
-      </div>
-    `;
-    document.body.appendChild(modal);
-    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
-    document.getElementById('flux-changelog-close')?.addEventListener('click', () => modal.remove());
-
-    const list = document.getElementById('flux-changelog-list');
-    if (!commits.length) {
-      list.innerHTML = '<div style="padding:18px;text-align:center;color:var(--muted,#6b7280);font-size:13px;">No commits found.</div>';
-      return;
-    }
-
-    list.innerHTML = '';
-    commits.slice(0, 10).forEach((c) => {
-      const sha = c?.sha || '';
-      const short = sha ? sha.slice(0, 7) : '';
-      const msg = c?.commit?.message ? String(c.commit.message).split('\n')[0] : '';
-      const when = c?.commit?.author?.date ? new Date(c.commit.author.date).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
-      const url = c?.html_url || '';
-
-      const row = document.createElement('div');
-      row.style.cssText = 'display:flex;gap:12px;align-items:flex-start;padding:12px;border-radius:16px;border:1px solid transparent;cursor:pointer;transition:background 0.12s,border-color 0.12s;';
-      row.innerHTML = `
-        <div style="width:46px;height:46px;border-radius:14px;background:linear-gradient(135deg,rgba(58,125,255,0.14),rgba(168,85,247,0.10));border:1px solid rgba(58,125,255,0.18);display:flex;align-items:center;justify-content:center;font-weight:900;color:var(--accent,#3a7dff);flex-shrink:0;">${short || '—'}</div>
-        <div style="flex:1;min-width:0;">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
-            <div style="font-size:13px;font-weight:900;color:var(--text,#111827);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(msg || 'Commit')}</div>
-            <div style="font-size:11px;color:var(--muted,#6b7280);flex-shrink:0;">${escapeHtml(when)}</div>
-          </div>
-          <div class="flux-ai-desc" style="margin-top:6px;font-size:12px;color:var(--muted,#6b7280);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">
-            Summarizing what changed…
-          </div>
-          <div class="flux-ai-link" style="margin-top:6px;display:none;">
-            <a class="flux-ai-route" href="#" style="font-size:12px;font-weight:800;color:var(--accent,#3a7dff);text-decoration:none;"></a>
-          </div>
-        </div>
-      `;
-
-      row.addEventListener('mouseenter', () => { row.style.background = 'var(--bg, rgba(0,0,0,0.03))'; row.style.borderColor = 'var(--glass-border, rgba(0,0,0,0.08))'; });
-      row.addEventListener('mouseleave', () => { row.style.background = ''; row.style.borderColor = 'transparent'; });
-      row.addEventListener('click', () => { if (url) window.open(url, '_blank', 'noopener'); });
-      list.appendChild(row);
-
-      // Fetch per-commit details to infer route and generate a better description
-      if (sha) {
-        fetch(GH_COMMIT_URL(sha), { cache: 'no-store' })
-          .then(r => r.ok ? r.json() : null)
-          .then(detail => {
-            if (!detail) return;
-            const files = detail.files || [];
-            const { description, route } = summarizeCommitAI(detail.commit?.message || msg, files);
-            const descEl = row.querySelector('.flux-ai-desc');
-            if (descEl) descEl.textContent = description;
-            if (route) {
-              const linkWrap = row.querySelector('.flux-ai-link');
-              const a = row.querySelector('.flux-ai-route');
-              if (linkWrap && a) {
-                linkWrap.style.display = 'block';
-                a.textContent = `Open in Flux → ${route}`;
-                a.href = route;
-                a.addEventListener('click', (e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  window.location.href = route;
-                });
-              }
-            }
-          })
-          .catch(() => {});
-      }
-    });
-  }
-
-  async function checkGitHubCommits({ showModal = false } = {}) {
-    const commits = await fetchCommitsCached();
-    if (!commits.length) return;
-
-    const lastSeen = localStorage.getItem(GH_STORAGE_LAST_SEEN) || '';
-    const latestSha = commits[0]?.sha || '';
-    const newOnes = getNewCommitsSince(lastSeen, commits);
-
-    // If user asked to open the modal, show the newest items
-    if (showModal) {
-      if (latestSha) localStorage.setItem(GH_STORAGE_LAST_SEEN, latestSha);
-      showChangelogModal({ commits: newOnes.length ? newOnes : commits, title: "What's new" });
-      return;
-    }
-
-    // Auto-notify: show at most once per latestSha
-    if (!latestSha || !newOnes.length) return;
-    const alreadyNotified = localStorage.getItem(GH_STORAGE_LAST_NOTIF_SHA) === latestSha;
-    if (alreadyNotified) return;
-
-    const count = newOnes.length;
-    const isFg = _isForeground();
-
-    if (isFg) {
-      // Lightweight toast
-      const container = document.getElementById('toast-container') || document.body;
-      const toast = document.createElement('div');
-      toast.style.cssText = `
-        position: fixed; top: 20px; right: 20px; z-index: 10000;
-        width: 320px; background: var(--panel,#fff); border-radius: 16px;
-        box-shadow: 0 14px 50px rgba(0,0,0,0.18); border: 1px solid var(--glass-border,rgba(0,0,0,0.06));
-        padding: 12px; display: flex; gap: 12px; align-items: center;
-        cursor: pointer; animation: toastSlideIn 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
-      `;
-      toast.innerHTML = `
-        <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#3a7dff,#a855f7);display:flex;align-items:center;justify-content:center;color:white;font-size:18px;font-weight:900;flex-shrink:0;">✨</div>
-        <div style="flex:1;min-width:0;">
-          <div style="font-size:13px;font-weight:900;color:var(--text,#111827);margin-bottom:2px;">${count} new update${count === 1 ? '' : 's'}</div>
-          <div style="font-size:12px;color:var(--muted,#6b7280);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Tap to see what changed</div>
-        </div>
-      `;
-      toast.addEventListener('click', () => checkGitHubCommits({ showModal: true }));
-      container.appendChild(toast);
-      setTimeout(() => { toast.style.animation = 'toastSlideOut 0.3s forwards'; setTimeout(() => toast.remove(), 300); }, 5200);
-    } else {
-      // Background: avoid spamming; keep the highest count seen for this latestSha
-      const prev = Number(localStorage.getItem(GH_STORAGE_LAST_BG_COUNT) || '0') || 0;
-      if (count <= prev) return;
-      localStorage.setItem(GH_STORAGE_LAST_BG_COUNT, String(count));
-
-      try {
-        if ('Notification' in window && Notification.permission === 'granted') {
-          const n = new Notification(`Flux (${count} new updates!)`, {
-            body: 'Tap to open what changed',
-            icon: 'assets/thumbnail.png',
-            tag: 'flux-updates',
-            data: { link: 'index.html' }
-          });
-          n.onclick = () => {
-            try { window.focus(); } catch {}
-            try { n.close(); } catch {}
-            checkGitHubCommits({ showModal: true });
-          };
-        }
-      } catch {}
-    }
-
-    localStorage.setItem(GH_STORAGE_LAST_NOTIF_SHA, latestSha);
-  }
-
   async function checkForUpdate() {
     try {
       // Fetch version.json with cache-busting
@@ -877,7 +623,6 @@ export function initUpdateNotification() {
         </div>
       </div>
       <div style="display:flex;gap:8px;flex-shrink:0;">
-        <button id="update-whatsnew-btn" style="padding:8px 12px;background:rgba(58,125,255,0.12);color:var(--accent,#3a7dff);border:1px solid rgba(58,125,255,0.18);border-radius:10px;font-weight:900;font-size:12px;cursor:pointer;white-space:nowrap;">What’s new</button>
         <button id="update-refresh-btn" style="padding:8px 14px;background:var(--accent,#3a7dff);color:white;border:none;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap;">Refresh</button>
         <button id="update-dismiss-btn" style="background:none;border:none;color:var(--muted,#9ca3af);cursor:pointer;font-size:18px;padding:0 2px;line-height:1;">✕</button>
       </div>
@@ -887,11 +632,6 @@ export function initUpdateNotification() {
     // Slide up
     requestAnimationFrame(() => {
       banner.style.transform = 'translateX(-50%) translateY(0)';
-    });
-
-    document.getElementById('update-whatsnew-btn')?.addEventListener('click', () => {
-      // Show changelog based on GitHub commits (best effort)
-      checkGitHubCommits({ showModal: true });
     });
 
     document.getElementById('update-refresh-btn').addEventListener('click', () => {
@@ -909,10 +649,6 @@ export function initUpdateNotification() {
   // Check on load and periodically
   checkForUpdate();
   setInterval(checkForUpdate, CHECK_INTERVAL);
-
-  // GitHub commit “what’s new” checks (deferred to avoid slowing page load)
-  defer(() => checkGitHubCommits({ showModal: false }), 1200);
-  setInterval(() => defer(() => checkGitHubCommits({ showModal: false }), 1200), 10 * 60 * 1000);
 }
 
 export function initDarkMode() {
@@ -1334,199 +1070,6 @@ export function initNotifications() {
         badge.style.display = 'none';
       }
     });
-  });
-}
-
-/* ===================== MESSAGE POPUP NOTIFICATIONS ===================== */
-function _ensureMsgToastContainer() {
-  let container = document.getElementById('flux-msg-toast-container');
-  if (!container) {
-    container = document.createElement('div');
-    container.id = 'flux-msg-toast-container';
-    container.style.cssText = 'position:fixed;top:18px;right:18px;z-index:10000;display:flex;flex-direction:column;gap:10px;pointer-events:none;';
-    document.body.appendChild(container);
-  }
-  if (!document.getElementById('flux-msg-toast-styles')) {
-    const style = document.createElement('style');
-    style.id = 'flux-msg-toast-styles';
-    style.textContent = `
-      @keyframes fluxToastIn {
-        from { transform: translateX(18px) scale(0.96); opacity: 0; }
-        to { transform: translateX(0) scale(1); opacity: 1; }
-      }
-      @keyframes fluxToastOut {
-        from { transform: translateX(0) scale(1); opacity: 1; }
-        to { transform: translateX(18px) scale(0.98); opacity: 0; }
-      }
-    `;
-    document.head.appendChild(style);
-  }
-  return container;
-}
-
-function _updateUnreadNavBadge(total) {
-  // Works on pages that have the main nav
-  let navLink = null;
-  document.querySelectorAll('#main-nav a').forEach(a => {
-    if (a.getAttribute('href') === 'messages.html') navLink = a;
-  });
-  if (!navLink) return;
-
-  let badge = navLink.querySelector('.global-unread-badge');
-  if (!badge) {
-    badge = document.createElement('span');
-    badge.className = 'global-unread-badge';
-    badge.style.cssText = `
-      margin-left: 6px; background: #ef4444; color: white;
-      font-size: 10px; font-weight: 800; padding: 2px 6px;
-      border-radius: 20px; display: none; align-items: center;
-      justify-content: center; min-width: 18px; height: 18px;
-    `;
-    navLink.appendChild(badge);
-  }
-  badge.textContent = total > 99 ? '99+' : String(total);
-  badge.style.display = total > 0 ? 'inline-flex' : 'none';
-}
-
-function _showMsgToast({ title, text, avatarURL, link }) {
-  const container = _ensureMsgToastContainer();
-  const toast = document.createElement('div');
-  toast.style.cssText = `
-    pointer-events:all;
-    width: 320px;
-    background: var(--panel, #fff);
-    color: var(--text, #111827);
-    border-radius: 16px;
-    box-shadow: 0 14px 50px rgba(0,0,0,0.18);
-    border: 1px solid var(--glass-border, rgba(0,0,0,0.07));
-    padding: 12px;
-    display: flex;
-    gap: 12px;
-    align-items: center;
-    cursor: pointer;
-    animation: fluxToastIn 0.22s ease-out;
-    backdrop-filter: blur(8px);
-  `;
-
-  const avatarHTML = avatarURL
-    ? `<img src="${avatarURL}" style="width:44px;height:44px;border-radius:12px;object-fit:cover;flex-shrink:0;">`
-    : `<div style="width:44px;height:44px;border-radius:12px;background:var(--accent,#3a7dff);display:flex;align-items:center;justify-content:center;color:white;font-size:18px;font-weight:800;flex-shrink:0;">💬</div>`;
-
-  toast.innerHTML = `
-    ${avatarHTML}
-    <div style="flex:1;min-width:0;">
-      <div style="font-size:13px;font-weight:800;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${title}</div>
-      <div style="font-size:12px;color:var(--muted,#6b7280);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${text || ''}</div>
-    </div>
-  `;
-
-  toast.addEventListener('click', () => {
-    if (link) window.location.href = link;
-  });
-
-  container.appendChild(toast);
-  setTimeout(() => {
-    toast.style.animation = 'fluxToastOut 0.18s ease-in forwards';
-    setTimeout(() => toast.remove(), 190);
-  }, 5200);
-}
-
-function _maybeShowBrowserNotification({ title, body, icon, link, tag }) {
-  try {
-    if (!('Notification' in window)) return;
-    if (Notification.permission !== 'granted') return;
-    const n = new Notification(title, {
-      body: body || '',
-      icon: icon || 'assets/thumbnail.png',
-      tag: tag || 'flux-message',
-      silent: false,
-      data: { link },
-    });
-    n.onclick = () => {
-      try { window.focus(); } catch {}
-      if (link) window.location.href = link;
-      try { n.close(); } catch {}
-    };
-  } catch {}
-}
-
-function _toMillis(ts) {
-  try {
-    if (!ts) return 0;
-    if (typeof ts === 'number') return ts;
-    if (typeof ts.toMillis === 'function') return ts.toMillis();
-    if (typeof ts.toDate === 'function') return ts.toDate().getTime();
-    if (typeof ts === 'string') return new Date(ts).getTime();
-    return 0;
-  } catch { return 0; }
-}
-
-export function initMessagePopupNotifications() {
-  const user = auth.currentUser;
-  if (!user || user.isAnonymous) return;
-  if (window._fluxMsgPopupsAttached) return;
-  window._fluxMsgPopupsAttached = true;
-
-  // Ask once (best effort) so OS-level popups work
-  try {
-    if ('Notification' in window && Notification.permission === 'default' && localStorage.getItem('flux_notif_prompted') !== '1') {
-      localStorage.setItem('flux_notif_prompted', '1');
-      setTimeout(() => { Notification.requestPermission().catch(() => {}); }, 1200);
-    }
-  } catch {}
-
-  let lastLatestAtMs = 0;
-  try { lastLatestAtMs = Number(sessionStorage.getItem('_fluxLastMsgAtMs') || '0') || 0; } catch {}
-  let pendingBgTimer = null;
-  let pendingBgTotal = 0;
-  let pendingBgLink = 'messages.html';
-
-  watchUnreadMessages(user.uid, async (total, latest) => {
-    _updateUnreadNavBadge(total);
-
-    if (!latest) return;
-    if (total <= 0) return;
-
-    const latestAtMs = _toMillis(latest.lastMessageAt);
-    if (!latestAtMs || latestAtMs <= lastLatestAtMs) return;
-    lastLatestAtMs = latestAtMs;
-    try { sessionStorage.setItem('_fluxLastMsgAtMs', String(lastLatestAtMs)); } catch {}
-
-    // Skip if user is currently inside the active DM/group
-    const isMessagesPage = location.pathname.includes('messages.html');
-    const activeConvo = window._fluxActiveConvoId || null;
-    if (isMessagesPage && activeConvo && latest.convoId === activeConvo && document.hasFocus() && !document.hidden) return;
-
-    const isForeground = !document.hidden && document.hasFocus();
-
-    let sender = null;
-    try { sender = latest.senderUid ? await getProfile(latest.senderUid) : null; } catch {}
-    const senderName = sender?.displayName || sender?.username || (latest.senderUsername ? `@${latest.senderUsername}` : 'Someone');
-    const senderAvatar = sender?.avatarURL || '';
-
-    const link = latest.type === 'dm' && sender?.username
-      ? `messages.html?with=${encodeURIComponent(sender.username)}`
-      : 'messages.html';
-
-    if (isForeground) {
-      const title = `New ${latest.type === 'group' ? 'group message' : 'message'} from ${senderName}`;
-      const body = latest.text || '';
-      _showMsgToast({ title, text: body, avatarURL: senderAvatar, link });
-      // Subtle sound (may be blocked unless user interacted)
-      try { new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3').play(); } catch {}
-      return;
-    }
-
-    // Background/unfocused: aggregate into a single OS notification with count
-    pendingBgTotal = total;
-    pendingBgLink = link || 'messages.html';
-    clearTimeout(pendingBgTimer);
-    pendingBgTimer = setTimeout(() => {
-      const count = pendingBgTotal || total || 0;
-      const title = `Flux (${count} new messages!)`;
-      const body = `(${count} new messages!)`;
-      _maybeShowBrowserNotification({ title, body, icon: senderAvatar, link: pendingBgLink, tag: 'flux-unread' });
-    }, 900);
   });
 }
 
@@ -3276,8 +2819,6 @@ export async function initAuthUI(onUserChange) {
         }
         // Init notifications for signed-in users
         initNotifications();
-        // Message popups (DM / group) across all pages
-        initMessagePopupNotifications();
         // Sync dropdown dark mode icon
         const isDark = document.documentElement.classList.contains('dark');
         const icon = document.getElementById('dropdown-dark-icon');
@@ -3343,6 +2884,69 @@ export async function initAuthUI(onUserChange) {
       authBtn.style.display = '';
       userDisplay.style.display = 'none';
     }
+
+    // ── Global message notification watcher (runs on every page) ──
+    if (user && !user.isAnonymous && !window._fluxMsgWatcherActive) {
+      window._fluxMsgWatcherActive = true;
+      let _prevTotal = 0;
+      watchUnreadMessages(user.uid, async (total, latest) => {
+        // Update nav badge on any page that has the messages link
+        const navLink = document.querySelector('#main-nav a[href="messages.html"]');
+        if (navLink) {
+          let badge = navLink.querySelector('.global-unread-badge');
+          if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'global-unread-badge';
+            badge.style.cssText = 'margin-left:6px;background:#ef4444;color:white;font-size:10px;font-weight:800;padding:1px 5px;border-radius:20px;display:none;vertical-align:middle;';
+            navLink.appendChild(badge);
+          }
+          badge.textContent = total;
+          badge.style.display = total > 0 ? 'inline-block' : 'none';
+        }
+
+        // Show toast only when count increases and we're not on messages page
+        if (total > _prevTotal && latest && !window.location.pathname.includes('messages.html')) {
+          try {
+            const senderProfile = await getProfile(latest.senderUid);
+            const senderName = senderProfile?.displayName || senderProfile?.username || 'Someone';
+            const senderAvatar = senderProfile?.avatarURL || '';
+            const msgText = latest.text || '🎬 Sent a sticker';
+
+            // Build toast
+            let toastContainer = document.getElementById('flux-notif-container');
+            if (!toastContainer) {
+              toastContainer = document.createElement('div');
+              toastContainer.id = 'flux-notif-container';
+              toastContainer.style.cssText = 'position:fixed;top:20px;right:20px;z-index:999999;display:flex;flex-direction:column;gap:8px;pointer-events:none;';
+              document.body.appendChild(toastContainer);
+            }
+
+            const toast = document.createElement('div');
+            toast.style.cssText = 'pointer-events:all;width:300px;background:var(--panel,#fff);border-radius:16px;box-shadow:0 10px 40px rgba(0,0,0,0.2);border:1px solid var(--glass-border,rgba(0,0,0,0.08));padding:12px;display:flex;gap:12px;align-items:center;cursor:pointer;opacity:0;transform:translateX(20px);transition:all 0.25s cubic-bezier(0.34,1.56,0.64,1);';
+
+            const avatarEl = senderAvatar
+              ? `<img src="${senderAvatar}" style="width:42px;height:42px;border-radius:12px;object-fit:cover;flex-shrink:0;">`
+              : `<div style="width:42px;height:42px;border-radius:12px;background:var(--accent,#3a7dff);display:flex;align-items:center;justify-content:center;color:white;font-size:18px;font-weight:700;flex-shrink:0;">💬</div>`;
+
+            toast.innerHTML = `
+              ${avatarEl}
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:12px;font-weight:800;color:var(--text,#111);margin-bottom:2px;">💬 ${senderName}</div>
+                <div style="font-size:12px;color:var(--muted,#6b7280);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${msgText}</div>
+              </div>
+              <button style="background:none;border:none;color:var(--muted,#9ca3af);font-size:16px;cursor:pointer;flex-shrink:0;padding:0;line-height:1;" onclick="event.stopPropagation();this.closest('[id]').remove();">✕</button>
+            `;
+
+            toast.addEventListener('click', () => { window.location.href = 'messages.html'; });
+            toastContainer.appendChild(toast);
+            requestAnimationFrame(() => { toast.style.opacity = '1'; toast.style.transform = 'translateX(0)'; });
+            setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateX(20px)'; setTimeout(() => toast.remove(), 250); }, 5000);
+          } catch {}
+        }
+        _prevTotal = total;
+      });
+    }
+
     if (onUserChange) onUserChange(user);
   });
 
@@ -3808,12 +3412,6 @@ export function initBroadcast() {
   import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(async ({ onSnapshot, getDoc, doc: firestoreDoc }) => {
     let _lastBroadcastId = null;
     const broadcastRef = firestoreDoc(db, 'stats', 'broadcast');
-    const isIOSSafari = (() => {
-      const ua = navigator.userAgent || '';
-      const isIOS = /iP(ad|hone|od)/.test(ua);
-      const isSafari = /Safari/.test(ua) && !/CriOS|FxiOS|OPiOS|EdgiOS/.test(ua);
-      return isIOS && isSafari;
-    })();
 
     // Pre-load current ID so we don't show old broadcast on page load
     try {
@@ -3858,19 +3456,17 @@ export function initBroadcast() {
       showBroadcastToast(message);
     });
 
-    // Fallback poll (only on iOS Safari where listeners can be flaky)
-    if (isIOSSafari) {
-      setInterval(async () => {
-        try {
-          const snap = await getDoc(broadcastRef);
-          if (!snap.exists()) return;
-          const { message, id } = snap.data();
-          if (!message || id === _lastBroadcastId) return;
-          _lastBroadcastId = id;
-          showBroadcastToast(message);
-        } catch {}
-      }, 1500);
-    }
+    // Fallback poll every 1.5s for mobile browsers
+    setInterval(async () => {
+      try {
+        const snap = await getDoc(broadcastRef);
+        if (!snap.exists()) return;
+        const { message, id } = snap.data();
+        if (!message || id === _lastBroadcastId) return;
+        _lastBroadcastId = id;
+        showBroadcastToast(message);
+      } catch {}
+    }, 1500);
   });
 }
 
@@ -4569,25 +4165,17 @@ export function watchUnreadMessages(uid, callback) {
     return onSnapshot(q, (snap) => {
       let total = 0;
       let latest = null;
-      let latestAt = 0;
       snap.docs.forEach(d => {
         const data = d.data();
         const unreadCount = data.unread?.[uid] || 0;
         total += unreadCount;
         if (unreadCount > 0) {
-          const at = _toMillis(data.lastMessageAt) || _toMillis(data.updatedAt) || 0;
-          if (!latest || at >= latestAt) {
-            latestAt = at;
-            latest = {
-              convoId: d.id,
-              text: data.lastMessage || '',
-              senderUid: data.lastSenderUid || (data.type === 'dm' ? data.members.find(m => m !== uid) : data.from),
-              senderUsername: data.lastSenderUsername || '',
-              type: data.type || 'dm',
-              lastMessageAt: data.lastMessageAt || null,
-              status: data.status || '',
-            };
-          }
+          latest = {
+            convoId: d.id,
+            text: data.lastMessage,
+            senderUid: data.type === 'dm' ? data.members.find(m => m !== uid) : data.from,
+            type: data.type
+          };
         }
       });
       callback(total, latest);

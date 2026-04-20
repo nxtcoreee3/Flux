@@ -50,20 +50,11 @@ document.addEventListener('DOMContentLoaded', () => {
   if (el) el.textContent = new Date().getFullYear();
 
   initCookieConsent();
-
-  const defer = (fn, timeout = 800) => {
-    try {
-      if ('requestIdleCallback' in window) return requestIdleCallback(fn, { timeout });
-    } catch {}
-    return setTimeout(fn, 0);
-  };
-
-  // Defer non-essential effects/network work to speed up first paint
-  defer(() => initPresence(), 1200);
-  defer(() => initServerStatus(), 1200);
-  defer(() => initBroadcast(), 1400);
-  defer(() => initChaos(), 1600);
-  defer(() => initJumpscare(), 1600);
+  initPresence();
+  initServerStatus();
+  initBroadcast();
+  initChaos();
+  initJumpscare();
   initAuthUI(null);
 
   loadProfilePage();
@@ -324,11 +315,11 @@ function renderProfile(profile, { isOwn, isAdmin, isFollowing, canSeeContent, cu
         ${joinDate ? `<p style="font-size:12px;color:var(--muted);margin:0 0 16px;">Joined ${joinDate}</p>` : ''}
 
         <div class="profile-stats">
-          <div class="profile-stat" data-stat="followers" style="cursor:pointer;">
+          <div class="profile-stat" id="stat-followers" style="cursor:pointer;" title="View followers">
             <span class="profile-stat-num">${followersCount}</span>
             <span class="profile-stat-label">Followers</span>
           </div>
-          <div class="profile-stat" data-stat="following" style="cursor:pointer;">
+          <div class="profile-stat" id="stat-following" style="cursor:pointer;" title="View following">
             <span class="profile-stat-num">${followingCount}</span>
             <span class="profile-stat-label">Following</span>
           </div>
@@ -355,14 +346,6 @@ function renderProfile(profile, { isOwn, isAdmin, isFollowing, canSeeContent, cu
 }
 
 function bindEvents(profile, { isOwn, isAdmin, isFollowing, currentUser }) {
-  // Followers / Following lists
-  document.querySelector('[data-stat="followers"]')?.addEventListener('click', () => {
-    openFollowListModal({ profile, listType: 'followers', currentUser });
-  });
-  document.querySelector('[data-stat="following"]')?.addEventListener('click', () => {
-    openFollowListModal({ profile, listType: 'following', currentUser });
-  });
-
   // Follow / unfollow
   document.getElementById('follow-btn')?.addEventListener('click', async (e) => {
     const btn = e.currentTarget;
@@ -463,110 +446,79 @@ function bindEvents(profile, { isOwn, isAdmin, isFollowing, currentUser }) {
     await assignRole(profile.uid, { id, label, emoji, color });
     location.reload();
   });
-}
 
-async function openFollowListModal({ profile, listType, currentUser }) {
-  const existing = document.getElementById('follow-list-modal');
-  if (existing) existing.remove();
-
-  const modal = document.createElement('div');
-  modal.id = 'follow-list-modal';
-  modal.style.cssText = 'position:fixed;inset:0;z-index:700;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.55);backdrop-filter:blur(6px);padding:18px;box-sizing:border-box;';
-  modal.innerHTML = `
-    <div style="width:100%;max-width:420px;max-height:85vh;overflow:hidden;background:var(--panel);border:1px solid var(--glass-border);border-radius:20px;box-shadow:0 30px 80px rgba(0,0,0,0.25);display:flex;flex-direction:column;">
-      <div style="padding:16px 18px;border-bottom:1px solid var(--glass-border);display:flex;align-items:center;gap:10px;">
-        <div style="flex:1;min-width:0;">
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--text);line-height:1;">
-            ${listType === 'followers' ? 'Followers' : 'Following'}
-          </div>
-          <div style="font-size:12px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@${escapeHtml(profile.username || '')}</div>
-        </div>
-        <button id="follow-list-close" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;">✕</button>
-      </div>
-      <div style="padding:12px 18px;border-bottom:1px solid var(--glass-border);">
-        <input id="follow-list-search" type="search" placeholder="Search users..." style="width:100%;padding:10px 12px;border-radius:12px;border:1px solid var(--glass-border);background:var(--bg);color:var(--text);font-size:13px;outline:none;box-sizing:border-box;">
-      </div>
-      <div id="follow-list-results" style="padding:10px 10px 12px;overflow:auto;flex:1;"></div>
-    </div>
-  `;
-  document.body.appendChild(modal);
-
-  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
-  modal.querySelector('#follow-list-close').addEventListener('click', () => modal.remove());
-
-  const results = modal.querySelector('#follow-list-results');
-  results.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px;"><img src="assets/loading.gif" style="width:54px;height:auto;opacity:0.7;" alt="Loading..."></div>';
-
-  let fresh = null;
-  try { fresh = await getProfile(profile.uid); } catch {}
-  const data = fresh || profile;
-  const uids = (listType === 'followers' ? (data.followers || []) : (data.following || [])).filter(Boolean);
-
-  if (!uids.length) {
-    results.innerHTML = `<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px;">No ${listType} yet.</div>`;
-    return;
-  }
-
-  const mapLimit = async (arr, limit, fn) => {
-    const out = new Array(arr.length);
-    let i = 0;
-    const workers = new Array(Math.min(limit, arr.length)).fill(0).map(async () => {
-      while (i < arr.length) {
-        const idx = i++;
-        out[idx] = await fn(arr[idx], idx);
-      }
-    });
-    await Promise.all(workers);
-    return out;
-  };
-
-  const profiles = (await mapLimit(uids, 12, async (uid) => {
-    try { return await getProfile(uid); } catch { return null; }
-  })).filter(Boolean);
-
-  profiles.sort((a, b) => (a.username || '').localeCompare(b.username || '', 'en', { sensitivity: 'base' }));
-
-  const renderList = (list) => {
-    if (!list.length) {
-      results.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px;">No results.</div>';
-      return;
-    }
-    results.innerHTML = '';
-    list.forEach(p => {
-      const item = document.createElement('a');
-      item.href = `profile.html?user=${encodeURIComponent(p.username)}`;
-      item.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:14px;text-decoration:none;border:1px solid transparent;transition:background 0.12s,border-color 0.12s;';
-      const avatarHTML = p.avatarURL
-        ? `<img src="${p.avatarURL}" style="width:38px;height:38px;border-radius:12px;object-fit:cover;flex-shrink:0;">`
-        : `<div style="width:38px;height:38px;border-radius:12px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;flex-shrink:0;">${(p.displayName || p.username || '?')[0].toUpperCase()}</div>`;
-      item.innerHTML = `
-        ${avatarHTML}
-        <div style="min-width:0;flex:1;">
-          <div style="font-size:13px;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(p.displayName || p.username)}</div>
-          <div style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@${escapeHtml(p.username || '')}</div>
-        </div>
-      `;
-      item.addEventListener('mouseenter', () => { item.style.background = 'var(--bg)'; item.style.borderColor = 'var(--glass-border)'; });
-      item.addEventListener('mouseleave', () => { item.style.background = ''; item.style.borderColor = 'transparent'; });
-      item.addEventListener('click', () => modal.remove());
-      results.appendChild(item);
-    });
-  };
-
-  renderList(profiles);
-
-  modal.querySelector('#follow-list-search').addEventListener('input', (e) => {
-    const q = e.target.value.trim().toLowerCase();
-    if (!q) return renderList(profiles);
-    renderList(profiles.filter(p =>
-      (p.username || '').toLowerCase().includes(q) ||
-      (p.displayName || '').toLowerCase().includes(q)
-    ));
+  // Followers / following clickable stats
+  document.getElementById('stat-followers')?.addEventListener('click', () => {
+    showFollowListModal('Followers', profile.followers || []);
+  });
+  document.getElementById('stat-following')?.addEventListener('click', () => {
+    showFollowListModal('Following', profile.following || []);
   });
 }
 
-function escapeHtml(str = '') {
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+async function showFollowListModal(title, uids) {
+  const existing = document.getElementById('follow-list-modal');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'follow-list-modal';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:700;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);backdrop-filter:blur(6px);padding:20px;box-sizing:border-box;';
+  overlay.innerHTML = `
+    <div style="background:var(--panel);border-radius:20px;width:100%;max-width:400px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(0,0,0,0.25);position:relative;">
+      <div style="padding:20px 20px 16px;border-bottom:1px solid var(--glass-border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+        <span style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:var(--text);">${title} <span style="font-size:16px;color:var(--muted);font-family:'DM Sans',sans-serif;">${uids.length}</span></span>
+        <button id="follow-list-close" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted);">✕</button>
+      </div>
+      <div id="follow-list-body" style="overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:4px;">
+        <div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;">Loading...</div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const close = () => overlay.remove();
+  overlay.querySelector('#follow-list-close').addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+  const body = overlay.querySelector('#follow-list-body');
+
+  if (!uids.length) {
+    body.innerHTML = `<div style="padding:32px;text-align:center;color:var(--muted);font-size:13px;">No ${title.toLowerCase()} yet.</div>`;
+    return;
+  }
+
+  // Load profiles for each uid
+  const profiles = await Promise.all(uids.slice(0, 50).map(uid => getProfile(uid).catch(() => null)));
+  body.innerHTML = '';
+
+  profiles.filter(Boolean).forEach(p => {
+    const item = document.createElement('a');
+    item.href = `profile.html?user=${p.username}`;
+    item.style.cssText = 'display:flex;align-items:center;gap:12px;padding:10px;border-radius:12px;text-decoration:none;transition:background 0.1s;';
+    item.addEventListener('mouseenter', () => item.style.background = 'var(--bg)');
+    item.addEventListener('mouseleave', () => item.style.background = '');
+
+    const avatarHTML = p.avatarURL
+      ? `<img src="${p.avatarURL}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;flex-shrink:0;border:1px solid var(--glass-border);">`
+      : `<div style="width:40px;height:40px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:16px;flex-shrink:0;">${(p.displayName||p.username||'?')[0].toUpperCase()}</div>`;
+
+    item.innerHTML = `
+      ${avatarHTML}
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:14px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.displayName || p.username}</div>
+        <div style="font-size:12px;color:var(--muted);">@${p.username} · ${(p.followers||[]).length} followers</div>
+      </div>
+      ${renderBadges(p.badges || [], p.roles || [])}
+    `;
+    body.appendChild(item);
+  });
+
+  if (uids.length > 50) {
+    const note = document.createElement('div');
+    note.style.cssText = 'padding:8px;text-align:center;font-size:11px;color:var(--muted);';
+    note.textContent = `Showing 50 of ${uids.length}`;
+    body.appendChild(note);
+  }
 }
 
 function showEditModal(profile) {

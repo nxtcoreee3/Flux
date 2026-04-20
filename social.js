@@ -39,20 +39,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   initCookieConsent();
   initDarkMode();
-
-  const defer = (fn, timeout = 800) => {
-    try {
-      if ('requestIdleCallback' in window) return requestIdleCallback(fn, { timeout });
-    } catch {}
-    return setTimeout(fn, 0);
-  };
-
-  // Defer non-essential effects/network work to speed up first paint
-  defer(() => initPresence(), 1200);
-  defer(() => initServerStatus(), 1200);
-  defer(() => initBroadcast(), 1400);
-  defer(() => initChaos(), 1600);
-  defer(() => initJumpscare(), 1600);
+  initPresence();
+  initServerStatus();
+  initBroadcast();
+  initChaos();
+  initJumpscare();
   initAuthUI(null);
 
   initChat();
@@ -182,25 +173,17 @@ function startChatListener(currentUser) {
     renderChatSnap(snap, currentUser);
   });
 
-  // Fallback poll every 2s (only on iOS Safari where listeners can be flaky)
-  const isIOSSafari = (() => {
-    const ua = navigator.userAgent || '';
-    const isIOS = /iP(ad|hone|od)/.test(ua);
-    const isSafari = /Safari/.test(ua) && !/CriOS|FxiOS|OPiOS|EdgiOS/.test(ua);
-    return isIOS && isSafari;
-  })();
-  if (isIOSSafari) {
-    setInterval(async () => {
-      try {
-        const { getDocs } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-        const snap = await getDocs(q);
-        const latestId = snap.docs[snap.docs.length - 1]?.id || null;
-        if (latestId !== _lastChatDocId) {
-          renderChatSnap(snap, currentUser);
-        }
-      } catch {}
-    }, 2000);
-  }
+  // Fallback poll every 2s for mobile Safari
+  setInterval(async () => {
+    try {
+      const { getDocs } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+      const snap = await getDocs(q);
+      const latestId = snap.docs[snap.docs.length - 1]?.id || null;
+      if (latestId !== _lastChatDocId) {
+        renderChatSnap(snap, currentUser);
+      }
+    } catch {}
+  }, 2000);
 }
 
 function renderMessageSync(msg, currentUser) {
@@ -368,10 +351,7 @@ function showGlobalGifPicker() {
   picker.style.cssText = 'position:absolute;bottom:60px;left:0;right:0;z-index:600;background:var(--panel);border-radius:16px 16px 0 0;padding:14px;box-shadow:0 -4px 30px rgba(0,0,0,0.15);border-top:1px solid var(--glass-border);max-height:280px;display:flex;flex-direction:column;';
   picker.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-shrink:0;">
-      <span style="display:flex;align-items:center;gap:8px;">
-        <span style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--text);">🎬 Stickers</span>
-        <span style="font-size:10px;font-weight:900;letter-spacing:0.6px;padding:3px 8px;border-radius:999px;background:linear-gradient(135deg,#7c6aff,#a855f7);color:#fff;">BETA</span>
-      </span>
+      <span style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--text);">🎬 Stickers <span style="display:inline-flex;align-items:center;background:linear-gradient(135deg,#f59e0b,#ef4444);color:white;font-size:9px;font-weight:800;padding:2px 7px;border-radius:20px;letter-spacing:0.8px;text-transform:uppercase;vertical-align:middle;">Beta</span></span>
       <button id="global-gif-close" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:0;">✕</button>
     </div>
     <input id="global-gif-search" type="text" placeholder="Search stickers..." style="width:100%;padding:8px 10px;border-radius:10px;border:1px solid var(--glass-border);background:var(--bg);color:var(--text);font-size:13px;outline:none;box-sizing:border-box;margin-bottom:10px;font-family:inherit;flex-shrink:0;">
