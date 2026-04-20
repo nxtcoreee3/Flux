@@ -1073,6 +1073,186 @@ export function initNotifications() {
   });
 }
 
+/* ===================== MESSAGE POPUP NOTIFICATIONS ===================== */
+function _ensureMsgToastContainer() {
+  let container = document.getElementById('flux-msg-toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'flux-msg-toast-container';
+    container.style.cssText = 'position:fixed;top:18px;right:18px;z-index:10000;display:flex;flex-direction:column;gap:10px;pointer-events:none;';
+    document.body.appendChild(container);
+  }
+  if (!document.getElementById('flux-msg-toast-styles')) {
+    const style = document.createElement('style');
+    style.id = 'flux-msg-toast-styles';
+    style.textContent = `
+      @keyframes fluxToastIn {
+        from { transform: translateX(18px) scale(0.96); opacity: 0; }
+        to { transform: translateX(0) scale(1); opacity: 1; }
+      }
+      @keyframes fluxToastOut {
+        from { transform: translateX(0) scale(1); opacity: 1; }
+        to { transform: translateX(18px) scale(0.98); opacity: 0; }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  return container;
+}
+
+function _updateUnreadNavBadge(total) {
+  // Works on pages that have the main nav
+  let navLink = null;
+  document.querySelectorAll('#main-nav a').forEach(a => {
+    if (a.getAttribute('href') === 'messages.html') navLink = a;
+  });
+  if (!navLink) return;
+
+  let badge = navLink.querySelector('.global-unread-badge');
+  if (!badge) {
+    badge = document.createElement('span');
+    badge.className = 'global-unread-badge';
+    badge.style.cssText = `
+      margin-left: 6px; background: #ef4444; color: white;
+      font-size: 10px; font-weight: 800; padding: 2px 6px;
+      border-radius: 20px; display: none; align-items: center;
+      justify-content: center; min-width: 18px; height: 18px;
+    `;
+    navLink.appendChild(badge);
+  }
+  badge.textContent = total > 99 ? '99+' : String(total);
+  badge.style.display = total > 0 ? 'inline-flex' : 'none';
+}
+
+function _showMsgToast({ title, text, avatarURL, link }) {
+  const container = _ensureMsgToastContainer();
+  const toast = document.createElement('div');
+  toast.style.cssText = `
+    pointer-events:all;
+    width: 320px;
+    background: var(--panel, #fff);
+    color: var(--text, #111827);
+    border-radius: 16px;
+    box-shadow: 0 14px 50px rgba(0,0,0,0.18);
+    border: 1px solid var(--glass-border, rgba(0,0,0,0.07));
+    padding: 12px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    cursor: pointer;
+    animation: fluxToastIn 0.22s ease-out;
+    backdrop-filter: blur(8px);
+  `;
+
+  const avatarHTML = avatarURL
+    ? `<img src="${avatarURL}" style="width:44px;height:44px;border-radius:12px;object-fit:cover;flex-shrink:0;">`
+    : `<div style="width:44px;height:44px;border-radius:12px;background:var(--accent,#3a7dff);display:flex;align-items:center;justify-content:center;color:white;font-size:18px;font-weight:800;flex-shrink:0;">💬</div>`;
+
+  toast.innerHTML = `
+    ${avatarHTML}
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:13px;font-weight:800;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${title}</div>
+      <div style="font-size:12px;color:var(--muted,#6b7280);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${text || ''}</div>
+    </div>
+  `;
+
+  toast.addEventListener('click', () => {
+    if (link) window.location.href = link;
+  });
+
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.animation = 'fluxToastOut 0.18s ease-in forwards';
+    setTimeout(() => toast.remove(), 190);
+  }, 5200);
+}
+
+function _maybeShowBrowserNotification({ title, body, icon, link, tag }) {
+  try {
+    if (!('Notification' in window)) return;
+    if (Notification.permission !== 'granted') return;
+    const n = new Notification(title, {
+      body: body || '',
+      icon: icon || 'assets/thumbnail.png',
+      tag: tag || 'flux-message',
+      silent: false,
+      data: { link },
+    });
+    n.onclick = () => {
+      try { window.focus(); } catch {}
+      if (link) window.location.href = link;
+      try { n.close(); } catch {}
+    };
+  } catch {}
+}
+
+function _toMillis(ts) {
+  try {
+    if (!ts) return 0;
+    if (typeof ts === 'number') return ts;
+    if (typeof ts.toMillis === 'function') return ts.toMillis();
+    if (typeof ts.toDate === 'function') return ts.toDate().getTime();
+    if (typeof ts === 'string') return new Date(ts).getTime();
+    return 0;
+  } catch { return 0; }
+}
+
+export function initMessagePopupNotifications() {
+  const user = auth.currentUser;
+  if (!user || user.isAnonymous) return;
+  if (window._fluxMsgPopupsAttached) return;
+  window._fluxMsgPopupsAttached = true;
+
+  // Ask once (best effort) so OS-level popups work
+  try {
+    if ('Notification' in window && Notification.permission === 'default' && localStorage.getItem('flux_notif_prompted') !== '1') {
+      localStorage.setItem('flux_notif_prompted', '1');
+      setTimeout(() => { Notification.requestPermission().catch(() => {}); }, 1200);
+    }
+  } catch {}
+
+  let lastTotal = 0;
+  let lastKey = '';
+
+  watchUnreadMessages(user.uid, async (total, latest) => {
+    _updateUnreadNavBadge(total);
+
+    // Avoid duplicates across refreshes within a session
+    if (!Number.isFinite(lastTotal)) lastTotal = 0;
+
+    if (!latest) { lastTotal = total; return; }
+
+    const latestAtMs = _toMillis(latest.lastMessageAt);
+    const key = `${latest.convoId || ''}:${latestAtMs}:${latest.text || ''}:${total}`;
+    const shouldNotify = total > lastTotal && key !== lastKey;
+    lastTotal = total;
+    if (!shouldNotify) return;
+    lastKey = key;
+
+    // Skip if user is currently inside the active DM/group
+    const isMessagesPage = location.pathname.includes('messages.html');
+    const activeConvo = window._fluxActiveConvoId || null;
+    if (isMessagesPage && activeConvo && latest.convoId === activeConvo && document.hasFocus() && !document.hidden) return;
+
+    let sender = null;
+    try { sender = latest.senderUid ? await getProfile(latest.senderUid) : null; } catch {}
+    const senderName = sender?.displayName || sender?.username || (latest.senderUsername ? `@${latest.senderUsername}` : 'Someone');
+    const senderAvatar = sender?.avatarURL || '';
+    const title = `New ${latest.type === 'group' ? 'group message' : 'message'} from ${senderName}`;
+    const body = latest.text || '';
+
+    const link = latest.type === 'dm' && sender?.username
+      ? `messages.html?with=${encodeURIComponent(sender.username)}`
+      : 'messages.html';
+
+    _showMsgToast({ title, text: body, avatarURL: senderAvatar, link });
+    _maybeShowBrowserNotification({ title, body, icon: senderAvatar, link, tag: `flux-msg-${latest.convoId || 'inbox'}` });
+
+    // Subtle sound (may be blocked unless user interacted)
+    try { new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3').play(); } catch {}
+  });
+}
+
 async function loadNotifications(uid) {
   const list = document.getElementById('notif-list');
   if (!list) return;
@@ -2819,6 +2999,8 @@ export async function initAuthUI(onUserChange) {
         }
         // Init notifications for signed-in users
         initNotifications();
+        // Message popups (DM / group) across all pages
+        initMessagePopupNotifications();
         // Sync dropdown dark mode icon
         const isDark = document.documentElement.classList.contains('dark');
         const icon = document.getElementById('dropdown-dark-icon');
@@ -4102,17 +4284,25 @@ export function watchUnreadMessages(uid, callback) {
     return onSnapshot(q, (snap) => {
       let total = 0;
       let latest = null;
+      let latestAt = 0;
       snap.docs.forEach(d => {
         const data = d.data();
         const unreadCount = data.unread?.[uid] || 0;
         total += unreadCount;
         if (unreadCount > 0) {
-          latest = {
-            convoId: d.id,
-            text: data.lastMessage,
-            senderUid: data.type === 'dm' ? data.members.find(m => m !== uid) : data.from,
-            type: data.type
-          };
+          const at = _toMillis(data.lastMessageAt) || _toMillis(data.updatedAt) || 0;
+          if (!latest || at >= latestAt) {
+            latestAt = at;
+            latest = {
+              convoId: d.id,
+              text: data.lastMessage || '',
+              senderUid: data.lastSenderUid || (data.type === 'dm' ? data.members.find(m => m !== uid) : data.from),
+              senderUsername: data.lastSenderUsername || '',
+              type: data.type || 'dm',
+              lastMessageAt: data.lastMessageAt || null,
+              status: data.status || '',
+            };
+          }
         }
       });
       callback(total, latest);

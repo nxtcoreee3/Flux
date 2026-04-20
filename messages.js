@@ -147,7 +147,11 @@ function loadConversations() {
     // Filter client-side: show accepted OR group OR convos without status field
     const docs = snap.docs.filter(d => {
       const data = d.data();
-      return data.type === 'group' || !data.status || data.status === 'accepted';
+      if (data.type === 'group') return true;
+      if (!data.status || data.status === 'accepted') return true;
+      // Outgoing pending DM should still be visible so you can reopen it
+      if (data.type === 'dm' && data.status === 'pending' && data.from === _currentUser.uid) return true;
+      return false;
     });
     if (!docs.length) {
       list.innerHTML = '<div style="padding:20px 16px;color:var(--muted);font-size:13px;text-align:center;">No conversations yet.<br>Start one below!</div>';
@@ -207,6 +211,7 @@ async function buildConvoItem(convo) {
   }
 
   const unread = (convo.unread || {})[_currentUser.uid] || 0;
+  const isPendingOutgoing = !isGroup && convo.status === 'pending' && convo.from === _currentUser.uid;
   const item = document.createElement('div');
   item.className = 'convo-item';
   item.dataset.id = convo.id;
@@ -216,9 +221,12 @@ async function buildConvoItem(convo) {
     <div style="flex:1;min-width:0;">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
         <span style="font-size:14px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(name)}</span>
-        ${unread > 0 ? `<span style="background:var(--accent);color:white;font-size:10px;font-weight:700;padding:2px 6px;border-radius:20px;flex-shrink:0;">${unread}</span>` : ''}
+        <span style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+          ${isPendingOutgoing ? `<span style="background:rgba(245,158,11,0.16);border:1px solid rgba(245,158,11,0.35);color:#f59e0b;font-size:10px;font-weight:800;padding:2px 6px;border-radius:999px;">PENDING</span>` : ''}
+          ${unread > 0 ? `<span style="background:var(--accent);color:white;font-size:10px;font-weight:700;padding:2px 6px;border-radius:20px;">${unread}</span>` : ''}
+        </span>
       </div>
-      <div style="font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;">${escapeHtml(convo.lastMessage || '')}</div>
+      <div style="font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;">${escapeHtml(convo.lastMessage || (isPendingOutgoing ? 'Message request' : ''))}</div>
     </div>
   `;
   item.addEventListener('click', () => openConversation(convo.id, name, isGroup));
@@ -260,6 +268,7 @@ async function buildRequestItem(convo) {
 /* ── Open conversation ── */
 async function openConversation(convoId, name, isGroup) {
   _activeConvoId = convoId;
+  window._fluxActiveConvoId = convoId;
   document.querySelectorAll('.convo-item').forEach(el => {
     el.classList.toggle('active', el.dataset.id === convoId);
   });
@@ -320,6 +329,7 @@ function loadConversationMessages(convoId, name, isGroup) {
   document.getElementById('back-btn').addEventListener('click', () => {
     if (_unsubMessages) { _unsubMessages(); _unsubMessages = null; }
     _activeConvoId = null;
+    window._fluxActiveConvoId = null;
     panel.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:14px;flex-direction:column;gap:12px;"><span style="font-size:40px;">💬</span><span>Select a conversation</span></div>';
     document.querySelectorAll('.convo-item').forEach(el => el.classList.remove('active'));
   });
@@ -334,6 +344,7 @@ function loadConversationMessages(convoId, name, isGroup) {
   updateDoc(doc(db, 'conversations', convoId), { [`unread.${_currentUser.uid}`]: 0 }).catch(() => {});
 
   const q = query(collection(db, 'conversations', convoId, 'messages'), orderBy('sentAt', 'asc'), limit(100));
+  let _markReadTimer = null;
   _unsubMessages = onSnapshot(q, (snap) => {
     // Ignore if we've switched to a different convo
     if (_activeConvoId !== loadId) return;
@@ -347,6 +358,14 @@ function loadConversationMessages(convoId, name, isGroup) {
     }
     snap.docs.forEach(d => list.appendChild(renderMessage({ id: d.id, ...d.data() })));
     if (wasAtBottom || snap.docs.length < 5) list.scrollTop = list.scrollHeight;
+
+    // If you're currently viewing this convo, keep unread cleared (prevents stuck unread badges)
+    if (!document.hidden && document.hasFocus()) {
+      clearTimeout(_markReadTimer);
+      _markReadTimer = setTimeout(() => {
+        updateDoc(doc(db, 'conversations', convoId), { [`unread.${_currentUser.uid}`]: 0 }).catch(() => {});
+      }, 350);
+    }
   });
 }
 
@@ -364,15 +383,21 @@ function renderMessage(msg) {
   div.className = `message-row ${isOwn ? 'own' : 'other'}`;
   div.style.cssText = `display:flex;align-items:flex-end;margin-bottom:12px;flex-direction:${isOwn?'row-reverse':'row'}`;
   
-  const content = msg.type === 'gif'
-    ? `<img src="${msg.text}" style="max-width:200px;border-radius:12px;display:block;">`
+  const isGif = msg.type === 'gif';
+  const gifAlt = msg.stickerName ? `Sticker: ${msg.stickerName}` : 'Sticker';
+  const content = isGif
+    ? `<img src="${msg.text}" alt="${escapeHtml(gifAlt)}" class="dm-sticker" style="max-width:240px;max-height:240px;width:auto;height:auto;border-radius:14px;display:block;">`
     : escapeHtml(msg.text);
+
+  const bubbleStyle = isGif
+    ? 'position:relative;padding:0;border-radius:18px;background:transparent;border:none;'
+    : `position:relative;padding:10px 14px;border-radius:18px;${isOwn?'background:var(--accent);color:white;border-bottom-right-radius:4px;':'background:var(--panel);color:var(--text);border-bottom-left-radius:4px;'}`;
 
   div.innerHTML = `
     ${avatarHTML}
     <div class="message-body" style="max-width:70%;group;">
       ${!isOwn ? `<div style="font-size:10px;color:var(--muted);margin-bottom:2px;padding-left:2px;">@${escapeHtml(msg.username || '')}</div>` : ''}
-      <div class="message-bubble ${isOwn ? 'bubble-own' : 'bubble-other'}" style="position:relative;padding:10px 14px;border-radius:18px;${isOwn?'background:var(--accent);color:white;border-bottom-right-radius:4px;':'background:var(--panel);color:var(--text);border-bottom-left-radius:4px;'}">
+      <div class="message-bubble ${isOwn ? 'bubble-own' : 'bubble-other'}" style="${bubbleStyle}">
         ${content}
         <div class="msg-actions" style="position:absolute;top:-20px;${isOwn?'right:0;':'left:0;'}display:none;gap:4px;background:var(--panel);padding:2px 6px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);border:1px solid var(--glass-border);z-index:10;">
           <button class="msg-report" style="background:none;border:none;cursor:pointer;font-size:10px;padding:2px;">🚩</button>
@@ -399,6 +424,10 @@ function renderMessage(msg) {
     if (confirm('Delete this message?')) {
       await deleteMessage(_activeConvoId, msg.id);
     }
+  });
+
+  div.querySelector('img.dm-sticker')?.addEventListener('click', () => {
+    try { window.open(msg.text, '_blank', 'noopener'); } catch {}
   });
 
   return div;
@@ -446,7 +475,13 @@ async function sendMessage() {
       const members = convoSnap.data().members || [];
       const unreadUpdate = {};
       members.forEach(uid => { if (uid !== _currentUser.uid) unreadUpdate[`unread.${uid}`] = (convoSnap.data().unread?.[uid] || 0) + 1; });
-      await updateDoc(convoRef, { lastMessage: text.slice(0, 60), lastMessageAt: serverTimestamp(), ...unreadUpdate });
+      await updateDoc(convoRef, {
+        lastMessage: text.slice(0, 60),
+        lastMessageAt: serverTimestamp(),
+        lastSenderUid: _currentUser.uid,
+        lastSenderUsername: _currentProfile.username || '',
+        ...unreadUpdate
+      });
     }
   } catch (e) { console.warn('Send failed:', e); }
 
@@ -661,7 +696,10 @@ async function showGifPicker() {
   modal.style.cssText = 'position:fixed;bottom:80px;right:20px;z-index:600;width:300px;background:var(--panel);border-radius:16px;padding:14px;box-shadow:0 10px 40px rgba(0,0,0,0.2);border:1px solid var(--glass-border);display:flex;flex-direction:column;max-height:340px;';
   modal.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-shrink:0;">
-      <span style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--text);">🎬 Stickers</span>
+      <span style="display:flex;align-items:center;gap:8px;">
+        <span style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--text);">🎬 Stickers</span>
+        <span style="font-size:10px;font-weight:900;letter-spacing:0.6px;padding:3px 8px;border-radius:999px;background:linear-gradient(135deg,#7c6aff,#a855f7);color:#fff;">BETA</span>
+      </span>
       <button id="gif-modal-close" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:0;">✕</button>
     </div>
     <input id="gif-search" type="text" placeholder="Search stickers..." style="width:100%;padding:8px 10px;border-radius:10px;border:1px solid var(--glass-border);background:var(--bg);color:var(--text);font-size:13px;outline:none;box-sizing:border-box;margin-bottom:10px;font-family:inherit;flex-shrink:0;">
@@ -732,6 +770,22 @@ async function sendGif(url, name) {
       type: 'gif',
       sentAt: serverTimestamp(),
     });
+
+    const convoRef = doc(db, 'conversations', _activeConvoId);
+    const convoSnap = await getDoc(convoRef);
+    if (convoSnap.exists()) {
+      const members = convoSnap.data().members || [];
+      const unreadUpdate = {};
+      members.forEach(uid => { if (uid !== _currentUser.uid) unreadUpdate[`unread.${uid}`] = (convoSnap.data().unread?.[uid] || 0) + 1; });
+      const label = name ? `🎬 ${name}` : '🎬 Sticker';
+      await updateDoc(convoRef, {
+        lastMessage: label.slice(0, 60),
+        lastMessageAt: serverTimestamp(),
+        lastSenderUid: _currentUser.uid,
+        lastSenderUsername: _currentProfile.username || '',
+        ...unreadUpdate
+      });
+    }
   } catch (e) { console.warn('GIF Send failed:', e); }
 }
 

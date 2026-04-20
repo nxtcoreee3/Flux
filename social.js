@@ -351,7 +351,10 @@ function showGlobalGifPicker() {
   picker.style.cssText = 'position:absolute;bottom:60px;left:0;right:0;z-index:600;background:var(--panel);border-radius:16px 16px 0 0;padding:14px;box-shadow:0 -4px 30px rgba(0,0,0,0.15);border-top:1px solid var(--glass-border);max-height:280px;display:flex;flex-direction:column;';
   picker.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-shrink:0;">
-      <span style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--text);">🎬 Stickers</span>
+      <span style="display:flex;align-items:center;gap:8px;">
+        <span style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--text);">🎬 Stickers</span>
+        <span style="font-size:10px;font-weight:900;letter-spacing:0.6px;padding:3px 8px;border-radius:999px;background:linear-gradient(135deg,#7c6aff,#a855f7);color:#fff;">BETA</span>
+      </span>
       <button id="global-gif-close" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:0;">✕</button>
     </div>
     <input id="global-gif-search" type="text" placeholder="Search stickers..." style="width:100%;padding:8px 10px;border-radius:10px;border:1px solid var(--glass-border);background:var(--bg);color:var(--text);font-size:13px;outline:none;box-sizing:border-box;margin-bottom:10px;font-family:inherit;flex-shrink:0;">

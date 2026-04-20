@@ -3,7 +3,7 @@
    favorites (cloud+local), dark mode, toasts, recently played, new badge, stats button
 */
 
-import { initAuthUI, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, fetchAllGameStats, setCurrentlyPlaying, clearCurrentlyPlaying, rateGame, getUserRating, reportGame, checkFirestoreHealth, fetchGameDetail, getAiGameDescription, getGameReviews, submitReview, addReviewComment, likeReview, deleteReview, fetchGamePricing, getUnlockedGames, unlockGame, SPIN_SEGMENTS, getLastSpin, spinWheel, giftPointsToUser, redeemCode, createRewardCode, getRewardCodes, deactivateRewardCode, initIncidentBanner, setServiceStatus, autoCheckServiceHealth, setIncidentBanner, checkNoAds, purchaseNoAds, NO_ADS_COST, setGameLockdown, initUpdateNotification, watchUnreadMessages, getProfile } from './firebase-auth.js';
+import { initAuthUI, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, fetchAllGameStats, setCurrentlyPlaying, clearCurrentlyPlaying, rateGame, getUserRating, reportGame, checkFirestoreHealth, fetchGameDetail, getAiGameDescription, getGameReviews, submitReview, addReviewComment, likeReview, deleteReview, fetchGamePricing, getUnlockedGames, unlockGame, SPIN_SEGMENTS, getLastSpin, spinWheel, giftPointsToUser, redeemCode, createRewardCode, getRewardCodes, deactivateRewardCode, initIncidentBanner, setServiceStatus, autoCheckServiceHealth, setIncidentBanner, checkNoAds, purchaseNoAds, NO_ADS_COST, setGameLockdown, initUpdateNotification } from './firebase-auth.js';
 
 const GAMES = [
   {
@@ -937,29 +937,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (user && !user.isAnonymous) {
       trackLoginStreak();
       trackTimeOnSite();
-      
-      // Global message listener
-      let totalRead = 0;
-      watchUnreadMessages(user.uid, async (total, latest) => {
-        // Only notify if unread count increased
-        if (total > totalRead && latest && !location.pathname.includes('messages.html')) {
-          const sender = await getProfile(latest.senderUid);
-          const senderName = sender?.displayName || sender?.username || 'Someone';
-          const senderAvatar = sender?.avatarURL || '';
-          
-          showNotificationToast(
-            `New ${latest.type === 'dm' ? 'message' : 'group message'} from ${senderName}`,
-            latest.text,
-            senderAvatar,
-            'messages.html'
-          );
-          
-          // Play subtle sound if approved
-          try { new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3').play(); } catch(e){}
-        }
-        totalRead = total;
-        updateGlobalUnreadBadge(total);
-      });
 
       // Re-check no-ads status now that we're signed in
       if (!_adsDisabled) {
