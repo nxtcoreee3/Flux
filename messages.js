@@ -526,8 +526,16 @@ async function startDM(targetUid, targetProfile) {
   try {
     convoSnap = await getDoc(convoRef);
   } catch (e) {
-    alert(`Could not start chat: ${e?.message || 'unknown error'}`);
-    return;
+    // If rules don't allow reading a convo unless you're a member, the doc may be unreadable
+    // before it exists. Treat permission-denied on get as "not found" and attempt create.
+    const code = e?.code || '';
+    const msg = String(e?.message || '');
+    const isPermDenied = code === 'permission-denied' || /insufficient permissions/i.test(msg);
+    if (!isPermDenied) {
+      alert(`Could not start chat: ${e?.message || 'unknown error'}`);
+      return;
+    }
+    convoSnap = { exists: () => false };
   }
 
   if (convoSnap.exists()) {
