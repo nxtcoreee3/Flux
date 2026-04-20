@@ -1671,6 +1671,33 @@ async function renderCommitsPanel(commits) {
 
 async function injectBuildNumber() {
   try {
+    // Prefer build info already fetched by commits-panel.js (avoids extra GitHub API calls / rate limits)
+    if (window._fluxBuildSHA && window._fluxBuildURL) {
+      const sha = String(window._fluxBuildSHA);
+      window._fluxBuildSHA = sha;
+
+      const tryInject = () => {
+        const dd = document.getElementById('profile-dropdown');
+        if (!dd || dd.querySelector('.build-sha-item')) return;
+        const item = document.createElement('div');
+        item.className = 'build-sha-item';
+        item.style.cssText = 'padding:10px 16px;border-top:1px solid var(--glass-border,rgba(0,0,0,0.06));font-size:11px;color:var(--muted,#6b7280);display:flex;align-items:center;gap:6px;';
+        item.innerHTML = `<span>🔨</span> Build: <a href="${window._fluxBuildURL}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;font-family:monospace;font-weight:700;" title="${window._fluxBuildMsg || ''}">${sha}</a>`;
+        dd.appendChild(item);
+      };
+      tryInject();
+      const obs = new MutationObserver(tryInject);
+      obs.observe(document.body, { childList: true, subtree: true });
+      setTimeout(() => obs.disconnect(), 30000);
+      return;
+    }
+
+    // If commits panel marked GitHub as blocked, don't spam more requests.
+    try {
+      const until = parseInt(localStorage.getItem('flux_commits_panel_block_until') || '0', 10) || 0;
+      if (Date.now() < until) return;
+    } catch {}
+
     const commits = await fetchCommits();
     if (!commits?.length) return;
 

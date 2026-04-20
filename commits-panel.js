@@ -18,6 +18,9 @@ const LATEST_SHA_KEY = 'flux_commits_panel_latest_sha';
 const SEEN_SHA_KEY = 'flux_commits_panel_seen_sha';
 const TOTAL_VERIFIED_KEY = 'flux_commits_total_verified';
 
+const BLOCK_UNTIL_KEY = 'flux_commits_panel_block_until';
+const BLOCK_MS = 10 * 60 * 1000; // 10 minutes
+
 function escapeHtml(str = '') {
   return String(str)
     .replace(/&/g, '&amp;')
@@ -44,6 +47,48 @@ function parseLastPageFromLinkHeader(link) {
   return m ? parseInt(m[1], 10) : null;
 }
 
+function isBlocked() {
+  try {
+    const until = parseInt(localStorage.getItem(BLOCK_UNTIL_KEY) || '0', 10) || 0;
+    return Date.now() < until;
+  } catch {
+    return false;
+  }
+}
+
+function setBlocked() {
+  try {
+    localStorage.setItem(BLOCK_UNTIL_KEY, String(Date.now() + BLOCK_MS));
+  } catch {}
+}
+
+async function fetchCommitsFromAtom() {
+  try {
+    const res = await fetch(`https://github.com/${GH_OWNER}/${GH_REPO}/commits/${GH_BRANCH}.atom`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`GitHub atom error (${res.status})`);
+    const xmlText = await res.text();
+    const xml = new DOMParser().parseFromString(xmlText, 'application/xml');
+    const entries = Array.from(xml.querySelectorAll('entry')).slice(0, FETCH_WINDOW);
+    return entries.map((entry) => {
+      const id = entry.querySelector('id')?.textContent || '';
+      const title = entry.querySelector('title')?.textContent || '';
+      const updated = entry.querySelector('updated')?.textContent || '';
+      const sha = (id.match(/commit\/([0-9a-f]{7,40})/i)?.[1] || '').toLowerCase();
+      return {
+        sha,
+        html_url: id || `https://github.com/${GH_OWNER}/${GH_REPO}/commit/${sha}`,
+        commit: {
+          message: title,
+          committer: { date: updated },
+          author: { date: updated }
+        }
+      };
+    }).filter(c => c.sha);
+  } catch {
+    return [];
+  }
+}
+
 async function fetchCommitTotalViaSearch() {
   // Fallback for cases where the `Link` header isn't accessible (CORS/exposed headers)
   // Uses GitHub Search API which returns a JSON `total_count`.
@@ -55,6 +100,7 @@ async function fetchCommitTotalViaSearch() {
       },
       cache: 'no-store'
     });
+    if (res.status === 403) setBlocked();
     if (!res.ok) return 0;
     const data = await res.json();
     const total = parseInt(data?.total_count || '0', 10) || 0;
@@ -68,12 +114,14 @@ async function fetchCommitTotal(force = false) {
   const cached = parseInt(localStorage.getItem(TOTAL_KEY) || '0', 10) || 0;
   const ts = parseInt(localStorage.getItem(TOTAL_TS_KEY) || '0', 10) || 0;
   if (!force && cached > 0 && Date.now() - ts < TOTAL_TTL) return cached;
+  if (isBlocked()) return cached || 0;
 
   try {
     const res = await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/commits?per_page=1&sha=${GH_BRANCH}`, {
       headers: { 'Accept': 'application/vnd.github.v3+json' },
       cache: 'no-store'
     });
+    if (res.status === 403) setBlocked();
     if (!res.ok) return cached || 0;
     const link = res.headers.get('Link') || '';
     const lastPage = parseLastPageFromLinkHeader(link);
@@ -96,12 +144,23 @@ async function fetchCommits(force = false) {
     } catch {}
   }
 
+  // If GitHub API is rate-limiting this client, use the Atom feed instead.
+  if (isBlocked()) {
+    const atom = await fetchCommitsFromAtom();
+    if (atom?.length) return atom;
+  }
+
   const headers = { 'Accept': 'application/vnd.github.v3+json' };
   const etag = localStorage.getItem(ETAG_KEY) || '';
   if (etag) headers['If-None-Match'] = etag;
 
   const url = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/commits?per_page=${FETCH_WINDOW}&sha=${GH_BRANCH}`;
   const res = await fetch(url, { headers, cache: 'no-store' });
+  if (res.status === 403) {
+    setBlocked();
+    const atom = await fetchCommitsFromAtom();
+    if (atom?.length) return atom;
+  }
   if (res.status === 304) {
     try {
       const cached = JSON.parse(sessionStorage.getItem(CACHE_KEY) || 'null');
@@ -170,6 +229,16 @@ async function renderPanel(force = false) {
 
   const commits = await fetchCommits(force);
   const latestSha = commits?.[0]?.sha || '';
+
+  // Provide build info for script.js without forcing a second GitHub API call.
+  try {
+    if (commits?.[0]?.sha) {
+      const latest = commits[0];
+      window._fluxBuildSHA = latest.sha.slice(0, 7);
+      window._fluxBuildURL = `https://github.com/${GH_OWNER}/${GH_REPO}/commit/${latest.sha}`;
+      window._fluxBuildMsg = (latest?.commit?.message || '').split('\n')[0];
+    }
+  } catch {}
 
   const cachedTotal = parseInt(localStorage.getItem(TOTAL_KEY) || '0', 10) || 0;
 
@@ -263,7 +332,13 @@ async function start() {
   } catch (e) {
     const list = document.getElementById('commits-list');
     if (list) {
-      list.innerHTML = `<div style="padding:16px 0;text-align:center;color:var(--muted);font-size:12px;">Could not load commits.</div>`;
+      const is403 = String(e?.message || '').includes('(403)') || String(e).includes('403');
+      list.innerHTML = is403
+        ? `<div style="padding:16px 0;text-align:center;color:var(--muted);font-size:12px;line-height:1.35;">
+            GitHub rate-limited this device.<br/>
+            <a href="https://github.com/${GH_OWNER}/${GH_REPO}/commits/${GH_BRANCH}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;font-weight:800;">View commits on GitHub →</a>
+          </div>`
+        : `<div style="padding:16px 0;text-align:center;color:var(--muted);font-size:12px;">Could not load commits.</div>`;
     }
     console.warn('Commits panel failed:', e);
   }
@@ -271,6 +346,7 @@ async function start() {
   // Refresh automatically (fast enough to notice new commits; ETag keeps it cheap)
   setInterval(() => {
     if (!document.getElementById('commits-list')) return;
+    // If blocked, avoid spam-retrying every minute; Atom feed will still be used by fetchCommits().
     renderPanel().catch(() => {});
   }, 60 * 1000);
 }
