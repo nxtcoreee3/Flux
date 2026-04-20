@@ -573,6 +573,260 @@ export function initUpdateNotification() {
   const STORAGE_KEY = 'flux_build';
   let _notifShown = false;
 
+  // GitHub commit changelog (public repo)
+  const GH_OWNER = 'nxtcoreee3';
+  const GH_REPO = 'flux';
+  const GH_COMMITS_URL = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/commits?per_page=20`;
+  const GH_COMMIT_URL = (sha) => `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/commits/${sha}`;
+  const GH_STORAGE_LAST_SEEN = 'flux_last_seen_commit';
+  const GH_STORAGE_ETAG = 'flux_commits_etag';
+  const GH_STORAGE_CACHE = 'flux_commits_cache';
+  const GH_STORAGE_LAST_NOTIF_SHA = 'flux_last_commit_notified';
+  const GH_STORAGE_LAST_BG_COUNT = 'flux_last_commit_bg_count';
+
+  const defer = (fn, timeout = 800) => {
+    try {
+      if ('requestIdleCallback' in window) return requestIdleCallback(fn, { timeout });
+    } catch {}
+    return setTimeout(fn, 0);
+  };
+
+  function _safeJsonParse(str, fallback = null) {
+    try { return JSON.parse(str); } catch { return fallback; }
+  }
+
+  function _isForeground() {
+    return !document.hidden && document.hasFocus();
+  }
+
+  async function fetchCommitsCached() {
+    const etag = localStorage.getItem(GH_STORAGE_ETAG) || '';
+    const headers = {};
+    if (etag) headers['If-None-Match'] = etag;
+
+    try {
+      const res = await fetch(GH_COMMITS_URL, { headers, cache: 'no-store' });
+      if (res.status === 304) {
+        return _safeJsonParse(localStorage.getItem(GH_STORAGE_CACHE) || 'null', []);
+      }
+      if (!res.ok) return [];
+      const data = await res.json();
+      const newEtag = res.headers.get('ETag');
+      if (newEtag) localStorage.setItem(GH_STORAGE_ETAG, newEtag);
+      localStorage.setItem(GH_STORAGE_CACHE, JSON.stringify(data));
+      return data;
+    } catch {
+      return _safeJsonParse(localStorage.getItem(GH_STORAGE_CACHE) || 'null', []);
+    }
+  }
+
+  function getNewCommitsSince(lastSeenSha, commits) {
+    if (!Array.isArray(commits) || !commits.length) return [];
+    if (!lastSeenSha) return commits.slice(0, 5);
+    const out = [];
+    for (const c of commits) {
+      if (c?.sha === lastSeenSha) break;
+      out.push(c);
+      if (out.length >= 10) break;
+    }
+    return out;
+  }
+
+  function inferRouteFromFiles(files = []) {
+    const names = files.map(f => (f?.filename || '')).join(' ').toLowerCase();
+    if (!names) return null;
+    if (/(^|\/)social(\.js|\.html)?\b/.test(names) || /\bsocial\.js\b/.test(names)) return 'social.html';
+    if (/(^|\/)messages(\.js|\.html)?\b/.test(names) || /\bmessages\.js\b/.test(names)) return 'messages.html';
+    if (/(^|\/)profile(\.js|\.html)?\b/.test(names) || /\bprofile\.js\b/.test(names)) return 'profile.html';
+    if (/(^|\/)games(\.js|\.html)?\b/.test(names) || /\bgames\.html\b/.test(names)) return 'games.html';
+    if (/(^|\/)settings(\.js|\.html)?\b/.test(names) || /\bsettings\.html\b/.test(names)) return 'settings.html';
+    if (/(^|\/)style\.css\b/.test(names)) return location.pathname.split('/').pop() || 'index.html';
+    if (/(^|\/)index\.html\b/.test(names)) return 'index.html';
+    return null;
+  }
+
+  function summarizeCommitAI(commitMessage = '', files = []) {
+    // Lightweight “AI” summarizer: heuristics based on touched files + message
+    const msg = String(commitMessage || '').split('\n')[0].trim();
+    const route = inferRouteFromFiles(files);
+    const areas = [];
+    const names = files.map(f => (f?.filename || '')).join(' ').toLowerCase();
+    if (/messages(\.js|\.html)|conversations|dm/.test(names) || /dm|message/.test(msg.toLowerCase())) areas.push('Messaging');
+    if (/social(\.js|\.html)|chat\b/.test(names) || /\bchat\b/.test(msg.toLowerCase())) areas.push('Social');
+    if (/profile(\.js|\.html)|follow/.test(names) || /follow|profile/.test(msg.toLowerCase())) areas.push('Profiles');
+    if (/games(\.html|\.js)|game\b/.test(names) || /\bgame\b/.test(msg.toLowerCase())) areas.push('Games');
+    if (/firebase-auth\.js|rules|firestore|auth/.test(names) || /auth|firestore|rules/.test(msg.toLowerCase())) areas.push('Backend');
+    if (/style\.css|css/.test(names) || /ui|style|design/.test(msg.toLowerCase())) areas.push('UI');
+
+    const areaPrefix = areas.length ? `${areas.slice(0, 2).join(' + ')}: ` : '';
+    const cleaned = msg
+      .replace(/^(\w+(\(\w+\))?:\s*)/i, '') // conventional commit-ish prefixes
+      .replace(/\s+/g, ' ')
+      .trim();
+    const description = (areaPrefix + (cleaned || 'Updates and improvements')).slice(0, 120);
+
+    return { description, route };
+  }
+
+  function showChangelogModal({ commits = [], title = "What's new" } = {}) {
+    document.getElementById('flux-changelog-modal')?.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'flux-changelog-modal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:10001;background:rgba(0,0,0,0.55);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:18px;box-sizing:border-box;';
+    modal.innerHTML = `
+      <div style="width:100%;max-width:720px;max-height:86vh;overflow:hidden;background:var(--panel,#fff);border:1px solid var(--glass-border,rgba(0,0,0,0.08));border-radius:22px;box-shadow:0 30px 90px rgba(0,0,0,0.28);display:flex;flex-direction:column;">
+        <div style="padding:16px 18px;border-bottom:1px solid var(--glass-border,rgba(0,0,0,0.08));display:flex;align-items:center;gap:12px;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--text,#111827);line-height:1;">${title}</div>
+            <div style="font-size:12px;color:var(--muted,#6b7280);margin-top:4px;">Latest commits from GitHub • Tap a commit to open it</div>
+          </div>
+          <button id="flux-changelog-close" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted,#6b7280);padding:6px 10px;">✕</button>
+        </div>
+        <div id="flux-changelog-list" style="padding:10px 10px 14px;overflow:auto;flex:1;"></div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+    document.getElementById('flux-changelog-close')?.addEventListener('click', () => modal.remove());
+
+    const list = document.getElementById('flux-changelog-list');
+    if (!commits.length) {
+      list.innerHTML = '<div style="padding:18px;text-align:center;color:var(--muted,#6b7280);font-size:13px;">No commits found.</div>';
+      return;
+    }
+
+    list.innerHTML = '';
+    commits.slice(0, 10).forEach((c) => {
+      const sha = c?.sha || '';
+      const short = sha ? sha.slice(0, 7) : '';
+      const msg = c?.commit?.message ? String(c.commit.message).split('\n')[0] : '';
+      const when = c?.commit?.author?.date ? new Date(c.commit.author.date).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+      const url = c?.html_url || '';
+
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;gap:12px;align-items:flex-start;padding:12px;border-radius:16px;border:1px solid transparent;cursor:pointer;transition:background 0.12s,border-color 0.12s;';
+      row.innerHTML = `
+        <div style="width:46px;height:46px;border-radius:14px;background:linear-gradient(135deg,rgba(58,125,255,0.14),rgba(168,85,247,0.10));border:1px solid rgba(58,125,255,0.18);display:flex;align-items:center;justify-content:center;font-weight:900;color:var(--accent,#3a7dff);flex-shrink:0;">${short || '—'}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+            <div style="font-size:13px;font-weight:900;color:var(--text,#111827);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(msg || 'Commit')}</div>
+            <div style="font-size:11px;color:var(--muted,#6b7280);flex-shrink:0;">${escapeHtml(when)}</div>
+          </div>
+          <div class="flux-ai-desc" style="margin-top:6px;font-size:12px;color:var(--muted,#6b7280);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">
+            Summarizing what changed…
+          </div>
+          <div class="flux-ai-link" style="margin-top:6px;display:none;">
+            <a class="flux-ai-route" href="#" style="font-size:12px;font-weight:800;color:var(--accent,#3a7dff);text-decoration:none;"></a>
+          </div>
+        </div>
+      `;
+
+      row.addEventListener('mouseenter', () => { row.style.background = 'var(--bg, rgba(0,0,0,0.03))'; row.style.borderColor = 'var(--glass-border, rgba(0,0,0,0.08))'; });
+      row.addEventListener('mouseleave', () => { row.style.background = ''; row.style.borderColor = 'transparent'; });
+      row.addEventListener('click', () => { if (url) window.open(url, '_blank', 'noopener'); });
+      list.appendChild(row);
+
+      // Fetch per-commit details to infer route and generate a better description
+      if (sha) {
+        fetch(GH_COMMIT_URL(sha), { cache: 'no-store' })
+          .then(r => r.ok ? r.json() : null)
+          .then(detail => {
+            if (!detail) return;
+            const files = detail.files || [];
+            const { description, route } = summarizeCommitAI(detail.commit?.message || msg, files);
+            const descEl = row.querySelector('.flux-ai-desc');
+            if (descEl) descEl.textContent = description;
+            if (route) {
+              const linkWrap = row.querySelector('.flux-ai-link');
+              const a = row.querySelector('.flux-ai-route');
+              if (linkWrap && a) {
+                linkWrap.style.display = 'block';
+                a.textContent = `Open in Flux → ${route}`;
+                a.href = route;
+                a.addEventListener('click', (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  window.location.href = route;
+                });
+              }
+            }
+          })
+          .catch(() => {});
+      }
+    });
+  }
+
+  async function checkGitHubCommits({ showModal = false } = {}) {
+    const commits = await fetchCommitsCached();
+    if (!commits.length) return;
+
+    const lastSeen = localStorage.getItem(GH_STORAGE_LAST_SEEN) || '';
+    const latestSha = commits[0]?.sha || '';
+    const newOnes = getNewCommitsSince(lastSeen, commits);
+
+    // If user asked to open the modal, show the newest items
+    if (showModal) {
+      if (latestSha) localStorage.setItem(GH_STORAGE_LAST_SEEN, latestSha);
+      showChangelogModal({ commits: newOnes.length ? newOnes : commits, title: "What's new" });
+      return;
+    }
+
+    // Auto-notify: show at most once per latestSha
+    if (!latestSha || !newOnes.length) return;
+    const alreadyNotified = localStorage.getItem(GH_STORAGE_LAST_NOTIF_SHA) === latestSha;
+    if (alreadyNotified) return;
+
+    const count = newOnes.length;
+    const isFg = _isForeground();
+
+    if (isFg) {
+      // Lightweight toast
+      const container = document.getElementById('toast-container') || document.body;
+      const toast = document.createElement('div');
+      toast.style.cssText = `
+        position: fixed; top: 20px; right: 20px; z-index: 10000;
+        width: 320px; background: var(--panel,#fff); border-radius: 16px;
+        box-shadow: 0 14px 50px rgba(0,0,0,0.18); border: 1px solid var(--glass-border,rgba(0,0,0,0.06));
+        padding: 12px; display: flex; gap: 12px; align-items: center;
+        cursor: pointer; animation: toastSlideIn 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+      `;
+      toast.innerHTML = `
+        <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#3a7dff,#a855f7);display:flex;align-items:center;justify-content:center;color:white;font-size:18px;font-weight:900;flex-shrink:0;">✨</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:900;color:var(--text,#111827);margin-bottom:2px;">${count} new update${count === 1 ? '' : 's'}</div>
+          <div style="font-size:12px;color:var(--muted,#6b7280);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Tap to see what changed</div>
+        </div>
+      `;
+      toast.addEventListener('click', () => checkGitHubCommits({ showModal: true }));
+      container.appendChild(toast);
+      setTimeout(() => { toast.style.animation = 'toastSlideOut 0.3s forwards'; setTimeout(() => toast.remove(), 300); }, 5200);
+    } else {
+      // Background: avoid spamming; keep the highest count seen for this latestSha
+      const prev = Number(localStorage.getItem(GH_STORAGE_LAST_BG_COUNT) || '0') || 0;
+      if (count <= prev) return;
+      localStorage.setItem(GH_STORAGE_LAST_BG_COUNT, String(count));
+
+      try {
+        if ('Notification' in window && Notification.permission === 'granted') {
+          const n = new Notification(`Flux (${count} new updates!)`, {
+            body: 'Tap to open what changed',
+            icon: 'assets/thumbnail.png',
+            tag: 'flux-updates',
+            data: { link: 'index.html' }
+          });
+          n.onclick = () => {
+            try { window.focus(); } catch {}
+            try { n.close(); } catch {}
+            checkGitHubCommits({ showModal: true });
+          };
+        }
+      } catch {}
+    }
+
+    localStorage.setItem(GH_STORAGE_LAST_NOTIF_SHA, latestSha);
+  }
+
   async function checkForUpdate() {
     try {
       // Fetch version.json with cache-busting
@@ -623,6 +877,7 @@ export function initUpdateNotification() {
         </div>
       </div>
       <div style="display:flex;gap:8px;flex-shrink:0;">
+        <button id="update-whatsnew-btn" style="padding:8px 12px;background:rgba(58,125,255,0.12);color:var(--accent,#3a7dff);border:1px solid rgba(58,125,255,0.18);border-radius:10px;font-weight:900;font-size:12px;cursor:pointer;white-space:nowrap;">What’s new</button>
         <button id="update-refresh-btn" style="padding:8px 14px;background:var(--accent,#3a7dff);color:white;border:none;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap;">Refresh</button>
         <button id="update-dismiss-btn" style="background:none;border:none;color:var(--muted,#9ca3af);cursor:pointer;font-size:18px;padding:0 2px;line-height:1;">✕</button>
       </div>
@@ -632,6 +887,11 @@ export function initUpdateNotification() {
     // Slide up
     requestAnimationFrame(() => {
       banner.style.transform = 'translateX(-50%) translateY(0)';
+    });
+
+    document.getElementById('update-whatsnew-btn')?.addEventListener('click', () => {
+      // Show changelog based on GitHub commits (best effort)
+      checkGitHubCommits({ showModal: true });
     });
 
     document.getElementById('update-refresh-btn').addEventListener('click', () => {
@@ -649,6 +909,10 @@ export function initUpdateNotification() {
   // Check on load and periodically
   checkForUpdate();
   setInterval(checkForUpdate, CHECK_INTERVAL);
+
+  // GitHub commit “what’s new” checks (deferred to avoid slowing page load)
+  defer(() => checkGitHubCommits({ showModal: false }), 1200);
+  setInterval(() => defer(() => checkGitHubCommits({ showModal: false }), 1200), 10 * 60 * 1000);
 }
 
 export function initDarkMode() {
