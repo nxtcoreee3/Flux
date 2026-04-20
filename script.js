@@ -1482,6 +1482,10 @@ const FILE_TO_PAGE = {
 
 const COMMITS_CACHE_KEY = 'flux_commits_cache';
 const COMMITS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const COMMITS_PER_PAGE = 3;
+const COMMITS_TOTAL_KEY = 'flux_commits_total';
+const COMMITS_TOTAL_TS_KEY = 'flux_commits_total_ts';
+const COMMITS_TOTAL_TTL = 60 * 60 * 1000; // 1 hour
 
 function timeAgoShort(isoDate) {
   const diff = Date.now() - new Date(isoDate).getTime();
@@ -1501,13 +1505,45 @@ async function fetchCommits(force = false) {
       if (cached && Date.now() - cached.ts < COMMITS_CACHE_TTL) return cached.data;
     } catch {}
   }
-  const res = await fetch('https://api.github.com/repos/nxtcoreee3/Flux/commits?per_page=5&branch=main', {
+  const res = await fetch(`https://api.github.com/repos/nxtcoreee3/Flux/commits?per_page=${COMMITS_PER_PAGE}&sha=main`, {
     headers: { 'Accept': 'application/vnd.github.v3+json' }
   });
   if (!res.ok) throw new Error('GitHub API error');
   const data = await res.json();
   sessionStorage.setItem(COMMITS_CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
   return data;
+}
+
+function parseLastPageFromLinkHeader(link) {
+  // Example: <...page=295>; rel="last"
+  if (!link) return null;
+  const parts = String(link).split(',');
+  const lastPart = parts.find(p => /rel=\"last\"/.test(p));
+  if (!lastPart) return null;
+  const m = lastPart.match(/[\?&]page=(\d+)/);
+  return m ? parseInt(m[1], 10) : null;
+}
+
+async function fetchCommitTotal(force = false) {
+  const cached = parseInt(localStorage.getItem(COMMITS_TOTAL_KEY) || '0', 10) || 0;
+  const ts = parseInt(localStorage.getItem(COMMITS_TOTAL_TS_KEY) || '0', 10) || 0;
+  if (!force && cached > 0 && Date.now() - ts < COMMITS_TOTAL_TTL) return cached;
+
+  try {
+    // With per_page=1, the "last" page number equals total commits
+    const res = await fetch('https://api.github.com/repos/nxtcoreee3/Flux/commits?per_page=1&sha=main', {
+      headers: { 'Accept': 'application/vnd.github.v3+json' }
+    });
+    if (!res.ok) return cached || 0;
+    const link = res.headers.get('Link') || '';
+    const lastPage = parseLastPageFromLinkHeader(link);
+    const total = lastPage || 1;
+    localStorage.setItem(COMMITS_TOTAL_KEY, String(total));
+    localStorage.setItem(COMMITS_TOTAL_TS_KEY, String(Date.now()));
+    return total;
+  } catch {
+    return cached || 0;
+  }
 }
 
 async function getCommitFiles(sha) {
@@ -1528,28 +1564,24 @@ async function getAICommitDescription(commitMsg, files) {
   if (cached) return JSON.parse(cached);
 
   try {
-    const fileList = files.length ? `Changed files: ${files.join(', ')}.` : '';
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        messages: [{
-          role: 'user',
-          content: `You are writing a short, friendly update summary for users of "Flux" — a browser game portal with social features, chat, profiles, and messages.
+    // Fast, local "AI-like" summary (no external API keys required)
+    const msg = String(commitMsg || '').split('\n')[0].trim();
+    const lower = msg.toLowerCase();
+    const names = (files || []).join(' ').toLowerCase();
 
-Commit message: "${commitMsg}"
-${fileList}
+    const describe = () => {
+      if (/messages\.js|messages\.html|dm|direct message|conversations/.test(names + ' ' + lower)) return 'Messaging: improved chats and reliability.';
+      if (/social\.js|social\.html|\bglobal chat\b/.test(names + ' ' + lower)) return 'Social: improved chat and social features.';
+      if (/profile\.js|profile\.html|follow|followers/.test(names + ' ' + lower)) return 'Profiles: improved follows and profile pages.';
+      if (/games\.html|\bgames?\b|play/.test(names + ' ' + lower)) return 'Games: improved browsing and performance.';
+      if (/style\.css|\bui\b|css|design/.test(names + ' ' + lower)) return 'UI: improved design and polish.';
+      if (/\bfix\b|bug|broken/.test(lower)) return 'Fixed bugs and improved stability.';
+      if (/\badd\b|\bnew\b/.test(lower)) return 'Added improvements and new features.';
+      return 'Improved performance and polish.';
+    };
 
-Write ONE sentence (max 12 words) telling users what's new or improved in plain English. No technical jargon. No "the code" or "refactor" — speak to the user ("You can now...", "Fixed...", "Improved..."). If it's a bug fix, say what was fixed. If it adds a feature, say what you can do now. Return ONLY the sentence, nothing else.`
-        }]
-      })
-    });
-    if (!res.ok) return null;
-    const aiData = await res.json();
-    const desc = aiData.content?.[0]?.text?.trim() || null;
-    if (desc) localStorage.setItem(cacheKey, JSON.stringify(desc));
+    const desc = describe();
+    localStorage.setItem(cacheKey, JSON.stringify(desc));
     return desc;
   } catch { return null; }
 }
@@ -1566,6 +1598,10 @@ async function renderCommitsPanel(commits) {
   const list = document.getElementById('commits-list');
   if (!list) return;
 
+  const totalLabel = document.getElementById('commits-total-label');
+  const commitTotal = await fetchCommitTotal(false);
+  if (totalLabel && commitTotal) totalLabel.textContent = `${commitTotal} Commits`;
+
   // Mark commits newer than last seen
   const lastSeenSha = localStorage.getItem('flux_last_seen_commit');
   const latestSha = commits[0]?.sha;
@@ -1579,14 +1615,14 @@ async function renderCommitsPanel(commits) {
     const date = c.commit?.committer?.date || c.commit?.author?.date;
     const isNew = lastSeenSha && c.sha !== lastSeenSha && i === 0;
     const commitUrl = `https://github.com/nxtcoreee3/Flux/commit/${c.sha}`;
-    const num = (parseInt(localStorage.getItem('flux_commit_base') || '0') + commits.length - i);
+    const num = commitTotal ? (commitTotal - i) : null;
 
     const row = document.createElement('div');
     row.className = 'commit-row';
 
     row.innerHTML = `
       <div class="commit-sha-line">
-        <a class="commit-sha" href="${commitUrl}" target="_blank" rel="noopener" title="Open commit on GitHub" onclick="event.stopPropagation();">#${num > 0 ? num : sha}</a>
+        <a class="commit-sha" href="${commitUrl}" target="_blank" rel="noopener" title="Open commit on GitHub" onclick="event.stopPropagation();">${num ? `#${num}` : `#${sha}`}</a>
         ${isNew ? '<span class="commit-new-badge">New</span>' : ''}
         <span class="commit-msg">${msg}</span>
       </div>
