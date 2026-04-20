@@ -1484,7 +1484,7 @@ const COMMITS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const COMMITS_PER_PAGE = 3;
 const COMMITS_TOTAL_KEY = 'flux_commits_total';
 const COMMITS_TOTAL_TS_KEY = 'flux_commits_total_ts';
-const COMMITS_TOTAL_TTL = 5 * 60 * 1000; // 5 minutes
+const COMMITS_TOTAL_TTL = 60 * 60 * 1000; // 1 hour
 
 function timeAgoShort(isoDate) {
   const diff = Date.now() - new Date(isoDate).getTime();
@@ -1536,11 +1536,9 @@ async function fetchCommitTotal(force = false) {
     if (!res.ok) return cached || 0;
     const link = res.headers.get('Link') || '';
     const lastPage = parseLastPageFromLinkHeader(link);
-    const total = lastPage || cached || 0;
-    if (total) {
-      localStorage.setItem(COMMITS_TOTAL_KEY, String(total));
-      localStorage.setItem(COMMITS_TOTAL_TS_KEY, String(Date.now()));
-    }
+    const total = lastPage || 1;
+    localStorage.setItem(COMMITS_TOTAL_KEY, String(total));
+    localStorage.setItem(COMMITS_TOTAL_TS_KEY, String(Date.now()));
     return total;
   } catch {
     return cached || 0;
@@ -1600,8 +1598,7 @@ async function renderCommitsPanel(commits) {
   if (!list) return;
 
   const totalLabel = document.getElementById('commits-total-label');
-  // If commit list changed, force-refresh the total so the displayed numbers stay in sync
-  const commitTotal = await fetchCommitTotal(true);
+  const commitTotal = await fetchCommitTotal(false);
   if (totalLabel && commitTotal) totalLabel.textContent = `${commitTotal} Commits`;
 
   // Mark commits newer than last seen
@@ -1671,33 +1668,6 @@ async function renderCommitsPanel(commits) {
 
 async function injectBuildNumber() {
   try {
-    // Prefer build info already fetched by commits-panel.js (avoids extra GitHub API calls / rate limits)
-    if (window._fluxBuildSHA && window._fluxBuildURL) {
-      const sha = String(window._fluxBuildSHA);
-      window._fluxBuildSHA = sha;
-
-      const tryInject = () => {
-        const dd = document.getElementById('profile-dropdown');
-        if (!dd || dd.querySelector('.build-sha-item')) return;
-        const item = document.createElement('div');
-        item.className = 'build-sha-item';
-        item.style.cssText = 'padding:10px 16px;border-top:1px solid var(--glass-border,rgba(0,0,0,0.06));font-size:11px;color:var(--muted,#6b7280);display:flex;align-items:center;gap:6px;';
-        item.innerHTML = `<span>🔨</span> Build: <a href="${window._fluxBuildURL}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;font-family:monospace;font-weight:700;" title="${window._fluxBuildMsg || ''}">${sha}</a>`;
-        dd.appendChild(item);
-      };
-      tryInject();
-      const obs = new MutationObserver(tryInject);
-      obs.observe(document.body, { childList: true, subtree: true });
-      setTimeout(() => obs.disconnect(), 30000);
-      return;
-    }
-
-    // If commits panel marked GitHub as blocked, don't spam more requests.
-    try {
-      const until = parseInt(localStorage.getItem('flux_commits_panel_block_until') || '0', 10) || 0;
-      if (Date.now() < until) return;
-    } catch {}
-
     const commits = await fetchCommits();
     if (!commits?.length) return;
 
@@ -1722,8 +1692,8 @@ async function injectBuildNumber() {
     obs.observe(document.body, { childList: true, subtree: true });
     setTimeout(() => obs.disconnect(), 30000);
 
-    // Render commits panel (index.html only) — skip if lightweight panel is already managing it
-    if (document.getElementById('hero-commits') && !window.__fluxCommitsPanelManaged) {
+    // Render commits panel (index.html only)
+    if (document.getElementById('hero-commits')) {
       await renderCommitsPanel(commits);
 
       // Auto-refresh every 5 minutes
