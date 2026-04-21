@@ -7,6 +7,8 @@ import {
   initDarkMode, initChatLock, reportUser, syncProfileAvatar
 } from './firebase-auth.js';
 
+import { buildFluxBuddyDataUrl } from './flux-buddy.js';
+
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
@@ -410,8 +412,10 @@ function loadConversationMessages(convoId, name, isGroup) {
 }
 
 function typingRowHTML(profile, fallbackLetter) {
-  const avatar = profile?.avatarURL
-    ? `<img src="${profile.avatarURL}" style="width:28px;height:28px;border-radius:8px;object-fit:cover;flex-shrink:0;">`
+  const buddy = profile?.fluxBuddy && typeof profile.fluxBuddy === 'object' ? profile.fluxBuddy : null;
+  const src = buddy ? buildFluxBuddyDataUrl(buddy) : (profile?.avatarURL || '');
+  const avatar = src
+    ? `<img src="${src}" style="width:28px;height:28px;border-radius:8px;object-fit:cover;flex-shrink:0;">`
     : `<div style="width:28px;height:28px;border-radius:8px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-size:12px;font-weight:700;flex-shrink:0;">${(fallbackLetter || '?')[0].toUpperCase()}</div>`;
   return `
     <div class="flux-typing-row">
@@ -454,8 +458,10 @@ function setCornerUI({ typingCount = 0, stickerCount = 0, watchingCount = 0, use
   const stack = users.slice(0, 3).map((u, idx) => {
     const p = u.profile;
     const fallback = u.fallbackLetter || '?';
-    const avatar = p?.avatarURL
-      ? `<img src="${p.avatarURL}" style="width:18px;height:18px;border-radius:6px;object-fit:cover;border:1px solid rgba(0,0,0,0.06);">`
+    const buddy = p?.fluxBuddy && typeof p.fluxBuddy === 'object' ? p.fluxBuddy : null;
+    const src = buddy ? buildFluxBuddyDataUrl(buddy) : (p?.avatarURL || '');
+    const avatar = src
+      ? `<img src="${src}" style="width:18px;height:18px;border-radius:6px;object-fit:cover;border:1px solid rgba(0,0,0,0.06);">`
       : `<div style="width:18px;height:18px;border-radius:6px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:800;border:1px solid rgba(0,0,0,0.06);">${escapeHtml((fallback[0] || '?').toUpperCase())}</div>`;
     return `<div style="margin-left:${idx === 0 ? 0 : -6}px;">${avatar}</div>`;
   }).join('');
