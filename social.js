@@ -94,7 +94,7 @@ const _presenceProfileCache = {};
 
 function bestCornerAvatar(profile) {
   const buddy = profile?.fluxBuddy && typeof profile.fluxBuddy === 'object' ? profile.fluxBuddy : null;
-  if (buddy) return buildFluxBuddyDataUrl(buddy);
+  if (buddy) return buildFluxBuddyDataUrl(buddy, 'icon');
   return profile?.avatarURL || '';
 }
 
@@ -318,7 +318,7 @@ function initBuddyRoom(profile) {
 
   const buddy = profile?.fluxBuddy && typeof profile.fluxBuddy === 'object' ? profile.fluxBuddy : null;
   const hasBuddy = !!buddy;
-  const src = hasBuddy ? buildFluxBuddyDataUrl(buddy) : (profile?.avatarURL || '');
+  const src = hasBuddy ? buildFluxBuddyDataUrl(buddy, 'full') : (profile?.avatarURL || '');
 
   if (img) {
     img.src = src || '';
@@ -332,8 +332,8 @@ function initBuddyRoom(profile) {
 
   if (hint) {
     hint.innerHTML = hasBuddy
-      ? `Your Buddy shows up in chat corners.`
-      : `No Buddy yet — using your profile picture.<br/><span style="font-size:11px;">Tap Customize to create one.</span>`;
+      ? `Your Fluxy shows up in chat corners.`
+      : `No Fluxy yet — using your profile picture.<br/><span style="font-size:11px;">Tap Customize to create one.</span>`;
   }
 
   if (btn && !btn.dataset.bound) {
@@ -348,141 +348,133 @@ function showBuddyStudio(profile) {
 
   const start = normalizeFluxBuddy(profile?.fluxBuddy || FLUX_BUDDY_DEFAULT);
 
+  const FACES = [
+    { id: 'neutral', label: 'Neutral' },
+    { id: 'smile', label: 'Smile' },
+    { id: 'grin', label: 'Grin' },
+    { id: 'sad', label: 'Sad' },
+    { id: 'angry', label: 'Angry' },
+    { id: 'surprised', label: 'Surprised' },
+    { id: 'sleepy', label: 'Sleepy' },
+    { id: 'wink', label: 'Wink' },
+    { id: 'cool', label: 'Cool' },
+    { id: 'blush', label: 'Blush' },
+    { id: 'love', label: 'Love' },
+    { id: 'dead', label: 'Dead' },
+  ];
+
   const overlay = document.createElement('div');
   overlay.id = 'buddy-studio-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;z-index:800;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.55);backdrop-filter:blur(8px);';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:800;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.55);backdrop-filter:blur(10px);';
   overlay.innerHTML = `
-    <div style="width:min(820px, calc(100vw - 24px));background:var(--panel);border-radius:22px;border:1px solid var(--glass-border);box-shadow:0 30px 90px rgba(0,0,0,0.25);overflow:hidden;">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--glass-border);gap:12px;">
+    <style>
+      @keyframes fluxyFloat { 0%,100%{transform:translateY(0) rotate(-0.6deg)} 50%{transform:translateY(-8px) rotate(0.6deg)} }
+      @media (max-width: 860px) { #fluxy-grid { grid-template-columns: 1fr !important; } #fluxy-right { border-left: none !important; border-top: 1px solid var(--glass-border) !important; } }
+      @media (max-width: 560px) { #fluxy-faces { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; } }
+    </style>
+
+    <div style="width:min(980px, calc(100vw - 24px));max-height:88vh;background:var(--panel);border-radius:24px;border:1px solid var(--glass-border);box-shadow:0 30px 90px rgba(0,0,0,0.28);overflow:hidden;display:flex;flex-direction:column;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--glass-border);gap:12px;flex-shrink:0;">
         <div style="display:flex;align-items:center;gap:10px;">
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--text);letter-spacing:1px;">Flux Buddy</div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:var(--text);letter-spacing:1px;">Fluxy</div>
           <span style="display:inline-flex;align-items:center;background:linear-gradient(135deg,#f59e0b,#ef4444);color:white;font-size:9px;font-weight:900;padding:2px 7px;border-radius:20px;letter-spacing:0.8px;text-transform:uppercase;">Beta</span>
         </div>
-        <button id="buddy-close" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;">✕</button>
+        <button id="fluxy-close" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;">✕</button>
       </div>
 
-      <div style="display:grid;grid-template-columns:360px 1fr;gap:0;">
-        <div style="padding:18px;border-right:1px solid var(--glass-border);">
-          <div style="height:340px;border-radius:18px;border:1px solid var(--glass-border);background:radial-gradient(160px 120px at 50% 20%, rgba(58,125,255,0.25), rgba(0,0,0,0) 70%), var(--bg);display:flex;align-items:flex-end;justify-content:center;position:relative;overflow:hidden;">
-            <div style="position:absolute;left:16px;right:16px;bottom:14px;height:26px;border-radius:999px;background:rgba(0,0,0,0.05);border:1px solid var(--glass-border);"></div>
-            <img id="buddy-preview" alt="Buddy preview" style="width:220px;height:auto;transform-origin:50% 100%;animation:buddyFloat 2.8s ease-in-out infinite;filter:drop-shadow(0 10px 18px rgba(0,0,0,0.12));">
+      <div id="fluxy-grid" style="display:grid;grid-template-columns:420px 1fr;min-height:0;flex:1;">
+        <div style="padding:18px;min-height:0;display:flex;flex-direction:column;gap:12px;">
+          <div style="flex:1;min-height:340px;border-radius:18px;border:1px solid var(--glass-border);background:
+              radial-gradient(220px 140px at 50% 18%, rgba(58,125,255,0.22), rgba(0,0,0,0) 70%),
+              url('assets/room.png') center bottom / cover no-repeat,
+              var(--bg);
+              display:flex;align-items:flex-end;justify-content:center;position:relative;overflow:hidden;padding-bottom:14px;">
+            <div style="position:absolute;left:18px;right:18px;bottom:14px;height:28px;border-radius:999px;background:rgba(0,0,0,0.06);border:1px solid var(--glass-border);"></div>
+            <img id="fluxy-preview" alt="Fluxy preview" style="width:260px;height:auto;transform-origin:50% 100%;animation:fluxyFloat 2.9s ease-in-out infinite;filter:drop-shadow(0 14px 24px rgba(0,0,0,0.12));">
           </div>
-          <div style="margin-top:12px;color:var(--muted);font-size:12px;line-height:1.35;">
-            This Buddy is separate from your profile picture and appears in chat corners (watching/typing/stickers).
+          <div style="text-align:center;color:var(--muted);font-size:12px;line-height:1.35;">
+            Fluxy appears in chat corners (watching/typing/stickers).<br/>Arms & legs auto-darken from your body color.
           </div>
         </div>
 
-        <div style="padding:18px;">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-            <label style="display:flex;flex-direction:column;gap:4px;">
-              <span style="font-size:10px;font-weight:900;color:var(--muted);letter-spacing:0.6px;text-transform:uppercase;">Skin</span>
-              <input id="buddy-skin" type="color" value="${start.skin}" style="height:34px;border-radius:10px;border:1px solid var(--glass-border);background:transparent;padding:2px;cursor:pointer;">
-            </label>
-            <label style="display:flex;flex-direction:column;gap:4px;">
-              <span style="font-size:10px;font-weight:900;color:var(--muted);letter-spacing:0.6px;text-transform:uppercase;">Hair</span>
-              <input id="buddy-hair" type="color" value="${start.hair}" style="height:34px;border-radius:10px;border:1px solid var(--glass-border);background:transparent;padding:2px;cursor:pointer;">
-            </label>
-            <label style="display:flex;flex-direction:column;gap:4px;">
-              <span style="font-size:10px;font-weight:900;color:var(--muted);letter-spacing:0.6px;text-transform:uppercase;">Shirt</span>
-              <input id="buddy-shirt" type="color" value="${start.shirt}" style="height:34px;border-radius:10px;border:1px solid var(--glass-border);background:transparent;padding:2px;cursor:pointer;">
-            </label>
-            <label style="display:flex;flex-direction:column;gap:4px;">
-              <span style="font-size:10px;font-weight:900;color:var(--muted);letter-spacing:0.6px;text-transform:uppercase;">Pants</span>
-              <input id="buddy-pants" type="color" value="${start.pants}" style="height:34px;border-radius:10px;border:1px solid var(--glass-border);background:transparent;padding:2px;cursor:pointer;">
-            </label>
-            <label style="display:flex;flex-direction:column;gap:4px;">
-              <span style="font-size:10px;font-weight:900;color:var(--muted);letter-spacing:0.6px;text-transform:uppercase;">Shoes</span>
-              <input id="buddy-shoes" type="color" value="${start.shoes}" style="height:34px;border-radius:10px;border:1px solid var(--glass-border);background:transparent;padding:2px;cursor:pointer;">
-            </label>
-            <label style="display:flex;flex-direction:column;gap:4px;">
-              <span style="font-size:10px;font-weight:900;color:var(--muted);letter-spacing:0.6px;text-transform:uppercase;">Hair Style</span>
-              <select id="buddy-hairStyle" style="height:34px;border-radius:10px;border:1px solid var(--glass-border);background:var(--bg);color:var(--text);padding:0 10px;font-weight:900;">
-                ${['short','long','spiky','bun'].map(v => `<option value="${v}" ${start.hairStyle===v?'selected':''}>${v[0].toUpperCase()+v.slice(1)}</option>`).join('')}
-              </select>
-            </label>
-            <label style="display:flex;flex-direction:column;gap:4px;">
-              <span style="font-size:10px;font-weight:900;color:var(--muted);letter-spacing:0.6px;text-transform:uppercase;">Eyes</span>
-              <select id="buddy-eyes" style="height:34px;border-radius:10px;border:1px solid var(--glass-border);background:var(--bg);color:var(--text);padding:0 10px;font-weight:900;">
-                ${['normal','happy'].map(v => `<option value="${v}" ${start.eyes===v?'selected':''}>${v[0].toUpperCase()+v.slice(1)}</option>`).join('')}
-              </select>
-            </label>
-            <label style="display:flex;flex-direction:column;gap:4px;">
-              <span style="font-size:10px;font-weight:900;color:var(--muted);letter-spacing:0.6px;text-transform:uppercase;">Mouth</span>
-              <select id="buddy-mouth" style="height:34px;border-radius:10px;border:1px solid var(--glass-border);background:var(--bg);color:var(--text);padding:0 10px;font-weight:900;">
-                ${['smile','neutral'].map(v => `<option value="${v}" ${start.mouth===v?'selected':''}>${v[0].toUpperCase()+v.slice(1)}</option>`).join('')}
-              </select>
-            </label>
-            <label style="grid-column:1/-1;display:flex;flex-direction:column;gap:4px;">
-              <span style="font-size:10px;font-weight:900;color:var(--muted);letter-spacing:0.6px;text-transform:uppercase;">Accessory</span>
-              <select id="buddy-accessory" style="height:34px;border-radius:10px;border:1px solid var(--glass-border);background:var(--bg);color:var(--text);padding:0 10px;font-weight:900;">
-                ${['none','glasses','cap'].map(v => `<option value="${v}" ${start.accessory===v?'selected':''}>${v[0].toUpperCase()+v.slice(1)}</option>`).join('')}
-              </select>
-            </label>
+        <div id="fluxy-right" style="padding:18px;border-left:1px solid var(--glass-border);overflow:auto;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;">
+            <div style="display:flex;flex-direction:column;gap:2px;">
+              <div style="font-size:12px;font-weight:900;color:var(--text);">Body Color</div>
+              <div style="font-size:11px;color:var(--muted);">Pick a color — limbs shade automatically</div>
+            </div>
+            <input id="fluxy-body" type="color" value="${start.body}" style="width:46px;height:36px;border-radius:12px;border:1px solid var(--glass-border);background:transparent;padding:2px;cursor:pointer;flex-shrink:0;">
           </div>
 
-          <div style="display:flex;gap:10px;margin-top:14px;">
-            <button id="buddy-reset" style="flex:1;padding:10px 12px;border:1px solid var(--glass-border);border-radius:12px;background:transparent;color:var(--text);font-weight:900;cursor:pointer;">Reset</button>
-            <button id="buddy-save" style="flex:1;padding:10px 12px;border:none;border-radius:12px;background:var(--accent);color:white;font-weight:900;cursor:pointer;">Save Buddy</button>
+          <div style="font-size:12px;font-weight:900;color:var(--text);margin:10px 0 8px;">Face</div>
+          <div id="fluxy-faces" style="display:grid;grid-template-columns:repeat(6, minmax(0, 1fr));gap:10px;"></div>
+
+          <div style="display:flex;gap:10px;margin-top:16px;">
+            <button id="fluxy-reset" style="flex:1;padding:11px 12px;border:1px solid var(--glass-border);border-radius:12px;background:transparent;color:var(--text);font-weight:900;cursor:pointer;">Reset</button>
+            <button id="fluxy-save" style="flex:1;padding:11px 12px;border:none;border-radius:12px;background:var(--accent);color:white;font-weight:900;cursor:pointer;">Save Fluxy</button>
           </div>
-          <div id="buddy-error" style="display:none;margin-top:10px;color:#ef4444;font-size:12px;font-weight:700;text-align:center;"></div>
+          <div id="fluxy-error" style="display:none;margin-top:10px;color:#ef4444;font-size:12px;font-weight:800;text-align:center;"></div>
         </div>
       </div>
     </div>
   `;
 
   document.body.appendChild(overlay);
+
   const close = () => overlay.remove();
-  overlay.querySelector('#buddy-close')?.addEventListener('click', close);
+  overlay.querySelector('#fluxy-close')?.addEventListener('click', close);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
 
   const els = {
-    preview: overlay.querySelector('#buddy-preview'),
-    skin: overlay.querySelector('#buddy-skin'),
-    hair: overlay.querySelector('#buddy-hair'),
-    shirt: overlay.querySelector('#buddy-shirt'),
-    pants: overlay.querySelector('#buddy-pants'),
-    shoes: overlay.querySelector('#buddy-shoes'),
-    hairStyle: overlay.querySelector('#buddy-hairStyle'),
-    eyes: overlay.querySelector('#buddy-eyes'),
-    mouth: overlay.querySelector('#buddy-mouth'),
-    accessory: overlay.querySelector('#buddy-accessory'),
-    reset: overlay.querySelector('#buddy-reset'),
-    save: overlay.querySelector('#buddy-save'),
-    err: overlay.querySelector('#buddy-error'),
+    preview: overlay.querySelector('#fluxy-preview'),
+    body: overlay.querySelector('#fluxy-body'),
+    faces: overlay.querySelector('#fluxy-faces'),
+    reset: overlay.querySelector('#fluxy-reset'),
+    save: overlay.querySelector('#fluxy-save'),
+    err: overlay.querySelector('#fluxy-error'),
   };
 
-  const read = () => normalizeFluxBuddy({
-    skin: els.skin.value,
-    hair: els.hair.value,
-    shirt: els.shirt.value,
-    pants: els.pants.value,
-    shoes: els.shoes.value,
-    hairStyle: els.hairStyle.value,
-    eyes: els.eyes.value,
-    mouth: els.mouth.value,
-    accessory: els.accessory.value,
-  });
+  let selectedFace = start.face;
+
+  const read = () => normalizeFluxBuddy({ body: els.body.value, face: selectedFace });
 
   const render = () => {
-    if (!els.preview) return;
-    els.preview.src = buildFluxBuddyDataUrl(read());
+    const cur = read();
+    if (els.preview) els.preview.src = buildFluxBuddyDataUrl(cur, 'full');
+    if (els.faces) {
+      els.faces.innerHTML = FACES.map(f => {
+        const on = f.id === cur.face;
+        const iconSrc = buildFluxBuddyDataUrl({ body: cur.body, face: f.id }, 'icon');
+        return `
+          <button type="button" data-face="${f.id}" title="${escapeHtml(f.label)}"
+            style="border-radius:14px;border:2px solid ${on ? 'var(--accent)' : 'var(--glass-border)'};background:${on ? 'rgba(58,125,255,0.10)' : 'rgba(0,0,0,0.02)'};cursor:pointer;padding:8px;display:flex;flex-direction:column;align-items:center;gap:6px;">
+            <img src="${iconSrc}" alt="${escapeHtml(f.label)}" style="width:40px;height:40px;object-fit:contain;display:block;">
+            <span style="font-size:10px;font-weight:900;color:${on ? 'var(--accent)' : 'var(--muted)'};white-space:nowrap;">${escapeHtml(f.label)}</span>
+          </button>
+        `;
+      }).join('');
+    }
   };
+
   render();
-  [els.skin, els.hair, els.shirt, els.pants, els.shoes, els.hairStyle, els.eyes, els.mouth, els.accessory].forEach(el => {
-    el?.addEventListener('input', render);
-    el?.addEventListener('change', render);
+
+  els.body?.addEventListener('input', render);
+  els.faces?.addEventListener('click', (e) => {
+    const btn = e.target?.closest?.('button[data-face]');
+    if (!btn) return;
+    selectedFace = btn.dataset.face || selectedFace;
+    render();
   });
 
   els.reset?.addEventListener('click', () => {
-    const d = { ...FLUX_BUDDY_DEFAULT };
-    els.skin.value = d.skin; els.hair.value = d.hair; els.shirt.value = d.shirt; els.pants.value = d.pants; els.shoes.value = d.shoes;
-    els.hairStyle.value = d.hairStyle; els.eyes.value = d.eyes; els.mouth.value = d.mouth; els.accessory.value = d.accessory;
+    selectedFace = FLUX_BUDDY_DEFAULT.face;
+    if (els.body) els.body.value = FLUX_BUDDY_DEFAULT.body;
     render();
   });
 
   els.save?.addEventListener('click', async () => {
     if (!_currentProfile) return;
-    els.err.style.display = 'none';
+    if (els.err) { els.err.style.display = 'none'; }
     const prev = els.save.textContent;
     els.save.textContent = 'Saving…';
     els.save.disabled = true;
@@ -493,9 +485,8 @@ function showBuddyStudio(profile) {
       initBuddyRoom(_currentProfile);
       close();
     } catch (e) {
-      els.err.textContent = 'Could not save Buddy.';
-      els.err.style.display = 'block';
-      console.warn('Buddy save failed:', e);
+      if (els.err) { els.err.textContent = 'Could not save Fluxy.'; els.err.style.display = 'block'; }
+      console.warn('Fluxy save failed:', e);
       els.save.textContent = prev;
       els.save.disabled = false;
     }

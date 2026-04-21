@@ -413,7 +413,7 @@ function loadConversationMessages(convoId, name, isGroup) {
 
 function typingRowHTML(profile, fallbackLetter) {
   const buddy = profile?.fluxBuddy && typeof profile.fluxBuddy === 'object' ? profile.fluxBuddy : null;
-  const src = buddy ? buildFluxBuddyDataUrl(buddy) : (profile?.avatarURL || '');
+  const src = buddy ? buildFluxBuddyDataUrl(buddy, 'icon') : (profile?.avatarURL || '');
   const avatar = src
     ? `<img src="${src}" style="width:28px;height:28px;border-radius:8px;object-fit:cover;flex-shrink:0;">`
     : `<div style="width:28px;height:28px;border-radius:8px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-size:12px;font-weight:700;flex-shrink:0;">${(fallbackLetter || '?')[0].toUpperCase()}</div>`;
@@ -459,7 +459,7 @@ function setCornerUI({ typingCount = 0, stickerCount = 0, watchingCount = 0, use
     const p = u.profile;
     const fallback = u.fallbackLetter || '?';
     const buddy = p?.fluxBuddy && typeof p.fluxBuddy === 'object' ? p.fluxBuddy : null;
-    const src = buddy ? buildFluxBuddyDataUrl(buddy) : (p?.avatarURL || '');
+    const src = buddy ? buildFluxBuddyDataUrl(buddy, 'icon') : (p?.avatarURL || '');
     const avatar = src
       ? `<img src="${src}" style="width:18px;height:18px;border-radius:6px;object-fit:cover;border:1px solid rgba(0,0,0,0.06);">`
       : `<div style="width:18px;height:18px;border-radius:6px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:800;border:1px solid rgba(0,0,0,0.06);">${escapeHtml((fallback[0] || '?').toUpperCase())}</div>`;

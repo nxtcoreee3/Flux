@@ -1,101 +1,180 @@
-// flux-buddy.js — Flux Buddy (Bitmoji-like) avatar (BETA)
+// flux-buddy.js — Fluxy (simple buddy avatar) (BETA)
+//
+// NOTE: We keep the export names (`fluxBuddy`) for backwards compatibility with saved profiles.
 
 export const FLUX_BUDDY_DEFAULT = Object.freeze({
-  skin: '#f1c27d',
-  hair: '#111827',
-  shirt: '#3a7dff',
-  pants: '#1f2937',
-  shoes: '#0b1220',
-  hairStyle: 'short',   // short | long | spiky | bun
-  eyes: 'normal',       // normal | happy
-  mouth: 'smile',       // smile | neutral
-  accessory: 'none',    // none | glasses | cap
+  body: '#b7d7ff',
+  face: 'neutral', // see `FACES`
 });
+
+const FACES = [
+  'neutral',
+  'smile',
+  'grin',
+  'sad',
+  'angry',
+  'surprised',
+  'sleepy',
+  'wink',
+  'cool',
+  'blush',
+  'love',
+  'dead',
+];
+
+function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
+
+function hexToRgb(hex) {
+  const h = String(hex || '').replace('#', '').trim();
+  if (h.length === 3) {
+    const r = parseInt(h[0] + h[0], 16);
+    const g = parseInt(h[1] + h[1], 16);
+    const b = parseInt(h[2] + h[2], 16);
+    return { r, g, b };
+  }
+  if (h.length !== 6) return null;
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  if ([r, g, b].some(v => Number.isNaN(v))) return null;
+  return { r, g, b };
+}
+
+function rgbToHex({ r, g, b }) {
+  const to = (v) => clamp(Math.round(v), 0, 255).toString(16).padStart(2, '0');
+  return `#${to(r)}${to(g)}${to(b)}`;
+}
+
+function darken(hex, amount = 0.18) {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return hex;
+  return rgbToHex({
+    r: rgb.r * (1 - amount),
+    g: rgb.g * (1 - amount),
+    b: rgb.b * (1 - amount),
+  });
+}
+
+function withAlpha(hex, a = 0.3) {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return `rgba(0,0,0,${a})`;
+  return `rgba(${rgb.r},${rgb.g},${rgb.b},${a})`;
+}
 
 export function normalizeFluxBuddy(input) {
   const o = input && typeof input === 'object' ? input : {};
-  const out = { ...FLUX_BUDDY_DEFAULT };
-  for (const k of Object.keys(out)) if (o[k] != null) out[k] = o[k];
-  if (!['short', 'long', 'spiky', 'bun'].includes(out.hairStyle)) out.hairStyle = FLUX_BUDDY_DEFAULT.hairStyle;
-  if (!['normal', 'happy'].includes(out.eyes)) out.eyes = FLUX_BUDDY_DEFAULT.eyes;
-  if (!['smile', 'neutral'].includes(out.mouth)) out.mouth = FLUX_BUDDY_DEFAULT.mouth;
-  if (!['none', 'glasses', 'cap'].includes(out.accessory)) out.accessory = FLUX_BUDDY_DEFAULT.accessory;
-  return out;
+
+  // Migration: old schema → new schema
+  const body = o.body || o.bodyColor || o.color || o.shirt || o.skin || FLUX_BUDDY_DEFAULT.body;
+  const face = o.face || o.mood || FLUX_BUDDY_DEFAULT.face;
+
+  return {
+    body: typeof body === 'string' ? body : FLUX_BUDDY_DEFAULT.body,
+    face: FACES.includes(face) ? face : FLUX_BUDDY_DEFAULT.face,
+  };
 }
 
-export function buildFluxBuddySvg(opts) {
+function faceSvg(face) {
+  const stroke = '#0b1220';
+  const sw = 8;
+  const dot = 8;
+
+  const eyesNormal = `<circle cx="68" cy="86" r="${dot}" fill="${stroke}"/><circle cx="112" cy="86" r="${dot}" fill="${stroke}"/>`;
+  const eyesHappy = `<path d="M56 86c8 10 16 10 24 0" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round" fill="none"/>
+                     <path d="M100 86c8 10 16 10 24 0" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round" fill="none"/>`;
+  const eyesSleepy = `<path d="M56 86h24" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round" fill="none"/>
+                      <path d="M100 86h24" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round" fill="none"/>`;
+  const eyesDead = `<path d="M58 78l20 16M58 94l20-16" stroke="${stroke}" stroke-width="${sw-1}" stroke-linecap="round" fill="none"/>
+                    <path d="M102 78l20 16M102 94l20-16" stroke="${stroke}" stroke-width="${sw-1}" stroke-linecap="round" fill="none"/>`;
+  const eyesWink = `<circle cx="68" cy="86" r="${dot}" fill="${stroke}"/><path d="M100 86h24" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round" fill="none"/>`;
+  const eyesCool = `<rect x="50" y="76" width="40" height="22" rx="10" fill="${stroke}"/><rect x="92" y="76" width="40" height="22" rx="10" fill="${stroke}"/><path d="M90 87h4" stroke="${stroke}" stroke-width="${sw-2}" stroke-linecap="round"/>`;
+  const eyesLove = `<path d="M64 92c-8-6-14-12-14-20 0-6 4-10 10-10 5 0 8 3 10 7 2-4 5-7 10-7 6 0 10 4 10 10 0 8-6 14-14 20z" fill="${stroke}"/>
+                    <path d="M108 92c-8-6-14-12-14-20 0-6 4-10 10-10 5 0 8 3 10 7 2-4 5-7 10-7 6 0 10 4 10 10 0 8-6 14-14 20z" fill="${stroke}"/>`;
+
+  const mouthNeutral = `<path d="M70 126h40" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round" fill="none"/>`;
+  const mouthSmile = `<path d="M66 122c10 16 48 16 58 0" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round" fill="none"/>`;
+  const mouthGrin = `<path d="M66 120c10 18 48 18 58 0" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round" fill="none"/>
+                     <path d="M76 124h28" stroke="${stroke}" stroke-width="${sw-3}" stroke-linecap="round" opacity="0.45"/>`;
+  const mouthSad = `<path d="M66 132c10-16 48-16 58 0" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round" fill="none"/>`;
+  const mouthAngry = `<path d="M70 132c12-10 28-10 40 0" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round" fill="none"/>`;
+  const mouthSurprised = `<circle cx="90" cy="128" r="12" fill="none" stroke="${stroke}" stroke-width="${sw}"/>`;
+  const mouthSleepy = `<path d="M74 128c8 6 24 6 32 0" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round" fill="none" opacity="0.9"/>`;
+  const blush = `<circle cx="48" cy="112" r="10" fill="rgba(244,63,94,0.28)"/><circle cx="132" cy="112" r="10" fill="rgba(244,63,94,0.28)"/>`;
+
+  const browAngry = `<path d="M52 70c10-8 18-10 30-8" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round" fill="none"/>
+                     <path d="M128 70c-10-8-18-10-30-8" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round" fill="none"/>`;
+
+  const browSad = `<path d="M52 70c10-8 18-10 30-8" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round" fill="none" opacity="0.65"/>
+                   <path d="M128 70c-10-2-18 2-30 10" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round" fill="none" opacity="0.65"/>`;
+
+  switch (face) {
+    case 'smile': return `${eyesNormal}${mouthSmile}`;
+    case 'grin': return `${eyesHappy}${mouthGrin}`;
+    case 'sad': return `${browSad}${eyesNormal}${mouthSad}`;
+    case 'angry': return `${browAngry}${eyesNormal}${mouthAngry}`;
+    case 'surprised': return `${eyesNormal}${mouthSurprised}`;
+    case 'sleepy': return `${eyesSleepy}${mouthSleepy}`;
+    case 'wink': return `${eyesWink}${mouthSmile}`;
+    case 'cool': return `${eyesCool}${mouthNeutral}`;
+    case 'blush': return `${blush}${eyesHappy}${mouthSmile}`;
+    case 'love': return `${eyesLove}${mouthSmile}`;
+    case 'dead': return `${eyesDead}${mouthNeutral}`;
+    default: return `${eyesNormal}${mouthNeutral}`;
+  }
+}
+
+export function buildFluxBuddySvg(opts, variant = 'full') {
   const o = normalizeFluxBuddy(opts);
+  const limb = darken(o.body, 0.22);
+  const shadow = withAlpha('#000000', 0.12);
+  const outline = withAlpha('#0b1220', 0.10);
 
-  const hairTop = o.hairStyle === 'short'
-    ? `<path d="M34 62c2-20 18-34 38-34s36 14 38 34c-8-10-20-16-38-16S42 52 34 62z" fill="${o.hair}"/>`
-    : o.hairStyle === 'long'
-      ? `<path d="M30 64c2-24 18-40 42-40s40 16 42 40c0 0-6-12-16-18v54c0 10-8 18-18 18H64c-10 0-18-8-18-18V46c-10 6-16 18-16 18z" fill="${o.hair}"/>`
-      : o.hairStyle === 'spiky'
-        ? `<path d="M34 64c4-20 18-38 38-38s34 18 38 38c-6-6-12-10-20-12l8-14c2-4-2-10-8-10H64c-6 0-10 6-8 10l8 14c-8 2-14 6-20 12z" fill="${o.hair}"/>`
-        : `<path d="M34 66c2-24 18-42 38-42s36 18 38 42c-8-10-16-16-26-18l8-10c3-4-1-10-7-10H67c-6 0-10 6-7 10l8 10c-10 2-18 8-26 18z" fill="${o.hair}"/>`;
-
-  const eyeMarks = o.eyes === 'happy'
-    ? `<path d="M54 66c4 4 8 4 12 0" stroke="#0b1220" stroke-width="4" stroke-linecap="round" fill="none"/>
-       <path d="M74 66c4 4 8 4 12 0" stroke="#0b1220" stroke-width="4" stroke-linecap="round" fill="none"/>`
-    : `<circle cx="60" cy="66" r="4.2" fill="#0b1220"/><circle cx="84" cy="66" r="4.2" fill="#0b1220"/>`;
-
-  const mouthMark = o.mouth === 'neutral'
-    ? `<path d="M64 84h20" stroke="#0b1220" stroke-width="4" stroke-linecap="round" fill="none"/>`
-    : `<path d="M62 82c4 6 18 6 22 0" stroke="#0b1220" stroke-width="4" stroke-linecap="round" fill="none"/>`;
-
-  const glassesMark = o.accessory === 'glasses'
-    ? `<g opacity="0.95">
-         <rect x="50" y="58" width="22" height="16" rx="7" fill="none" stroke="#0b1220" stroke-width="3"/>
-         <rect x="76" y="58" width="22" height="16" rx="7" fill="none" stroke="#0b1220" stroke-width="3"/>
-         <path d="M72 66h4" stroke="#0b1220" stroke-width="3" stroke-linecap="round"/>
-       </g>`
-    : '';
-
-  const capMark = o.accessory === 'cap'
-    ? `<path d="M40 58c10-16 24-24 44-24s34 8 44 24c-8-6-16-8-22-8H62c-6 0-14 2-22 8z" fill="${o.hair}"/>
-       <path d="M44 56c8-6 16-8 18-8h46c2 0 10 2 18 8v6H44z" fill="${o.hair}"/>`
-    : '';
+  if (variant === 'icon') {
+    return `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">
+        <defs>
+          <filter id="f" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="${shadow}"/>
+          </filter>
+        </defs>
+        <g filter="url(#f)">
+          <path d="M42 18h96c22 0 40 18 40 40v74c0 22-18 40-40 40H42c-22 0-40-18-40-40V58c0-22 18-40 40-40z" fill="${o.body}" stroke="${outline}" stroke-width="3"/>
+          <g transform="translate(0,-12)">${faceSvg(o.face)}</g>
+        </g>
+      </svg>
+    `.trim();
+  }
 
   return `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 220">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 260">
       <defs>
-        <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000" flood-opacity="0.14"/>
+        <filter id="f" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="${shadow}"/>
         </filter>
       </defs>
-      <g filter="url(#shadow)">
+
+      <g filter="url(#f)">
         <!-- Legs -->
-        <path d="M64 156c-6 18-8 28-8 44" stroke="${o.pants}" stroke-width="16" stroke-linecap="round"/>
-        <path d="M96 156c6 18 8 28 8 44" stroke="${o.pants}" stroke-width="16" stroke-linecap="round"/>
-
-        <!-- Shoes -->
-        <path d="M44 206c10 2 24 2 30 0 6-2 10 2 10 8H46c-6 0-10-4-10-8 0-4 4-10 8-8z" fill="${o.shoes}"/>
-        <path d="M86 214c0-6 4-10 10-8 6 2 20 2 30 0 4-2 8 4 8 8 0 4-4 8-10 8H86z" fill="${o.shoes}"/>
-
-        <!-- Body -->
-        <path d="M54 108c-10 10-16 22-16 36v18c0 8 6 14 14 14h56c8 0 14-6 14-14v-18c0-14-6-26-16-36-10-10-18-14-26-14H80c-8 0-16 4-26 14z" fill="${o.shirt}"/>
+        <path d="M76 200c-10 20-12 30-12 52" stroke="${limb}" stroke-width="18" stroke-linecap="round"/>
+        <path d="M104 200c10 20 12 30 12 52" stroke="${limb}" stroke-width="18" stroke-linecap="round"/>
+        <path d="M50 252c14 4 28 4 36 0 6-3 12 2 12 10H56c-8 0-14-6-14-10 0-4 4-12 8-10z" fill="${limb}"/>
+        <path d="M124 262c0-8 6-13 12-10 8 4 22 4 36 0 4-2 8 6 8 10 0 4-6 10-14 10h-42z" fill="${limb}"/>
 
         <!-- Arms -->
-        <path d="M40 130c-10 14-14 28-10 40" stroke="${o.shirt}" stroke-width="18" stroke-linecap="round"/>
-        <path d="M120 130c10 14 14 28 10 40" stroke="${o.shirt}" stroke-width="18" stroke-linecap="round"/>
-        <circle cx="28" cy="172" r="10" fill="${o.skin}"/>
-        <circle cx="132" cy="172" r="10" fill="${o.skin}"/>
+        <path d="M56 156c-18 18-26 34-24 52" stroke="${limb}" stroke-width="16" stroke-linecap="round"/>
+        <path d="M124 156c18 18 26 34 24 52" stroke="${limb}" stroke-width="16" stroke-linecap="round"/>
 
-        <!-- Head -->
-        <circle cx="80" cy="72" r="40" fill="${o.skin}"/>
-        ${hairTop}
-        ${capMark}
-        ${glassesMark}
-        ${eyeMarks}
-        ${mouthMark}
-        <path d="M76 74c0 6 8 10 12 4" stroke="rgba(11,18,32,0.25)" stroke-width="3" stroke-linecap="round" fill="none"/>
+        <!-- Body -->
+        <path d="M48 44h84c22 0 40 18 40 40v104c0 22-18 40-40 40H48c-22 0-40-18-40-40V84c0-22 18-40 40-40z" fill="${o.body}" stroke="${outline}" stroke-width="3"/>
+
+        <!-- Face -->
+        <g>${faceSvg(o.face)}</g>
       </g>
     </svg>
   `.trim();
 }
 
-export function buildFluxBuddyDataUrl(opts) {
-  const svg = buildFluxBuddySvg(opts);
+export function buildFluxBuddyDataUrl(opts, variant) {
+  const svg = buildFluxBuddySvg(opts, variant);
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
-

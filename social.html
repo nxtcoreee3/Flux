@@ -228,7 +228,7 @@
       padding: 20px;
     }
 
-    /* ── Flux Buddy Room (Beta) ── */
+    /* ── Fluxy Room (Beta) ── */
     .buddy-room {
       border-top: 1px solid var(--glass-border);
       padding: 14px 16px 16px;
@@ -268,7 +268,10 @@
       height: 160px;
       border-radius: 16px;
       border: 1px solid var(--glass-border);
-      background: radial-gradient(120px 80px at 50% 20%, rgba(58,125,255,0.22), rgba(0,0,0,0) 70%), var(--bg);
+      background:
+        radial-gradient(120px 80px at 50% 20%, rgba(58,125,255,0.22), rgba(0,0,0,0) 70%),
+        url('assets/room.png') center bottom / cover no-repeat,
+        var(--bg);
       overflow: hidden;
       display: flex;
       align-items: flex-end;
@@ -285,7 +288,7 @@
       filter: blur(0.2px);
     }
     #buddy-avatar {
-      width: 120px;
+      width: 140px;
       height: auto;
       transform-origin: 50% 100%;
       animation: buddyFloat 2.8s ease-in-out infinite;
@@ -475,14 +478,14 @@
       <div id="buddy-room" class="buddy-room">
         <div class="buddy-room-header">
           <div class="buddy-room-title">
-            🧍‍♂️ Flux Buddy <span class="beta-badge">Beta</span>
+            🧍‍♂️ Fluxy <span class="beta-badge">Beta</span>
           </div>
           <button id="buddy-customize" class="buddy-room-btn">Customize</button>
         </div>
         <div class="buddy-stage">
           <div class="buddy-floor"></div>
-          <div class="buddy-stage-hint" id="buddy-room-hint">Your Flux Buddy shows up in chat corners.</div>
-          <img id="buddy-avatar" alt="Flux Buddy">
+          <div class="buddy-stage-hint" id="buddy-room-hint">Your Fluxy shows up in chat corners.</div>
+          <img id="buddy-avatar" alt="Fluxy">
         </div>
       </div>
     </div>
