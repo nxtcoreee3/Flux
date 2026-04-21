@@ -41,6 +41,10 @@ let _activeTab = 'inbox'; // 'inbox' | 'requests'
 
 const TYPING_TTL_MS = 4500;
 const TYPING_THROTTLE_MS = 1800;
+const PRESENCE_TTL_MS = 12000; // "watching / stickers" freshness window for the corner indicator
+
+let _pickerOpen = false;
+let _presencePingTimer = null;
 
 /* ── Init ── */
 document.addEventListener('DOMContentLoaded', () => {
@@ -107,9 +111,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Best-effort cleanup so we don't get "stuck typing" if the tab is hidden/closed
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) setTyping(false).catch(() => {});
+    if (document.hidden) {
+      _pickerOpen = false;
+      if (_presencePingTimer) { clearInterval(_presencePingTimer); _presencePingTimer = null; }
+      setTyping(false).catch(() => {});
+      setChatState(null).catch(() => {});
+    }
   });
-  window.addEventListener('beforeunload', () => { stopTyping().catch(() => {}); });
+  window.addEventListener('beforeunload', () => {
+    _pickerOpen = false;
+    if (_presencePingTimer) { clearInterval(_presencePingTimer); _presencePingTimer = null; }
+    stopTyping().catch(() => {});
+    setChatState(null).catch(() => {});
+  });
 });
 
 function switchTab(tab) {
@@ -310,6 +324,7 @@ function loadConversationMessages(convoId, name, isGroup) {
   // Unsubscribe old listener first
   if (_unsubMessages) { _unsubMessages(); _unsubMessages = null; }
   if (_unsubTyping) { _unsubTyping(); _unsubTyping = null; }
+  if (_presencePingTimer) { clearInterval(_presencePingTimer); _presencePingTimer = null; }
   stopTyping().catch(() => {});
 
   const panel = document.getElementById('chat-panel');
@@ -322,6 +337,7 @@ function loadConversationMessages(convoId, name, isGroup) {
     <div class="chat-header-bar">
       <button id="back-btn" class="back-btn">←</button>
       <div style="font-size:15px;font-weight:700;color:var(--text);flex:1;">${escapeHtml(name)}</div>
+      <div id="chat-presence-corner" style="display:flex;align-items:center;justify-content:flex-end;gap:8px;min-width:120px;"></div>
     </div>
     <div id="messages-list" class="messages-list"><div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;"><div style="display:flex;justify-content:center;padding:20px;"><img src="assets/loading.gif" style="width:80px;height:auto;" alt="Loading..."></div></div></div>
     <div id="typing-strip" style="display:none;padding:0 16px 8px 16px;"></div>
@@ -335,7 +351,10 @@ function loadConversationMessages(convoId, name, isGroup) {
   document.getElementById('back-btn').addEventListener('click', () => {
     if (_unsubMessages) { _unsubMessages(); _unsubMessages = null; }
     if (_unsubTyping) { _unsubTyping(); _unsubTyping = null; }
+    if (_presencePingTimer) { clearInterval(_presencePingTimer); _presencePingTimer = null; }
     stopTyping().catch(() => {});
+    _pickerOpen = false;
+    setChatState(null).catch(() => {});
     _activeConvoId = null;
     panel.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:14px;flex-direction:column;gap:12px;"><span style="font-size:40px;">💬</span><span>Select a conversation</span></div>';
     document.querySelectorAll('.convo-item').forEach(el => el.classList.remove('active'));
@@ -348,6 +367,16 @@ function loadConversationMessages(convoId, name, isGroup) {
   document.getElementById('msg-input').addEventListener('input', () => setTyping(true));
   document.getElementById('msg-input').addEventListener('blur', () => setTyping(false));
   document.getElementById('gif-btn').addEventListener('click', showGifPicker);
+
+  // We're in the convo now (shows 👀 Watching in the corner for others)
+  setChatState('watching').catch(() => {});
+  _presencePingTimer = setInterval(() => {
+    if (!_activeConvoId) return;
+    if (_pickerOpen) return;
+    if (_typingLastSend && (Date.now() - _typingLastSend) < TYPING_TTL_MS) return;
+    // If user isn't typing, keep "watching" fresh so others can see it.
+    setChatState('watching').catch(() => {});
+  }, 9000);
 
   // Mark as read
   updateDoc(doc(db, 'conversations', convoId), { [`unread.${_currentUser.uid}`]: 0 }).catch(() => {});
@@ -406,12 +435,48 @@ function setTypingUI(typingUsers = []) {
   strip.innerHTML = typingUsers.map(u => typingRowHTML(u.profile, u.fallbackLetter)).join('');
 }
 
+function setCornerUI({ typingCount = 0, stickerCount = 0, watchingCount = 0, users = [] } = {}) {
+  const corner = document.getElementById('chat-presence-corner');
+  if (!corner) return;
+  if (!users.length) {
+    corner.innerHTML = '';
+    return;
+  }
+
+  const label = typingCount
+    ? (typingCount === 1 ? 'Typing…' : `${typingCount} typing…`)
+    : stickerCount
+      ? (stickerCount === 1 ? 'Sticker…' : `${stickerCount} stickers…`)
+      : (watchingCount === 1 ? 'Watching' : `${watchingCount} watching`);
+
+  const icon = typingCount ? '✍️' : (stickerCount ? '🎬' : '👀');
+
+  const stack = users.slice(0, 3).map((u, idx) => {
+    const p = u.profile;
+    const fallback = u.fallbackLetter || '?';
+    const avatar = p?.avatarURL
+      ? `<img src="${p.avatarURL}" style="width:18px;height:18px;border-radius:6px;object-fit:cover;border:1px solid rgba(0,0,0,0.06);">`
+      : `<div style="width:18px;height:18px;border-radius:6px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:800;border:1px solid rgba(0,0,0,0.06);">${escapeHtml((fallback[0] || '?').toUpperCase())}</div>`;
+    return `<div style="margin-left:${idx === 0 ? 0 : -6}px;">${avatar}</div>`;
+  }).join('');
+
+  corner.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:rgba(0,0,0,0.04);border:1px solid var(--glass-border);">
+      <div style="display:flex;align-items:center;">${stack}</div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:800;color:var(--muted);white-space:nowrap;">
+        <span>${icon}</span><span>${escapeHtml(label)}</span>
+      </div>
+    </div>
+  `;
+}
+
 function bindTypingIndicators(convoId, members = []) {
   if (!_currentUser) return;
   if (_unsubTyping) { _unsubTyping(); _unsubTyping = null; }
 
   const otherUids = Array.from(new Set((members || []).filter(uid => uid && uid !== _currentUser.uid)));
   const latestTyping = new Map(); // uid -> ms
+  const latestState = new Map();  // uid -> { state, ms }
   const profiles = new Map();     // uid -> profile
   let pruneTimer = null;
 
@@ -428,6 +493,26 @@ function bindTypingIndicators(convoId, members = []) {
         fallbackLetter: (profiles.get(uid)?.displayName || profiles.get(uid)?.username || uid)[0] || '?'
       }));
     setTypingUI(typingUids);
+
+    const active = Array.from(latestState.entries())
+      .filter(([, v]) => v?.ms && (now - v.ms) < PRESENCE_TTL_MS)
+      .map(([uid, v]) => ({
+        uid,
+        state: v.state,
+        ms: v.ms,
+        profile: profiles.get(uid) || null,
+        fallbackLetter: (profiles.get(uid)?.displayName || profiles.get(uid)?.username || uid)[0] || '?'
+      }));
+
+    if (!active.length) { setCornerUI({ users: [] }); return; }
+    const typingCount = active.filter(a => a.state === 'typing').length;
+    const stickerCount = active.filter(a => a.state === 'stickers').length;
+    const watchingCount = active.filter(a => a.state === 'watching').length;
+    const priority = (s) => s === 'typing' ? 3 : (s === 'stickers' ? 2 : 1);
+    const top = active
+      .sort((a, b) => (priority(b.state) - priority(a.state)) || (b.ms - a.ms))
+      .slice(0, 3);
+    setCornerUI({ typingCount, stickerCount, watchingCount, users: top });
   };
 
   (async () => {
@@ -442,14 +527,27 @@ function bindTypingIndicators(convoId, members = []) {
     const ref = doc(db, 'presence', uid);
     const unsub = onSnapshot(ref, (snap) => {
       const data = snap.data() || {};
+      const chatConvoId = data.chatConvoId || '';
+      const chatState = data.chatState || '';
+      const chatAt = data.chatAt;
+      const chatMs = chatAt?.toMillis ? chatAt.toMillis() : (typeof chatAt === 'number' ? chatAt : 0);
+
       const typingConvoId = data.typingConvoId || '';
       const typingAt = data.typingAt;
-      const ms = typingAt?.toMillis ? typingAt.toMillis() : (typeof typingAt === 'number' ? typingAt : 0);
-      if (typingConvoId === convoId && ms) latestTyping.set(uid, ms);
-      else latestTyping.delete(uid);
+      const typingMs = typingAt?.toMillis ? typingAt.toMillis() : (typeof typingAt === 'number' ? typingAt : 0);
+
+      if (typingConvoId === convoId && typingMs) {
+        latestTyping.set(uid, typingMs);
+        latestState.set(uid, { state: 'typing', ms: typingMs });
+      } else {
+        latestTyping.delete(uid);
+        if (chatConvoId === convoId && chatState && chatMs) latestState.set(uid, { state: chatState, ms: chatMs });
+        else latestState.delete(uid);
+      }
       render();
     }, () => {
       latestTyping.delete(uid);
+      latestState.delete(uid);
       render();
     });
     unsubs.push(unsub);
@@ -461,6 +559,9 @@ function bindTypingIndicators(convoId, members = []) {
     for (const [uid, ms] of latestTyping.entries()) {
       if (now - ms >= TYPING_TTL_MS) { latestTyping.delete(uid); changed = true; }
     }
+    for (const [uid, v] of latestState.entries()) {
+      if (!v?.ms || now - v.ms >= PRESENCE_TTL_MS) { latestState.delete(uid); changed = true; }
+    }
     if (changed) render();
   }, 900);
 
@@ -468,7 +569,19 @@ function bindTypingIndicators(convoId, members = []) {
     try { unsubs.forEach(fn => fn()); } catch {}
     try { clearInterval(pruneTimer); } catch {}
     setTypingUI([]);
+    setCornerUI({ users: [] });
   };
+}
+
+async function setChatState(state) {
+  if (!_currentUser) return;
+  if (state && !_activeConvoId) return;
+  const payload = state
+    ? { chatConvoId: _activeConvoId, chatState: state, chatAt: serverTimestamp() }
+    : { chatConvoId: deleteField(), chatState: deleteField(), chatAt: deleteField() };
+  try {
+    await setDoc(doc(db, 'presence', _currentUser.uid), payload, { merge: true });
+  } catch {}
 }
 
 async function setTyping(isTyping) {
@@ -481,6 +594,7 @@ async function setTyping(isTyping) {
     await stopTyping();
     return;
   }
+  if (_pickerOpen) return;
 
   const now = Date.now();
   if (now - _typingLastSend < TYPING_THROTTLE_MS) {
@@ -491,6 +605,9 @@ async function setTyping(isTyping) {
 
   try {
     await setDoc(doc(db, 'presence', _currentUser.uid), {
+      chatConvoId: convoId,
+      chatState: 'typing',
+      chatAt: serverTimestamp(),
       typingConvoId: convoId,
       typingAt: serverTimestamp()
     }, { merge: true });
@@ -509,6 +626,7 @@ async function stopTyping() {
       typingAt: deleteField()
     }, { merge: true });
   } catch {}
+  if (_activeConvoId && !_pickerOpen) setChatState('watching').catch(() => {});
 }
 
 function renderMessage(msg) {
@@ -832,7 +950,13 @@ function showNewGroupModal() {
 /* ── GIF / Sticker Picker ── */
 async function showGifPicker() {
   const existing = document.getElementById('gif-picker-modal');
-  if (existing) { existing.remove(); return; }
+  if (existing) {
+    try { existing.remove(); } catch {}
+    _pickerOpen = false;
+    stopTyping().catch(() => {});
+    setChatState(_activeConvoId ? 'watching' : null).catch(() => {});
+    return;
+  }
 
   const modal = document.createElement('div');
   modal.id = 'gif-picker-modal';
@@ -847,7 +971,18 @@ async function showGifPicker() {
   `;
   document.body.appendChild(modal);
 
-  document.getElementById('gif-modal-close').addEventListener('click', () => modal.remove());
+  _pickerOpen = true;
+  stopTyping().catch(() => {});
+  setChatState('stickers').catch(() => {});
+
+  const close = () => {
+    try { modal.remove(); } catch {}
+    _pickerOpen = false;
+    stopTyping().catch(() => {});
+    setChatState(_activeConvoId ? 'watching' : null).catch(() => {});
+  };
+
+  document.getElementById('gif-modal-close').addEventListener('click', close);
 
   const results = document.getElementById('gif-results');
   const search = document.getElementById('gif-search');
@@ -867,7 +1002,7 @@ async function showGifPicker() {
       img.addEventListener('mouseenter', () => img.style.borderColor = 'var(--accent)');
       img.addEventListener('mouseleave', () => img.style.borderColor = 'transparent');
       img.addEventListener('click', async () => {
-        modal.remove();
+        close();
         await sendGif(s.url, s.name);
       });
       results.appendChild(img);
@@ -892,7 +1027,7 @@ async function showGifPicker() {
   // Close on outside click
   setTimeout(() => {
     document.addEventListener('click', function handler(e) {
-      if (!modal.contains(e.target)) { modal.remove(); document.removeEventListener('click', handler); }
+      if (!modal.contains(e.target)) { close(); document.removeEventListener('click', handler); }
     });
   }, 50);
 }
