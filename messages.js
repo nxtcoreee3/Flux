@@ -12,7 +12,7 @@ import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/
 import {
   getFirestore, collection, addDoc, deleteDoc, setDoc,
   doc, query, orderBy, limit, onSnapshot, where,
-  serverTimestamp, getDoc, getDocs, updateDoc, arrayUnion
+  serverTimestamp, getDoc, getDocs, updateDoc, arrayUnion, deleteField
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -34,7 +34,13 @@ let _currentProfile = null;
 let _activeConvoId = null;
 let _unsubMessages = null;
 let _unsubConvos = null;
+let _unsubTyping = null;
+let _typingIdleTimer = null;
+let _typingLastSend = 0;
 let _activeTab = 'inbox'; // 'inbox' | 'requests'
+
+const TYPING_TTL_MS = 4500;
+const TYPING_THROTTLE_MS = 1800;
 
 /* ── Init ── */
 document.addEventListener('DOMContentLoaded', () => {
@@ -98,6 +104,12 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('tab-inbox')?.addEventListener('click', () => switchTab('inbox'));
   document.getElementById('tab-requests')?.addEventListener('click', () => switchTab('requests'));
+
+  // Best-effort cleanup so we don't get "stuck typing" if the tab is hidden/closed
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) setTyping(false).catch(() => {});
+  });
+  window.addEventListener('beforeunload', () => { stopTyping().catch(() => {}); });
 });
 
 function switchTab(tab) {
@@ -297,6 +309,8 @@ function showDisclaimer(onAccept) {
 function loadConversationMessages(convoId, name, isGroup) {
   // Unsubscribe old listener first
   if (_unsubMessages) { _unsubMessages(); _unsubMessages = null; }
+  if (_unsubTyping) { _unsubTyping(); _unsubTyping = null; }
+  stopTyping().catch(() => {});
 
   const panel = document.getElementById('chat-panel');
   if (!panel) return;
@@ -310,6 +324,7 @@ function loadConversationMessages(convoId, name, isGroup) {
       <div style="font-size:15px;font-weight:700;color:var(--text);flex:1;">${escapeHtml(name)}</div>
     </div>
     <div id="messages-list" class="messages-list"><div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;"><div style="display:flex;justify-content:center;padding:20px;"><img src="assets/loading.gif" style="width:80px;height:auto;" alt="Loading..."></div></div></div>
+    <div id="typing-strip" style="display:none;padding:0 16px 8px 16px;"></div>
     <div class="message-input-bar">
       <button id="gif-btn" class="gif-btn" style="background:none;border:none;font-size:18px;cursor:pointer;padding:0 8px;">🎬</button>
       <input id="msg-input" type="text" placeholder="Message..." maxlength="1000" autocomplete="off" class="msg-input">
@@ -319,6 +334,8 @@ function loadConversationMessages(convoId, name, isGroup) {
 
   document.getElementById('back-btn').addEventListener('click', () => {
     if (_unsubMessages) { _unsubMessages(); _unsubMessages = null; }
+    if (_unsubTyping) { _unsubTyping(); _unsubTyping = null; }
+    stopTyping().catch(() => {});
     _activeConvoId = null;
     panel.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:14px;flex-direction:column;gap:12px;"><span style="font-size:40px;">💬</span><span>Select a conversation</span></div>';
     document.querySelectorAll('.convo-item').forEach(el => el.classList.remove('active'));
@@ -328,10 +345,23 @@ function loadConversationMessages(convoId, name, isGroup) {
   document.getElementById('msg-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   });
+  document.getElementById('msg-input').addEventListener('input', () => setTyping(true));
+  document.getElementById('msg-input').addEventListener('blur', () => setTyping(false));
   document.getElementById('gif-btn').addEventListener('click', showGifPicker);
 
   // Mark as read
   updateDoc(doc(db, 'conversations', convoId), { [`unread.${_currentUser.uid}`]: 0 }).catch(() => {});
+
+  // Typing indicator (DM + group): watch presence docs for members and update UI
+  (async () => {
+    try {
+      const convoSnap = await getDoc(doc(db, 'conversations', convoId));
+      const members = convoSnap.exists() ? (convoSnap.data().members || []) : [];
+      bindTypingIndicators(convoId, members);
+    } catch {
+      bindTypingIndicators(convoId, []);
+    }
+  })();
 
   const q = query(collection(db, 'conversations', convoId, 'messages'), orderBy('sentAt', 'asc'), limit(100));
   _unsubMessages = onSnapshot(q, (snap) => {
@@ -348,6 +378,137 @@ function loadConversationMessages(convoId, name, isGroup) {
     snap.docs.forEach(d => list.appendChild(renderMessage({ id: d.id, ...d.data() })));
     if (wasAtBottom || snap.docs.length < 5) list.scrollTop = list.scrollHeight;
   });
+}
+
+function typingRowHTML(profile, fallbackLetter) {
+  const avatar = profile?.avatarURL
+    ? `<img src="${profile.avatarURL}" style="width:28px;height:28px;border-radius:8px;object-fit:cover;flex-shrink:0;">`
+    : `<div style="width:28px;height:28px;border-radius:8px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-size:12px;font-weight:700;flex-shrink:0;">${(fallbackLetter || '?')[0].toUpperCase()}</div>`;
+  return `
+    <div class="flux-typing-row">
+      ${avatar}
+      <div class="flux-typing-bubble" aria-label="Typing">
+        <span class="flux-typing-dots"><i></i><i></i><i></i></span>
+      </div>
+    </div>
+  `;
+}
+
+function setTypingUI(typingUsers = []) {
+  const strip = document.getElementById('typing-strip');
+  if (!strip) return;
+  if (!typingUsers.length) {
+    strip.style.display = 'none';
+    strip.innerHTML = '';
+    return;
+  }
+  strip.style.display = 'block';
+  strip.innerHTML = typingUsers.map(u => typingRowHTML(u.profile, u.fallbackLetter)).join('');
+}
+
+function bindTypingIndicators(convoId, members = []) {
+  if (!_currentUser) return;
+  if (_unsubTyping) { _unsubTyping(); _unsubTyping = null; }
+
+  const otherUids = Array.from(new Set((members || []).filter(uid => uid && uid !== _currentUser.uid)));
+  const latestTyping = new Map(); // uid -> ms
+  const profiles = new Map();     // uid -> profile
+  let pruneTimer = null;
+
+  const render = () => {
+    if (_activeConvoId !== convoId) return;
+    const now = Date.now();
+    const typingUids = Array.from(latestTyping.entries())
+      .filter(([, ms]) => now - ms < TYPING_TTL_MS)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([uid]) => ({
+        uid,
+        profile: profiles.get(uid) || null,
+        fallbackLetter: (profiles.get(uid)?.displayName || profiles.get(uid)?.username || uid)[0] || '?'
+      }));
+    setTypingUI(typingUids);
+  };
+
+  (async () => {
+    for (const uid of otherUids) {
+      try { profiles.set(uid, await getProfile(uid)); } catch {}
+    }
+    render();
+  })();
+
+  const unsubs = [];
+  for (const uid of otherUids) {
+    const ref = doc(db, 'presence', uid);
+    const unsub = onSnapshot(ref, (snap) => {
+      const data = snap.data() || {};
+      const typingConvoId = data.typingConvoId || '';
+      const typingAt = data.typingAt;
+      const ms = typingAt?.toMillis ? typingAt.toMillis() : (typeof typingAt === 'number' ? typingAt : 0);
+      if (typingConvoId === convoId && ms) latestTyping.set(uid, ms);
+      else latestTyping.delete(uid);
+      render();
+    }, () => {
+      latestTyping.delete(uid);
+      render();
+    });
+    unsubs.push(unsub);
+  }
+
+  pruneTimer = setInterval(() => {
+    const now = Date.now();
+    let changed = false;
+    for (const [uid, ms] of latestTyping.entries()) {
+      if (now - ms >= TYPING_TTL_MS) { latestTyping.delete(uid); changed = true; }
+    }
+    if (changed) render();
+  }, 900);
+
+  _unsubTyping = () => {
+    try { unsubs.forEach(fn => fn()); } catch {}
+    try { clearInterval(pruneTimer); } catch {}
+    setTypingUI([]);
+  };
+}
+
+async function setTyping(isTyping) {
+  if (!_currentUser || !_activeConvoId) return;
+  const convoId = _activeConvoId;
+
+  if (_typingIdleTimer) clearTimeout(_typingIdleTimer);
+
+  if (!isTyping) {
+    await stopTyping();
+    return;
+  }
+
+  const now = Date.now();
+  if (now - _typingLastSend < TYPING_THROTTLE_MS) {
+    _typingIdleTimer = setTimeout(() => stopTyping().catch(() => {}), TYPING_TTL_MS);
+    return;
+  }
+  _typingLastSend = now;
+
+  try {
+    await setDoc(doc(db, 'presence', _currentUser.uid), {
+      typingConvoId: convoId,
+      typingAt: serverTimestamp()
+    }, { merge: true });
+  } catch {}
+
+  _typingIdleTimer = setTimeout(() => stopTyping().catch(() => {}), TYPING_TTL_MS);
+}
+
+async function stopTyping() {
+  if (_typingIdleTimer) { clearTimeout(_typingIdleTimer); _typingIdleTimer = null; }
+  _typingLastSend = 0;
+  if (!_currentUser) return;
+  try {
+    await setDoc(doc(db, 'presence', _currentUser.uid), {
+      typingConvoId: deleteField(),
+      typingAt: deleteField()
+    }, { merge: true });
+  } catch {}
 }
 
 function renderMessage(msg) {
@@ -415,6 +576,7 @@ async function sendMessage() {
   const input = document.getElementById('msg-input');
   const text = input?.value.trim();
   if (!text || !_activeConvoId || !_currentProfile) return;
+  setTyping(false).catch(() => {});
 
   // Check if DMs are locked
   try {
