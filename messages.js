@@ -7,6 +7,8 @@ import {
   initDarkMode, initChatLock, reportUser, syncProfileAvatar
 } from './firebase-auth.js';
 
+import { buildFluxBuddyDataUrl } from './flux-buddy.js';
+
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
@@ -369,13 +371,17 @@ function loadConversationMessages(convoId, name, isGroup) {
   document.getElementById('gif-btn').addEventListener('click', showGifPicker);
 
   // We're in the convo now (shows 👀 Watching in the corner for others)
-  setChatState('watching').catch(() => {});
+  {
+    const draft = (document.getElementById('msg-input')?.value || '').trim();
+    setChatState(draft ? 'thinking' : 'watching').catch(() => {});
+  }
   _presencePingTimer = setInterval(() => {
     if (!_activeConvoId) return;
     if (_pickerOpen) return;
     if (_typingLastSend && (Date.now() - _typingLastSend) < TYPING_TTL_MS) return;
     // If user isn't typing, keep "watching" fresh so others can see it.
-    setChatState('watching').catch(() => {});
+    const draft = (document.getElementById('msg-input')?.value || '').trim();
+    setChatState(draft ? 'thinking' : 'watching').catch(() => {});
   }, 9000);
 
   // Mark as read
@@ -410,8 +416,10 @@ function loadConversationMessages(convoId, name, isGroup) {
 }
 
 function typingRowHTML(profile, fallbackLetter) {
-  const avatar = profile?.avatarURL
-    ? `<img src="${profile.avatarURL}" style="width:28px;height:28px;border-radius:8px;object-fit:cover;flex-shrink:0;">`
+  const buddy = profile?.fluxBuddy && typeof profile.fluxBuddy === 'object' ? profile.fluxBuddy : null;
+  const src = buddy ? buildFluxBuddyDataUrl(buddy, 'icon') : (profile?.avatarURL || '');
+  const avatar = src
+    ? `<img src="${src}" style="width:28px;height:28px;border-radius:8px;object-fit:cover;flex-shrink:0;">`
     : `<div style="width:28px;height:28px;border-radius:8px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-size:12px;font-weight:700;flex-shrink:0;">${(fallbackLetter || '?')[0].toUpperCase()}</div>`;
   return `
     <div class="flux-typing-row">
@@ -435,7 +443,7 @@ function setTypingUI(typingUsers = []) {
   strip.innerHTML = typingUsers.map(u => typingRowHTML(u.profile, u.fallbackLetter)).join('');
 }
 
-function setCornerUI({ typingCount = 0, stickerCount = 0, watchingCount = 0, users = [] } = {}) {
+function setCornerUI({ typingCount = 0, stickerCount = 0, thinkingCount = 0, watchingCount = 0, users = [] } = {}) {
   const corner = document.getElementById('chat-presence-corner');
   if (!corner) return;
   if (!users.length) {
@@ -447,15 +455,19 @@ function setCornerUI({ typingCount = 0, stickerCount = 0, watchingCount = 0, use
     ? (typingCount === 1 ? 'Typing…' : `${typingCount} typing…`)
     : stickerCount
       ? (stickerCount === 1 ? 'Sticker…' : `${stickerCount} stickers…`)
-      : (watchingCount === 1 ? 'Watching' : `${watchingCount} watching`);
+      : thinkingCount
+        ? (thinkingCount === 1 ? 'Thinking…' : `${thinkingCount} thinking…`)
+        : (watchingCount === 1 ? 'Watching' : `${watchingCount} watching`);
 
-  const icon = typingCount ? '✍️' : (stickerCount ? '🎬' : '👀');
+  const icon = typingCount ? '✍️' : (stickerCount ? '🎬' : (thinkingCount ? '🧠' : '👀'));
 
   const stack = users.slice(0, 3).map((u, idx) => {
     const p = u.profile;
     const fallback = u.fallbackLetter || '?';
-    const avatar = p?.avatarURL
-      ? `<img src="${p.avatarURL}" style="width:18px;height:18px;border-radius:6px;object-fit:cover;border:1px solid rgba(0,0,0,0.06);">`
+    const buddy = p?.fluxBuddy && typeof p.fluxBuddy === 'object' ? p.fluxBuddy : null;
+    const src = buddy ? buildFluxBuddyDataUrl(buddy, 'icon') : (p?.avatarURL || '');
+    const avatar = src
+      ? `<img src="${src}" style="width:18px;height:18px;border-radius:6px;object-fit:cover;border:1px solid rgba(0,0,0,0.06);">`
       : `<div style="width:18px;height:18px;border-radius:6px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:800;border:1px solid rgba(0,0,0,0.06);">${escapeHtml((fallback[0] || '?').toUpperCase())}</div>`;
     return `<div style="margin-left:${idx === 0 ? 0 : -6}px;">${avatar}</div>`;
   }).join('');
@@ -507,12 +519,13 @@ function bindTypingIndicators(convoId, members = []) {
     if (!active.length) { setCornerUI({ users: [] }); return; }
     const typingCount = active.filter(a => a.state === 'typing').length;
     const stickerCount = active.filter(a => a.state === 'stickers').length;
+    const thinkingCount = active.filter(a => a.state === 'thinking').length;
     const watchingCount = active.filter(a => a.state === 'watching').length;
-    const priority = (s) => s === 'typing' ? 3 : (s === 'stickers' ? 2 : 1);
+    const priority = (s) => s === 'typing' ? 4 : (s === 'stickers' ? 3 : (s === 'thinking' ? 2 : 1));
     const top = active
       .sort((a, b) => (priority(b.state) - priority(a.state)) || (b.ms - a.ms))
       .slice(0, 3);
-    setCornerUI({ typingCount, stickerCount, watchingCount, users: top });
+    setCornerUI({ typingCount, stickerCount, thinkingCount, watchingCount, users: top });
   };
 
   (async () => {
@@ -626,7 +639,10 @@ async function stopTyping() {
       typingAt: deleteField()
     }, { merge: true });
   } catch {}
-  if (_activeConvoId && !_pickerOpen) setChatState('watching').catch(() => {});
+  if (_activeConvoId && !_pickerOpen) {
+    const draft = (document.getElementById('msg-input')?.value || '').trim();
+    setChatState(draft ? 'thinking' : 'watching').catch(() => {});
+  }
 }
 
 function renderMessage(msg) {
@@ -954,7 +970,8 @@ async function showGifPicker() {
     try { existing.remove(); } catch {}
     _pickerOpen = false;
     stopTyping().catch(() => {});
-    setChatState(_activeConvoId ? 'watching' : null).catch(() => {});
+    const draft = (document.getElementById('msg-input')?.value || '').trim();
+    setChatState(_activeConvoId ? (draft ? 'thinking' : 'watching') : null).catch(() => {});
     return;
   }
 
@@ -979,7 +996,8 @@ async function showGifPicker() {
     try { modal.remove(); } catch {}
     _pickerOpen = false;
     stopTyping().catch(() => {});
-    setChatState(_activeConvoId ? 'watching' : null).catch(() => {});
+    const draft = (document.getElementById('msg-input')?.value || '').trim();
+    setChatState(_activeConvoId ? (draft ? 'thinking' : 'watching') : null).catch(() => {});
   };
 
   document.getElementById('gif-modal-close').addEventListener('click', close);
