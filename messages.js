@@ -34,7 +34,10 @@ let _currentProfile = null;
 let _activeConvoId = null;
 let _unsubMessages = null;
 let _unsubConvos = null;
+let _unsubTyping = null;
 let _activeTab = 'inbox'; // 'inbox' | 'requests'
+let _typingTimer = null;
+let _isTyping = false;
 
 /* ── Init ── */
 document.addEventListener('DOMContentLoaded', () => {
@@ -50,12 +53,20 @@ document.addEventListener('DOMContentLoaded', () => {
   initJumpscare();
   initAuthUI(null);
 
+  // Tab buttons — always available
+  document.getElementById('tab-inbox')?.addEventListener('click', () => switchTab('inbox'));
+  document.getElementById('tab-requests')?.addEventListener('click', () => switchTab('requests'));
+
   onAuthStateChanged(auth, async (user) => {
     if (!user || user.isAnonymous) { showSignInPrompt(); return; }
     _currentUser = user;
     _currentProfile = await getProfile(user.uid);
     if (!_currentProfile) { showSignInPrompt(); return; }
     initMessagesUI();
+
+    // Wire up new DM / group buttons AFTER auth resolves so _currentUser/_currentProfile are set
+    document.getElementById('new-dm-btn')?.addEventListener('click', showNewChatModal);
+    document.getElementById('new-group-btn')?.addEventListener('click', showNewGroupModal);
 
     // Enforce DM lock
     initChatLock('dm',
@@ -64,7 +75,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const send = document.getElementById('msg-send');
         if (input) { input.disabled = true; input.placeholder = '🔒 Messages locked by an admin'; }
         if (send) send.disabled = true;
-        // Show banner
         let banner = document.getElementById('dm-lock-banner');
         if (!banner) {
           banner = document.createElement('div');
@@ -87,17 +97,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const openWith = params.get('with');
     if (openWith) openDMWithUsername(openWith);
   });
-
-  document.getElementById('new-dm-btn')?.addEventListener('click', () => {
-    if (!_currentUser) return;
-    showNewChatModal();
-  });
-  document.getElementById('new-group-btn')?.addEventListener('click', () => {
-    if (!_currentUser) return;
-    showNewGroupModal();
-  });
-  document.getElementById('tab-inbox')?.addEventListener('click', () => switchTab('inbox'));
-  document.getElementById('tab-requests')?.addEventListener('click', () => switchTab('requests'));
 });
 
 function switchTab(tab) {
@@ -144,7 +143,6 @@ function loadConversations() {
   if (_unsubConvos) _unsubConvos();
   _unsubConvos = onSnapshot(q, async (snap) => {
     list.innerHTML = '';
-    // Filter client-side: show accepted OR group OR convos without status field
     const docs = snap.docs.filter(d => {
       const data = d.data();
       return data.type === 'group' || !data.status || data.status === 'accepted';
@@ -174,8 +172,6 @@ function loadRequests() {
   if (_unsubConvos) _unsubConvos();
   _unsubConvos = onSnapshot(q, async (snap) => {
     list.innerHTML = '';
-
-    // Update requests badge
     const badge = document.getElementById('requests-badge');
     if (badge) { badge.textContent = snap.size; badge.style.display = snap.size > 0 ? 'inline-flex' : 'none'; }
 
@@ -294,15 +290,90 @@ function showDisclaimer(onAccept) {
   });
 }
 
+/* ── Typing indicator helpers ── */
+async function setTyping(convoId, isTyping) {
+  if (!_currentUser || !convoId) return;
+  try {
+    const typingRef = doc(db, 'conversations', convoId, 'typing', _currentUser.uid);
+    if (isTyping) {
+      await setDoc(typingRef, {
+        uid: _currentUser.uid,
+        username: _currentProfile?.username || '',
+        typingAt: serverTimestamp(),
+      });
+    } else {
+      await deleteDoc(typingRef);
+    }
+  } catch {}
+}
+
+function listenTyping(convoId) {
+  if (_unsubTyping) { _unsubTyping(); _unsubTyping = null; }
+  const typingCol = collection(db, 'conversations', convoId, 'typing');
+  _unsubTyping = onSnapshot(typingCol, (snap) => {
+    const typingEl = document.getElementById('typing-indicator');
+    if (!typingEl) return;
+    const others = snap.docs
+      .map(d => d.data())
+      .filter(d => d.uid !== _currentUser.uid);
+    if (!others.length) {
+      typingEl.style.display = 'none';
+      typingEl.textContent = '';
+    } else {
+      const names = others.map(d => d.username ? `@${d.username}` : 'Someone');
+      typingEl.style.display = 'flex';
+      typingEl.innerHTML = `
+        <span style="display:inline-flex;gap:3px;align-items:center;margin-right:6px;">
+          <span class="typing-dot"></span><span class="typing-dot" style="animation-delay:0.15s"></span><span class="typing-dot" style="animation-delay:0.3s"></span>
+        </span>
+        <span>${escapeHtml(names.join(', '))} ${others.length === 1 ? 'is' : 'are'} typing…</span>
+      `;
+    }
+  });
+}
+
+/* ── Read receipt helpers ── */
+async function markRead(convoId) {
+  if (!_currentUser || !convoId) return;
+  try {
+    await updateDoc(doc(db, 'conversations', convoId), {
+      [`unread.${_currentUser.uid}`]: 0,
+      [`readAt.${_currentUser.uid}`]: new Date().toISOString(),
+    });
+  } catch {}
+}
+
 function loadConversationMessages(convoId, name, isGroup) {
-  // Unsubscribe old listener first
   if (_unsubMessages) { _unsubMessages(); _unsubMessages = null; }
+  if (_unsubTyping) { _unsubTyping(); _unsubTyping = null; }
+  // Stop typing if switching convos
+  if (_isTyping && _activeConvoId) {
+    setTyping(_activeConvoId, false);
+    _isTyping = false;
+  }
 
   const panel = document.getElementById('chat-panel');
   if (!panel) return;
 
-  // Stamp this load so stale snapshots can be ignored
   const loadId = convoId;
+
+  // Inject typing animation keyframes once
+  if (!document.getElementById('flux-typing-style')) {
+    const s = document.createElement('style');
+    s.id = 'flux-typing-style';
+    s.textContent = `
+      @keyframes typing-bounce {
+        0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+        30% { transform: translateY(-4px); opacity: 1; }
+      }
+      .typing-dot {
+        width: 5px; height: 5px; border-radius: 50%;
+        background: var(--muted); display: inline-block;
+        animation: typing-bounce 1s ease-in-out infinite;
+      }
+    `;
+    document.head.appendChild(s);
+  }
 
   panel.innerHTML = `
     <div class="chat-header-bar">
@@ -310,6 +381,7 @@ function loadConversationMessages(convoId, name, isGroup) {
       <div style="font-size:15px;font-weight:700;color:var(--text);flex:1;">${escapeHtml(name)}</div>
     </div>
     <div id="messages-list" class="messages-list"><div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;"><div style="display:flex;justify-content:center;padding:20px;"><img src="assets/loading.gif" style="width:80px;height:auto;" alt="Loading..."></div></div></div>
+    <div id="typing-indicator" style="display:none;align-items:center;padding:4px 16px 0;font-size:12px;color:var(--muted);min-height:20px;flex-shrink:0;"></div>
     <div class="message-input-bar">
       <button id="gif-btn" class="gif-btn" style="background:none;border:none;font-size:18px;cursor:pointer;padding:0 8px;">🎬</button>
       <input id="msg-input" type="text" placeholder="Message..." maxlength="1000" autocomplete="off" class="msg-input">
@@ -319,23 +391,58 @@ function loadConversationMessages(convoId, name, isGroup) {
 
   document.getElementById('back-btn').addEventListener('click', () => {
     if (_unsubMessages) { _unsubMessages(); _unsubMessages = null; }
+    if (_unsubTyping) { _unsubTyping(); _unsubTyping = null; }
+    if (_isTyping) { setTyping(convoId, false); _isTyping = false; }
     _activeConvoId = null;
     panel.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:14px;flex-direction:column;gap:12px;"><span style="font-size:40px;">💬</span><span>Select a conversation</span></div>';
     document.querySelectorAll('.convo-item').forEach(el => el.classList.remove('active'));
   });
 
   document.getElementById('msg-send').addEventListener('click', sendMessage);
-  document.getElementById('msg-input').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+
+  // Typing detection on input
+  const msgInput = document.getElementById('msg-input');
+  msgInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); return; }
   });
+  msgInput.addEventListener('input', () => {
+    if (!_isTyping) {
+      _isTyping = true;
+      setTyping(convoId, true);
+    }
+    clearTimeout(_typingTimer);
+    _typingTimer = setTimeout(() => {
+      _isTyping = false;
+      setTyping(convoId, false);
+    }, 2500);
+  });
+  // Stop typing when input loses focus
+  msgInput.addEventListener('blur', () => {
+    if (_isTyping) {
+      clearTimeout(_typingTimer);
+      _isTyping = false;
+      setTyping(convoId, false);
+    }
+  });
+
   document.getElementById('gif-btn').addEventListener('click', showGifPicker);
 
-  // Mark as read
-  updateDoc(doc(db, 'conversations', convoId), { [`unread.${_currentUser.uid}`]: 0 }).catch(() => {});
+  // Mark as read and start typing listener
+  markRead(convoId);
+  listenTyping(convoId);
+
+  // Listen to convo doc for readAt updates (for read receipts on own messages)
+  let _convoReadAt = {};
+  const convoUnsub = onSnapshot(doc(db, 'conversations', convoId), (snap) => {
+    if (snap.exists()) {
+      _convoReadAt = snap.data().readAt || {};
+      // Re-render read receipt on last own message
+      refreshReadReceipts(convoId, _convoReadAt);
+    }
+  });
 
   const q = query(collection(db, 'conversations', convoId, 'messages'), orderBy('sentAt', 'asc'), limit(100));
   _unsubMessages = onSnapshot(q, (snap) => {
-    // Ignore if we've switched to a different convo
     if (_activeConvoId !== loadId) return;
     const list = document.getElementById('messages-list');
     if (!list) return;
@@ -345,12 +452,52 @@ function loadConversationMessages(convoId, name, isGroup) {
       list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">No messages yet. Say hi! 👋</div>';
       return;
     }
-    snap.docs.forEach(d => list.appendChild(renderMessage({ id: d.id, ...d.data() })));
+    snap.docs.forEach((d, i) => {
+      const isLast = i === snap.docs.length - 1;
+      list.appendChild(renderMessage({ id: d.id, ...d.data() }, isLast, _convoReadAt));
+    });
     if (wasAtBottom || snap.docs.length < 5) list.scrollTop = list.scrollHeight;
+    // Mark read whenever new messages arrive
+    markRead(convoId);
   });
+
+  // Clean up convo listener when messages listener is replaced
+  const origUnsub = _unsubMessages;
+  _unsubMessages = () => { origUnsub(); convoUnsub(); };
 }
 
-function renderMessage(msg) {
+function refreshReadReceipts(convoId, readAt) {
+  if (_activeConvoId !== convoId) return;
+  const list = document.getElementById('messages-list');
+  if (!list) return;
+  // Find the last own message and update its receipt
+  const ownMessages = [...list.querySelectorAll('.message-row.own')];
+  if (!ownMessages.length) return;
+  const lastOwn = ownMessages[ownMessages.length - 1];
+
+  // Remove receipt from all own messages
+  list.querySelectorAll('.read-receipt').forEach(el => el.remove());
+
+  // Add receipt to last own message only
+  const receiptEl = document.createElement('div');
+  receiptEl.className = 'read-receipt';
+  receiptEl.style.cssText = 'font-size:9px;color:var(--muted);text-align:right;margin-top:1px;padding-right:2px;transition:color 0.3s;';
+
+  // Check if any other member has read it
+  const otherReads = Object.entries(readAt)
+    .filter(([uid]) => uid !== _currentUser.uid)
+    .map(([, ts]) => ts);
+
+  if (otherReads.length > 0) {
+    receiptEl.innerHTML = `<span style="color:var(--accent);">✓✓ Read</span>`;
+  } else {
+    receiptEl.innerHTML = `<span>✓ Sent</span>`;
+  }
+
+  lastOwn.querySelector('.message-body')?.appendChild(receiptEl);
+}
+
+function renderMessage(msg, isLast = false, readAt = {}) {
   const isOwn = msg.uid === _currentUser.uid;
   const time = msg.sentAt?.toDate
     ? msg.sentAt.toDate().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
@@ -360,26 +507,31 @@ function renderMessage(msg) {
     ? `<img src="${msg.senderAvatar}" style="width:28px;height:28px;border-radius:8px;object-fit:cover;margin-${isOwn?'left':'right'}:8px;flex-shrink:0;">`
     : `<div style="width:28px;height:28px;border-radius:8px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-size:12px;font-weight:700;margin-${isOwn?'left':'right'}:8px;flex-shrink:0;">${(msg.username||'?')[0].toUpperCase()}</div>`;
 
-  const isGif = msg.type === 'gif';
   const div = document.createElement('div');
   div.className = `message-row ${isOwn ? 'own' : 'other'}`;
+  div.dataset.msgId = msg.id;
   div.style.cssText = `display:flex;align-items:flex-end;margin-bottom:12px;flex-direction:${isOwn?'row-reverse':'row'}`;
 
-  const bubbleStyle = isGif
-    ? 'padding:0;background:transparent;border:none;'
-    : isOwn
-      ? 'padding:10px 14px;background:var(--accent);color:white;border-bottom-right-radius:4px;'
-      : 'padding:10px 14px;background:var(--panel);color:var(--text);border:1px solid var(--glass-border);border-bottom-left-radius:4px;';
+  const content = msg.type === 'gif'
+    ? `<img src="${msg.text}" style="max-width:200px;border-radius:12px;display:block;">`
+    : escapeHtml(msg.text);
 
-  const content = isGif
-    ? `<img src="${msg.text}" alt="${msg.stickerName || 'sticker'}" style="max-width:160px;max-height:160px;border-radius:12px;display:block;object-fit:contain;" loading="lazy">`
-    : `${escapeHtml(msg.text)}`;
+  // Read receipt for last own message
+  let receiptHTML = '';
+  if (isOwn && isLast) {
+    const otherReads = Object.entries(readAt).filter(([uid]) => uid !== _currentUser.uid);
+    if (otherReads.length > 0) {
+      receiptHTML = `<div class="read-receipt" style="font-size:9px;color:var(--accent);text-align:right;margin-top:1px;padding-right:2px;">✓✓ Read</div>`;
+    } else {
+      receiptHTML = `<div class="read-receipt" style="font-size:9px;color:var(--muted);text-align:right;margin-top:1px;padding-right:2px;">✓ Sent</div>`;
+    }
+  }
 
   div.innerHTML = `
     ${avatarHTML}
-    <div class="message-body" style="max-width:65%;">
+    <div class="message-body" style="max-width:70%;">
       ${!isOwn ? `<div style="font-size:10px;color:var(--muted);margin-bottom:2px;padding-left:2px;">@${escapeHtml(msg.username || '')}</div>` : ''}
-      <div class="message-bubble" style="position:relative;border-radius:18px;${bubbleStyle}">
+      <div class="message-bubble ${isOwn ? 'bubble-own' : 'bubble-other'}" style="position:relative;padding:10px 14px;border-radius:18px;${isOwn?'background:var(--accent);color:white;border-bottom-right-radius:4px;':'background:var(--panel);color:var(--text);border:1px solid var(--glass-border);border-bottom-left-radius:4px;'}">
         ${content}
         <div class="msg-actions" style="position:absolute;top:-20px;${isOwn?'right:0;':'left:0;'}display:none;gap:4px;background:var(--panel);padding:2px 6px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);border:1px solid var(--glass-border);z-index:10;">
           <button class="msg-report" style="background:none;border:none;cursor:pointer;font-size:10px;padding:2px;">🚩</button>
@@ -387,6 +539,7 @@ function renderMessage(msg) {
         </div>
       </div>
       <div style="font-size:9px;color:var(--muted);margin-top:2px;${isOwn ? 'text-align:right;' : ''}">${time}</div>
+      ${receiptHTML}
     </div>
   `;
 
@@ -415,6 +568,13 @@ async function sendMessage() {
   const input = document.getElementById('msg-input');
   const text = input?.value.trim();
   if (!text || !_activeConvoId || !_currentProfile) return;
+
+  // Stop typing indicator immediately on send
+  clearTimeout(_typingTimer);
+  if (_isTyping) {
+    _isTyping = false;
+    setTyping(_activeConvoId, false);
+  }
 
   // Check if DMs are locked
   try {
@@ -476,7 +636,11 @@ async function openDMWithUsername(username) {
 
 /* ── Start DM ── */
 async function startDM(targetUid, targetProfile) {
-  if (!_currentUser || !_currentProfile) return;
+  // Guard: ensure auth is resolved
+  if (!_currentUser || !_currentProfile) {
+    console.warn('startDM called before auth resolved');
+    return;
+  }
   if (targetUid === _currentUser.uid) return;
 
   // Deterministic ID — always the same for any two users regardless of who initiates
@@ -511,6 +675,7 @@ async function startDM(targetUid, targetProfile) {
     createdAt: serverTimestamp(),
     lastMessageAt: serverTimestamp(),
     lastMessage: '',
+    readAt: {},
     unread: { [targetUid]: 0, [_currentUser.uid]: 0 }
   });
 
@@ -519,6 +684,12 @@ async function startDM(targetUid, targetProfile) {
 
 /* ── New DM modal ── */
 function showNewChatModal() {
+  // Guard: require auth
+  if (!_currentUser || !_currentProfile) {
+    alert('Please sign in first.');
+    return;
+  }
+
   const existing = document.getElementById('new-chat-modal');
   if (existing) existing.remove();
   const modal = document.createElement('div');
@@ -535,50 +706,59 @@ function showNewChatModal() {
   `;
   document.body.appendChild(modal);
 
-  const closeBtn = modal.querySelector('#new-chat-close');
-  const searchInput = modal.querySelector('#new-chat-search');
-  const resultsDiv = modal.querySelector('#new-chat-results');
-
-  closeBtn.addEventListener('click', () => modal.remove());
+  const input = modal.querySelector('#new-chat-search');
+  document.getElementById('new-chat-close').addEventListener('click', () => modal.remove());
   modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
-  searchInput.focus();
+
+  // Autofocus
+  setTimeout(() => input?.focus(), 80);
 
   let timer;
-  searchInput.addEventListener('input', (e) => {
+  input.addEventListener('input', (e) => {
     clearTimeout(timer);
     const val = e.target.value.trim();
-    if (!val) { resultsDiv.innerHTML = ''; return; }
-    resultsDiv.innerHTML = '<div style="padding:16px;text-align:center;"><img src="assets/loading.gif" style="width:40px;height:auto;opacity:0.6;"></div>';
+    const resultsEl = document.getElementById('new-chat-results');
+    if (!val) { resultsEl.innerHTML = ''; return; }
+    resultsEl.innerHTML = '<div style="padding:16px;text-align:center;"><img src="assets/loading.gif" style="width:40px;height:auto;opacity:0.6;"></div>';
     timer = setTimeout(async () => {
-      try {
-        const { searchProfiles } = await import('./firebase-auth.js');
-        const results = await searchProfiles(val);
-        resultsDiv.innerHTML = '';
-        results.filter(p => p.uid !== _currentUser?.uid).forEach(p => {
-          const item = document.createElement('div');
-          item.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;cursor:pointer;transition:background 0.1s;';
-          item.innerHTML = `
-            ${p.avatarURL ? `<img src="${p.avatarURL}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0;">` : `<div style="width:36px;height:36px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;flex-shrink:0;">${(p.displayName||p.username||'?')[0].toUpperCase()}</div>`}
-            <div style="min-width:0;">
-              <div style="font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(p.displayName || p.username)}</div>
-              <div style="font-size:11px;color:var(--muted);">@${p.username}</div>
-            </div>
-          `;
-          item.addEventListener('mouseenter', () => item.style.background = 'var(--bg)');
-          item.addEventListener('mouseleave', () => item.style.background = '');
-          item.addEventListener('click', () => { modal.remove(); startDM(p.uid, p); });
-          resultsDiv.appendChild(item);
-        });
-        if (!results.length) resultsDiv.innerHTML = '<div style="padding:12px;color:var(--muted);font-size:13px;text-align:center;">No users found</div>';
-      } catch (e) {
-        resultsDiv.innerHTML = '<div style="padding:12px;color:var(--muted);font-size:13px;text-align:center;">Search failed. Try again.</div>';
+      const { searchProfiles } = await import('./firebase-auth.js');
+      const results = await searchProfiles(val);
+      const container = document.getElementById('new-chat-results');
+      if (!container) return;
+      container.innerHTML = '';
+      const filtered = results.filter(p => p.uid !== _currentUser.uid);
+      if (!filtered.length) {
+        container.innerHTML = '<div style="padding:12px;color:var(--muted);font-size:13px;text-align:center;">No users found</div>';
+        return;
       }
+      filtered.forEach(p => {
+        const item = document.createElement('div');
+        item.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;cursor:pointer;transition:background 0.1s;';
+        item.innerHTML = `
+          ${p.avatarURL
+            ? `<img src="${p.avatarURL}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;">`
+            : `<div style="width:36px;height:36px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;">${(p.displayName||p.username||'?')[0].toUpperCase()}</div>`}
+          <div>
+            <div style="font-size:13px;font-weight:700;color:var(--text);">${escapeHtml(p.displayName || p.username)}</div>
+            <div style="font-size:11px;color:var(--muted);">@${p.username}</div>
+          </div>
+        `;
+        item.addEventListener('mouseenter', () => item.style.background = 'var(--bg)');
+        item.addEventListener('mouseleave', () => item.style.background = '');
+        item.addEventListener('click', () => { modal.remove(); startDM(p.uid, p); });
+        container.appendChild(item);
+      });
     }, 300);
   });
 }
 
 /* ── New Group modal ── */
 function showNewGroupModal() {
+  if (!_currentUser || !_currentProfile) {
+    alert('Please sign in first.');
+    return;
+  }
+
   const existing = document.getElementById('new-group-modal');
   if (existing) existing.remove();
   const selectedMembers = new Map();
@@ -660,82 +840,62 @@ function showNewGroupModal() {
       status: 'accepted',
       createdAt: serverTimestamp(),
       lastMessageAt: serverTimestamp(),
-      lastMessage: '', unread
+      lastMessage: '',
+      readAt: {},
+      unread
     });
     modal.remove();
     openConversation(convoRef.id, name, true);
   });
 }
 
-/* ── GIF / Sticker Picker ── */
+/* ── GIF Picker ── */
 async function showGifPicker() {
   const existing = document.getElementById('gif-picker-modal');
   if (existing) { existing.remove(); return; }
 
   const modal = document.createElement('div');
   modal.id = 'gif-picker-modal';
-  modal.style.cssText = 'position:fixed;bottom:80px;right:20px;z-index:600;width:300px;background:var(--panel);border-radius:16px;padding:14px;box-shadow:0 10px 40px rgba(0,0,0,0.2);border:1px solid var(--glass-border);display:flex;flex-direction:column;max-height:340px;';
+  modal.style.cssText = 'position:fixed;bottom:80px;right:20px;z-index:600;width:300px;background:var(--panel);border-radius:20px;padding:16px;box-shadow:0 10px 40px rgba(0,0,0,0.2);border:1px solid var(--glass-border);';
   modal.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-shrink:0;">
-      <span style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--text);">🎬 Stickers <span style="display:inline-flex;align-items:center;background:linear-gradient(135deg,#f59e0b,#ef4444);color:white;font-size:9px;font-weight:800;padding:2px 7px;border-radius:20px;letter-spacing:0.8px;text-transform:uppercase;vertical-align:middle;">Beta</span></span>
-      <button id="gif-modal-close" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:0;">✕</button>
-    </div>
-    <input id="gif-search" type="text" placeholder="Search stickers..." style="width:100%;padding:8px 10px;border-radius:10px;border:1px solid var(--glass-border);background:var(--bg);color:var(--text);font-size:13px;outline:none;box-sizing:border-box;margin-bottom:10px;font-family:inherit;flex-shrink:0;">
-    <div id="gif-results" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;overflow-y:auto;flex:1;"></div>
+    <h4 style="font-family:'Bebas Neue',sans-serif;font-size:20px;margin:0 0 10px;color:var(--text);">GIFs (Tenor)</h4>
+    <input id="gif-search" type="text" placeholder="Search GIFs..." style="width:100%;padding:8px;border-radius:10px;border:1px solid var(--glass-border);background:var(--bg);color:var(--text);margin-bottom:10px;">
+    <div id="gif-results" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-height:300px;overflow-y:auto;"></div>
   `;
   document.body.appendChild(modal);
 
-  document.getElementById('gif-modal-close').addEventListener('click', () => modal.remove());
-
-  const results = document.getElementById('gif-results');
   const search = document.getElementById('gif-search');
-  let _allStickers = [];
+  const results = document.getElementById('gif-results');
 
-  const renderStickers = (list) => {
-    if (!list.length) {
-      results.innerHTML = '<div style="grid-column:1/-1;padding:12px;font-size:12px;color:var(--muted);text-align:center;">No stickers found.<br><span style="font-size:10px;">Add GIFs to your GIFs/ folder.</span></div>';
-      return;
-    }
-    results.innerHTML = '';
-    list.forEach(s => {
-      const img = document.createElement('img');
-      img.src = s.url;
-      img.title = s.name;
-      img.style.cssText = 'width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid transparent;transition:border-color 0.15s;';
-      img.addEventListener('mouseenter', () => img.style.borderColor = 'var(--accent)');
-      img.addEventListener('mouseleave', () => img.style.borderColor = 'transparent');
-      img.addEventListener('click', async () => {
-        modal.remove();
-        await sendGif(s.url, s.name);
+  const runSearch = async (term) => {
+    results.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;"><img src="assets/loading.gif" style="width:40px;height:auto;"></div>';
+    try {
+      const resp = await fetch(`https://tenor.googleapis.com/v2/search?q=${term || 'trending'}&key=LIVDSRZULEUB&limit=10&client_key=flux_app`);
+      const data = await resp.json();
+      results.innerHTML = '';
+      data.results.forEach(g => {
+        const img = document.createElement('img');
+        img.src = g.media_formats.tinygif.url;
+        img.style.cssText = 'width:100%;height:100px;object-fit:cover;border-radius:8px;cursor:pointer;';
+        img.addEventListener('click', async () => {
+          await sendGif(g.media_formats.gif.url);
+          modal.remove();
+        });
+        results.appendChild(img);
       });
-      results.appendChild(img);
-    });
+    } catch { results.innerHTML = '<div style="grid-column:1/-1;padding:10px;font-size:12px;color:var(--muted);">Failed to load GIFs.</div>'; }
   };
 
-  results.innerHTML = '<div style="grid-column:1/-1;padding:12px;font-size:12px;color:var(--muted);text-align:center;">Loading stickers...</div>';
-  try {
-    const resp = await fetch(`GIFs/manifest.json?t=${Date.now()}`, { cache: 'no-store' });
-    if (!resp.ok) throw new Error('no manifest');
-    _allStickers = await resp.json();
-    renderStickers(_allStickers);
-  } catch {
-    results.innerHTML = '<div style="grid-column:1/-1;padding:12px;font-size:12px;color:var(--muted);text-align:center;">No stickers yet.<br><span style="font-size:10px;">Create a <strong>GIFs/manifest.json</strong> file.</span></div>';
-  }
-
-  search.addEventListener('input', (e) => {
-    const q = e.target.value.trim().toLowerCase();
-    renderStickers(q ? _allStickers.filter(s => s.name.toLowerCase().includes(q)) : _allStickers);
+  let timer;
+  search.addEventListener('input', () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => runSearch(search.value.trim()), 500);
   });
 
-  // Close on outside click
-  setTimeout(() => {
-    document.addEventListener('click', function handler(e) {
-      if (!modal.contains(e.target)) { modal.remove(); document.removeEventListener('click', handler); }
-    });
-  }, 50);
+  runSearch('');
 }
 
-async function sendGif(url, name) {
+async function sendGif(url) {
   if (!_activeConvoId || !_currentProfile) return;
   try {
     await addDoc(collection(db, 'conversations', _activeConvoId, 'messages'), {
@@ -744,7 +904,6 @@ async function sendGif(url, name) {
       displayName: _currentProfile.displayName,
       senderAvatar: _currentProfile.avatarURL || '',
       text: url,
-      stickerName: name || '',
       type: 'gif',
       sentAt: serverTimestamp(),
     });
