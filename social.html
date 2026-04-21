@@ -228,91 +228,6 @@
       padding: 20px;
     }
 
-    /* ── Fluxy Room (Beta) ── */
-    .buddy-room {
-      border-top: 1px solid var(--glass-border);
-      padding: 14px 16px 16px;
-      display: none;
-      flex-shrink: 0;
-    }
-    .buddy-room-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      margin-bottom: 10px;
-    }
-    .buddy-room-title {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-weight: 900;
-      color: var(--text);
-      font-size: 12px;
-      letter-spacing: 0.3px;
-      text-transform: uppercase;
-    }
-    .buddy-room-btn {
-      padding: 7px 12px;
-      border-radius: 999px;
-      border: 1px solid var(--glass-border);
-      background: var(--bg);
-      color: var(--text);
-      font-weight: 900;
-      cursor: pointer;
-      font-size: 12px;
-    }
-    .buddy-room-btn:hover { border-color: var(--accent); color: var(--accent); }
-    .buddy-stage {
-      position: relative;
-      height: 160px;
-      border-radius: 16px;
-      border: 1px solid var(--glass-border);
-      background:
-        radial-gradient(120px 80px at 50% 20%, rgba(58,125,255,0.22), rgba(0,0,0,0) 70%),
-        url('assets/room.png') center bottom / cover no-repeat,
-        var(--bg);
-      overflow: hidden;
-      display: flex;
-      align-items: flex-end;
-      justify-content: center;
-      padding-bottom: 10px;
-    }
-    .buddy-floor {
-      position: absolute;
-      left: 12px; right: 12px; bottom: 10px;
-      height: 22px;
-      border-radius: 999px;
-      background: rgba(0,0,0,0.05);
-      border: 1px solid var(--glass-border);
-      filter: blur(0.2px);
-    }
-    #buddy-avatar {
-      width: 140px;
-      height: auto;
-      transform-origin: 50% 100%;
-      animation: buddyFloat 2.8s ease-in-out infinite;
-      filter: drop-shadow(0 10px 16px rgba(0,0,0,0.10));
-    }
-    @keyframes buddyFloat {
-      0%, 100% { transform: translateY(0) rotate(-0.6deg); }
-      50% { transform: translateY(-6px) rotate(0.6deg); }
-    }
-    .buddy-stage-hint {
-      position: absolute;
-      top: 12px;
-      left: 12px;
-      right: 12px;
-      text-align: center;
-      font-size: 12px;
-      color: var(--muted);
-      font-weight: 700;
-      line-height: 1.3;
-    }
-
-    /* ── Global presence corner (Snap-like) ── */
-    #global-presence-corner { display:flex; align-items:center; justify-content:flex-end; gap:8px; }
-
     /* ── Sidebar ── */
     .social-sidebar {
       display: flex;
@@ -460,7 +375,6 @@
         <span class="chat-live-dot"></span>
         <h2 class="chat-header-title">Global Chat <span class="beta-badge">Beta</span></h2>
         <span id="chat-online-count" style="font-size:12px;color:var(--muted);margin-left:auto;"></span>
-        <div id="global-presence-corner"></div>
       </div>
       <div id="chat-messages" class="chat-messages">
         <div class="chat-empty"><div style="display:flex;justify-content:center;padding:20px;"><img src="assets/loading.gif" style="width:80px;height:auto;" alt="Loading..."></div></div>
@@ -473,20 +387,6 @@
       <div id="chat-signin-prompt" class="chat-signin-prompt" style="display:none;">
         <p>You need a profile to chat.</p>
         <a href="index.html" style="color:var(--accent);font-size:13px;font-weight:600;">Sign in on the home page →</a>
-      </div>
-
-      <div id="buddy-room" class="buddy-room">
-        <div class="buddy-room-header">
-          <div class="buddy-room-title">
-            🧍‍♂️ Fluxy <span class="beta-badge">Beta</span>
-          </div>
-          <button id="buddy-customize" class="buddy-room-btn">Customize</button>
-        </div>
-        <div class="buddy-stage">
-          <div class="buddy-floor"></div>
-          <div class="buddy-stage-hint" id="buddy-room-hint">Your Fluxy shows up in chat corners.</div>
-          <img id="buddy-avatar" alt="Fluxy">
-        </div>
       </div>
     </div>
 

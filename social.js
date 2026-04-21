@@ -4,17 +4,15 @@ import {
   getProfile, searchProfiles, renderBadges,
   initAuthUI, initServerStatus, initBroadcast,
   initChaos, initJumpscare, initPresence, initCookieConsent,
-  initDarkMode, initChatLock, fetchLeaderboard, reportUser, updateProfile
+  initDarkMode, initChatLock, fetchLeaderboard, reportUser
 } from './firebase-auth.js';
-
-import { buildFluxBuddyDataUrl, normalizeFluxBuddy, FLUX_BUDDY_DEFAULT } from './flux-buddy.js';
 
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
-  getFirestore, collection, addDoc, deleteDoc, setDoc,
+  getFirestore, collection, addDoc, deleteDoc,
   doc, query, orderBy, limit, onSnapshot,
-  serverTimestamp, getDoc, getDocs, where, deleteField
+  serverTimestamp, getDoc, getDocs, where
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -33,10 +31,6 @@ const db = getFirestore(app);
 
 const OWNER_UID = 'zEy6TO5ligf2um4rssIZs9C9X7f2';
 const MAX_MESSAGES = 80;
-const GLOBAL_CONVO_ID = 'global';
-const PRESENCE_TTL_MS = 12000;
-const TYPING_TTL_MS = 4500;
-const TYPING_THROTTLE_MS = 1800;
 
 /* ── Year footer ── */
 document.addEventListener('DOMContentLoaded', () => {
@@ -84,167 +78,16 @@ document.addEventListener('DOMContentLoaded', () => {
 ══════════════════════════════════════ */
 let _currentProfile = null;
 let _unsubChat = null;
-let _unsubGlobalPresence = null;
-let _globalPresencePingTimer = null;
-let _globalTypingIdleTimer = null;
-let _globalTypingLastSend = 0;
-let _globalPickerOpen = false;
-
-const _presenceProfileCache = {};
-
-function bestCornerAvatar(profile) {
-  const buddy = profile?.fluxBuddy && typeof profile.fluxBuddy === 'object' ? profile.fluxBuddy : null;
-  if (buddy) return buildFluxBuddyDataUrl(buddy, 'icon');
-  return profile?.avatarURL || '';
-}
-
-async function getPresenceProfile(uid) {
-  if (!uid) return null;
-  if (_presenceProfileCache[uid]) return _presenceProfileCache[uid];
-  const p = await getProfile(uid);
-  if (p) _presenceProfileCache[uid] = p;
-  return p;
-}
-
-function renderGlobalPresenceCorner(items = []) {
-  const corner = document.getElementById('global-presence-corner');
-  if (!corner) return;
-  if (!items.length) { corner.innerHTML = ''; return; }
-
-  const typingCount = items.filter(i => i.state === 'typing').length;
-  const stickerCount = items.filter(i => i.state === 'stickers').length;
-  const watchingCount = items.filter(i => i.state === 'watching').length;
-
-  const label = typingCount
-    ? (typingCount === 1 ? 'Typing…' : `${typingCount} typing…`)
-    : stickerCount
-      ? (stickerCount === 1 ? 'Sticker…' : `${stickerCount} stickers…`)
-      : (watchingCount === 1 ? 'Watching' : `${watchingCount} watching`);
-
-  const icon = typingCount ? '✍️' : (stickerCount ? '🎬' : '👀');
-
-  const stack = items.slice(0, 3).map((i, idx) => {
-    const p = i.profile;
-    const fallback = (p?.displayName || p?.username || i.uid || '?')[0] || '?';
-    const src = bestCornerAvatar(p);
-    const avatar = src
-      ? `<img src="${src}" style="width:18px;height:18px;border-radius:6px;object-fit:cover;border:1px solid rgba(0,0,0,0.06);">`
-      : `<div style="width:18px;height:18px;border-radius:6px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:800;border:1px solid rgba(0,0,0,0.06);">${escapeHtml(fallback.toUpperCase())}</div>`;
-    return `<div style="margin-left:${idx === 0 ? 0 : -6}px;">${avatar}</div>`;
-  }).join('');
-
-  corner.innerHTML = `
-    <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:rgba(0,0,0,0.04);border:1px solid var(--glass-border);">
-      <div style="display:flex;align-items:center;">${stack}</div>
-      <div style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:900;color:var(--muted);white-space:nowrap;">
-        <span>${icon}</span><span>${escapeHtml(label)}</span>
-      </div>
-    </div>
-  `;
-}
-
-function startGlobalPresenceCornerListener() {
-  if (_unsubGlobalPresence) { _unsubGlobalPresence(); _unsubGlobalPresence = null; }
-  const corner = document.getElementById('global-presence-corner');
-  if (!corner) return;
-
-  const q = query(
-    collection(db, 'presence'),
-    where('chatConvoId', '==', GLOBAL_CONVO_ID),
-    orderBy('chatAt', 'desc'),
-    limit(10)
-  );
-
-  _unsubGlobalPresence = onSnapshot(q, async (snap) => {
-    const now = Date.now();
-    const rows = [];
-    for (const d of snap.docs) {
-      const uid = d.id;
-      const data = d.data() || {};
-      const state = data.chatState || 'watching';
-      const at = data.chatAt;
-      const ms = at?.toMillis ? at.toMillis() : (typeof at === 'number' ? at : 0);
-      if (!ms || (now - ms) > PRESENCE_TTL_MS) continue;
-      rows.push({ uid, state, ms });
-    }
-
-    const priority = (s) => s === 'typing' ? 3 : (s === 'stickers' ? 2 : 1);
-    rows.sort((a, b) => (priority(b.state) - priority(a.state)) || (b.ms - a.ms));
-
-    const top = rows.slice(0, 6);
-    const items = [];
-    for (const r of top) {
-      const p = await getPresenceProfile(r.uid);
-      items.push({ ...r, profile: p });
-    }
-    renderGlobalPresenceCorner(items);
-  }, () => renderGlobalPresenceCorner([]));
-}
-
-async function setGlobalChatState(state) {
-  const user = auth.currentUser;
-  if (!user || user.isAnonymous) return;
-  const payload = state
-    ? { chatConvoId: GLOBAL_CONVO_ID, chatState: state, chatAt: serverTimestamp() }
-    : { chatConvoId: deleteField(), chatState: deleteField(), chatAt: deleteField() };
-  try {
-    await setDoc(doc(db, 'presence', user.uid), payload, { merge: true });
-  } catch {}
-}
-
-async function setGlobalTyping(isTyping) {
-  const user = auth.currentUser;
-  if (!user || user.isAnonymous) return;
-
-  if (_globalTypingIdleTimer) clearTimeout(_globalTypingIdleTimer);
-
-  if (!isTyping) {
-    _globalTypingLastSend = 0;
-    if (!_globalPickerOpen) setGlobalChatState('watching').catch(() => {});
-    return;
-  }
-  if (_globalPickerOpen) return;
-
-  const now = Date.now();
-  if (now - _globalTypingLastSend < TYPING_THROTTLE_MS) {
-    _globalTypingIdleTimer = setTimeout(() => setGlobalTyping(false).catch(() => {}), TYPING_TTL_MS);
-    return;
-  }
-  _globalTypingLastSend = now;
-  setGlobalChatState('typing').catch(() => {});
-  _globalTypingIdleTimer = setTimeout(() => setGlobalTyping(false).catch(() => {}), TYPING_TTL_MS);
-}
-
-function startGlobalPresencePings() {
-  if (_globalPresencePingTimer) { clearInterval(_globalPresencePingTimer); _globalPresencePingTimer = null; }
-  setGlobalChatState('watching').catch(() => {});
-  _globalPresencePingTimer = setInterval(() => {
-    if (_globalPickerOpen) return;
-    if (_globalTypingLastSend && (Date.now() - _globalTypingLastSend) < TYPING_TTL_MS) return;
-    setGlobalChatState('watching').catch(() => {});
-  }, 9000);
-}
-
-function stopGlobalPresencePings() {
-  if (_globalPresencePingTimer) { clearInterval(_globalPresencePingTimer); _globalPresencePingTimer = null; }
-  if (_globalTypingIdleTimer) { clearTimeout(_globalTypingIdleTimer); _globalTypingIdleTimer = null; }
-  _globalTypingLastSend = 0;
-  _globalPickerOpen = false;
-  setGlobalChatState(null).catch(() => {});
-}
 
 async function initChat() {
   onAuthStateChanged(auth, async (user) => {
     const inputArea = document.getElementById('chat-input-area');
     const signinPrompt = document.getElementById('chat-signin-prompt');
-    const buddyRoom = document.getElementById('buddy-room');
 
     if (!user || user.isAnonymous) {
       inputArea.style.display = 'none';
       signinPrompt.style.display = 'block';
       _currentProfile = null;
-      if (buddyRoom) buddyRoom.style.display = 'none';
-      stopGlobalPresencePings();
     } else {
       const profile = await getProfile(user.uid);
       _currentProfile = profile;
@@ -254,22 +97,15 @@ async function initChat() {
         signinPrompt.style.display = 'none';
         // Show my profile card in sidebar
         showMyProfileCard(profile);
-        initBuddyRoom(profile);
-        startGlobalPresenceCornerListener();
-        startGlobalPresencePings();
       } else if (!profile) {
         inputArea.style.display = 'none';
         signinPrompt.style.display = 'block';
         signinPrompt.innerHTML = '<p>Create a profile to join the chat.</p><a href="index.html" style="color:var(--accent);font-size:13px;font-weight:600;">Set up profile →</a>';
-        if (buddyRoom) buddyRoom.style.display = 'none';
-        stopGlobalPresencePings();
       } else {
         // Banned
         inputArea.style.display = 'none';
         signinPrompt.style.display = 'block';
         signinPrompt.innerHTML = '<p style="color:#ef4444;">🚫 You are banned from chat.</p>';
-        if (buddyRoom) buddyRoom.style.display = 'none';
-        stopGlobalPresencePings();
       }
     }
 
@@ -283,13 +119,6 @@ async function initChat() {
   document.getElementById('chat-input')?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   });
-
-  // Snap-like presence states
-  document.getElementById('chat-input')?.addEventListener('input', () => setGlobalTyping(true));
-  document.getElementById('chat-input')?.addEventListener('focus', () => { if (!_globalPickerOpen) setGlobalChatState('watching').catch(() => {}); });
-  document.getElementById('chat-input')?.addEventListener('blur', () => setGlobalTyping(false));
-  document.addEventListener('visibilitychange', () => { if (document.hidden) stopGlobalPresencePings(); });
-  window.addEventListener('beforeunload', () => stopGlobalPresencePings());
 
   // GIF button
   document.getElementById('global-gif-btn')?.addEventListener('click', (e) => {
@@ -305,192 +134,6 @@ async function getCachedProfile(uid) {
   const p = await getProfile(uid);
   if (p) _profileCache[uid] = p;
   return p;
-}
-
-function initBuddyRoom(profile) {
-  const room = document.getElementById('buddy-room');
-  if (!room) return;
-  room.style.display = 'block';
-
-  const img = document.getElementById('buddy-avatar');
-  const hint = document.getElementById('buddy-room-hint');
-  const btn = document.getElementById('buddy-customize');
-
-  const buddy = profile?.fluxBuddy && typeof profile.fluxBuddy === 'object' ? profile.fluxBuddy : null;
-  const hasBuddy = !!buddy;
-  const src = hasBuddy ? buildFluxBuddyDataUrl(buddy, 'full') : (profile?.avatarURL || '');
-
-  if (img) {
-    img.src = src || '';
-    img.style.opacity = src ? '1' : '0';
-    img.style.borderRadius = hasBuddy ? '0' : '18px';
-    img.style.objectFit = hasBuddy ? 'contain' : 'cover';
-    img.style.background = hasBuddy ? 'transparent' : 'rgba(0,0,0,0.04)';
-    img.style.border = hasBuddy ? 'none' : '1px solid var(--glass-border)';
-    img.style.padding = hasBuddy ? '0' : '8px';
-  }
-
-  if (hint) {
-    hint.innerHTML = hasBuddy
-      ? `Your Fluxy shows up in chat corners.`
-      : `No Fluxy yet — using your profile picture.<br/><span style="font-size:11px;">Tap Customize to create one.</span>`;
-  }
-
-  if (btn && !btn.dataset.bound) {
-    btn.dataset.bound = '1';
-    btn.addEventListener('click', () => showBuddyStudio(profile));
-  }
-}
-
-function showBuddyStudio(profile) {
-  const existing = document.getElementById('buddy-studio-overlay');
-  if (existing) existing.remove();
-
-  const start = normalizeFluxBuddy(profile?.fluxBuddy || FLUX_BUDDY_DEFAULT);
-
-  const FACES = [
-    { id: 'neutral', label: 'Neutral' },
-    { id: 'smile', label: 'Smile' },
-    { id: 'grin', label: 'Grin' },
-    { id: 'sad', label: 'Sad' },
-    { id: 'angry', label: 'Angry' },
-    { id: 'surprised', label: 'Surprised' },
-    { id: 'sleepy', label: 'Sleepy' },
-    { id: 'wink', label: 'Wink' },
-    { id: 'cool', label: 'Cool' },
-    { id: 'blush', label: 'Blush' },
-    { id: 'love', label: 'Love' },
-    { id: 'dead', label: 'Dead' },
-  ];
-
-  const overlay = document.createElement('div');
-  overlay.id = 'buddy-studio-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;z-index:800;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.55);backdrop-filter:blur(10px);';
-  overlay.innerHTML = `
-    <style>
-      @keyframes fluxyFloat { 0%,100%{transform:translateY(0) rotate(-0.6deg)} 50%{transform:translateY(-8px) rotate(0.6deg)} }
-      @media (max-width: 860px) { #fluxy-grid { grid-template-columns: 1fr !important; } #fluxy-right { border-left: none !important; border-top: 1px solid var(--glass-border) !important; } }
-      @media (max-width: 560px) { #fluxy-faces { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; } }
-    </style>
-
-    <div style="width:min(980px, calc(100vw - 24px));max-height:88vh;background:var(--panel);border-radius:24px;border:1px solid var(--glass-border);box-shadow:0 30px 90px rgba(0,0,0,0.28);overflow:hidden;display:flex;flex-direction:column;">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--glass-border);gap:12px;flex-shrink:0;">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:var(--text);letter-spacing:1px;">Fluxy</div>
-          <span style="display:inline-flex;align-items:center;background:linear-gradient(135deg,#f59e0b,#ef4444);color:white;font-size:9px;font-weight:900;padding:2px 7px;border-radius:20px;letter-spacing:0.8px;text-transform:uppercase;">Beta</span>
-        </div>
-        <button id="fluxy-close" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;">✕</button>
-      </div>
-
-      <div id="fluxy-grid" style="display:grid;grid-template-columns:420px 1fr;min-height:0;flex:1;">
-        <div style="padding:18px;min-height:0;display:flex;flex-direction:column;gap:12px;">
-          <div style="flex:1;min-height:340px;border-radius:18px;border:1px solid var(--glass-border);background:
-              radial-gradient(220px 140px at 50% 18%, rgba(58,125,255,0.22), rgba(0,0,0,0) 70%),
-              url('assets/room.png') center bottom / cover no-repeat,
-              var(--bg);
-              display:flex;align-items:flex-end;justify-content:center;position:relative;overflow:hidden;padding-bottom:14px;">
-            <div style="position:absolute;left:18px;right:18px;bottom:14px;height:28px;border-radius:999px;background:rgba(0,0,0,0.06);border:1px solid var(--glass-border);"></div>
-            <img id="fluxy-preview" alt="Fluxy preview" style="width:260px;height:auto;transform-origin:50% 100%;animation:fluxyFloat 2.9s ease-in-out infinite;filter:drop-shadow(0 14px 24px rgba(0,0,0,0.12));">
-          </div>
-          <div style="text-align:center;color:var(--muted);font-size:12px;line-height:1.35;">
-            Fluxy appears in chat corners (watching/typing/stickers).<br/>Arms & legs auto-darken from your body color.
-          </div>
-        </div>
-
-        <div id="fluxy-right" style="padding:18px;border-left:1px solid var(--glass-border);overflow:auto;">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;">
-            <div style="display:flex;flex-direction:column;gap:2px;">
-              <div style="font-size:12px;font-weight:900;color:var(--text);">Body Color</div>
-              <div style="font-size:11px;color:var(--muted);">Pick a color — limbs shade automatically</div>
-            </div>
-            <input id="fluxy-body" type="color" value="${start.body}" style="width:46px;height:36px;border-radius:12px;border:1px solid var(--glass-border);background:transparent;padding:2px;cursor:pointer;flex-shrink:0;">
-          </div>
-
-          <div style="font-size:12px;font-weight:900;color:var(--text);margin:10px 0 8px;">Face</div>
-          <div id="fluxy-faces" style="display:grid;grid-template-columns:repeat(6, minmax(0, 1fr));gap:10px;"></div>
-
-          <div style="display:flex;gap:10px;margin-top:16px;">
-            <button id="fluxy-reset" style="flex:1;padding:11px 12px;border:1px solid var(--glass-border);border-radius:12px;background:transparent;color:var(--text);font-weight:900;cursor:pointer;">Reset</button>
-            <button id="fluxy-save" style="flex:1;padding:11px 12px;border:none;border-radius:12px;background:var(--accent);color:white;font-weight:900;cursor:pointer;">Save Fluxy</button>
-          </div>
-          <div id="fluxy-error" style="display:none;margin-top:10px;color:#ef4444;font-size:12px;font-weight:800;text-align:center;"></div>
-        </div>
-      </div>
-    </div>
-  `;
-
-  document.body.appendChild(overlay);
-
-  const close = () => overlay.remove();
-  overlay.querySelector('#fluxy-close')?.addEventListener('click', close);
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
-
-  const els = {
-    preview: overlay.querySelector('#fluxy-preview'),
-    body: overlay.querySelector('#fluxy-body'),
-    faces: overlay.querySelector('#fluxy-faces'),
-    reset: overlay.querySelector('#fluxy-reset'),
-    save: overlay.querySelector('#fluxy-save'),
-    err: overlay.querySelector('#fluxy-error'),
-  };
-
-  let selectedFace = start.face;
-
-  const read = () => normalizeFluxBuddy({ body: els.body.value, face: selectedFace });
-
-  const render = () => {
-    const cur = read();
-    if (els.preview) els.preview.src = buildFluxBuddyDataUrl(cur, 'full');
-    if (els.faces) {
-      els.faces.innerHTML = FACES.map(f => {
-        const on = f.id === cur.face;
-        const iconSrc = buildFluxBuddyDataUrl({ body: cur.body, face: f.id }, 'icon');
-        return `
-          <button type="button" data-face="${f.id}" title="${escapeHtml(f.label)}"
-            style="border-radius:14px;border:2px solid ${on ? 'var(--accent)' : 'var(--glass-border)'};background:${on ? 'rgba(58,125,255,0.10)' : 'rgba(0,0,0,0.02)'};cursor:pointer;padding:8px;display:flex;flex-direction:column;align-items:center;gap:6px;">
-            <img src="${iconSrc}" alt="${escapeHtml(f.label)}" style="width:40px;height:40px;object-fit:contain;display:block;">
-            <span style="font-size:10px;font-weight:900;color:${on ? 'var(--accent)' : 'var(--muted)'};white-space:nowrap;">${escapeHtml(f.label)}</span>
-          </button>
-        `;
-      }).join('');
-    }
-  };
-
-  render();
-
-  els.body?.addEventListener('input', render);
-  els.faces?.addEventListener('click', (e) => {
-    const btn = e.target?.closest?.('button[data-face]');
-    if (!btn) return;
-    selectedFace = btn.dataset.face || selectedFace;
-    render();
-  });
-
-  els.reset?.addEventListener('click', () => {
-    selectedFace = FLUX_BUDDY_DEFAULT.face;
-    if (els.body) els.body.value = FLUX_BUDDY_DEFAULT.body;
-    render();
-  });
-
-  els.save?.addEventListener('click', async () => {
-    if (!_currentProfile) return;
-    if (els.err) { els.err.style.display = 'none'; }
-    const prev = els.save.textContent;
-    els.save.textContent = 'Saving…';
-    els.save.disabled = true;
-    try {
-      const buddy = read();
-      await updateProfile(_currentProfile.uid, { fluxBuddy: buddy, fluxBuddyUpdatedAt: new Date().toISOString() });
-      _currentProfile.fluxBuddy = buddy;
-      initBuddyRoom(_currentProfile);
-      close();
-    } catch (e) {
-      if (els.err) { els.err.textContent = 'Could not save Fluxy.'; els.err.style.display = 'block'; }
-      console.warn('Fluxy save failed:', e);
-      els.save.textContent = prev;
-      els.save.disabled = false;
-    }
-  });
 }
 
 let _lastChatDocId = null;
@@ -701,13 +344,7 @@ async function sendGifToChat(url, name) {
 
 function showGlobalGifPicker() {
   const existing = document.getElementById('global-gif-picker');
-  if (existing) {
-    try { existing.remove(); } catch {}
-    _globalPickerOpen = false;
-    setGlobalTyping(false).catch(() => {});
-    setGlobalChatState('watching').catch(() => {});
-    return;
-  }
+  if (existing) { existing.remove(); return; }
 
   const picker = document.createElement('div');
   picker.id = 'global-gif-picker';
@@ -729,18 +366,7 @@ function showGlobalGifPicker() {
     document.body.appendChild(picker);
   }
 
-  _globalPickerOpen = true;
-  setGlobalTyping(false).catch(() => {});
-  setGlobalChatState('stickers').catch(() => {});
-
-  const close = () => {
-    try { picker.remove(); } catch {}
-    _globalPickerOpen = false;
-    setGlobalTyping(false).catch(() => {});
-    setGlobalChatState('watching').catch(() => {});
-  };
-
-  picker.querySelector('#global-gif-close').addEventListener('click', close);
+  picker.querySelector('#global-gif-close').addEventListener('click', () => picker.remove());
 
   let _allStickers = [];
 
@@ -759,7 +385,7 @@ function showGlobalGifPicker() {
       img.addEventListener('mouseenter', () => img.style.borderColor = 'var(--accent)');
       img.addEventListener('mouseleave', () => img.style.borderColor = 'transparent');
       img.addEventListener('click', async () => {
-        close();
+        picker.remove();
         await sendGifToChat(s.url, s.name);
       });
       results.appendChild(img);
@@ -789,7 +415,7 @@ function showGlobalGifPicker() {
   setTimeout(() => {
     document.addEventListener('click', function handler(e) {
       if (!picker.contains(e.target) && e.target.id !== 'global-gif-btn') {
-        close();
+        picker.remove();
         document.removeEventListener('click', handler);
       }
     });

@@ -9,8 +9,6 @@ import {
   initBroadcast, initChaos, initJumpscare, initPresence, syncProfileAvatar
 } from './firebase-auth.js';
 
-import { buildFluxBuddyDataUrl, normalizeFluxBuddy, FLUX_BUDDY_DEFAULT } from './flux-buddy.js';
-
 // Firebase imports (reuse same app)
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -533,8 +531,6 @@ function showEditModal(profile) {
   const bannerEmoji = theme.bannerEmoji || '🎮';
   const currentEffect = theme.effect || 'none';
   const currentCardStyle = theme.cardStyle || 'default';
-  const buddy = profile?.fluxBuddy && typeof profile.fluxBuddy === 'object' ? normalizeFluxBuddy(profile.fluxBuddy) : null;
-  const buddySrc = buddy ? buildFluxBuddyDataUrl(buddy, 'icon') : '';
 
   const overlay = document.createElement('div');
   overlay.id = 'edit-modal-overlay';
@@ -557,22 +553,6 @@ function showEditModal(profile) {
              </div>
            </div>
            <button id="edit-change-avatar-btn" type="button" style="padding:6px 14px;background:var(--accent);color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px;">Change</button>
-        </div>
-
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px;background:var(--bg);border-radius:10px;border:1px solid var(--glass-border);">
-          <div style="display:flex;align-items:center;gap:12px;min-width:0;">
-            <div style="width:40px;height:40px;border-radius:12px;overflow:hidden;border:1px solid var(--glass-border);background:rgba(0,0,0,0.04);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-              ${buddySrc ? `<img id="edit-buddy-thumb" src="${buddySrc}" style="width:46px;height:46px;object-fit:contain;">` : `<span style="font-size:18px;">🧍‍♂️</span>`}
-            </div>
-            <div style="min-width:0;">
-              <div style="display:flex;align-items:center;gap:8px;">
-                <div style="font-size:13px;font-weight:800;color:var(--text);">Fluxy</div>
-                <span style="display:inline-flex;align-items:center;background:linear-gradient(135deg,#f59e0b,#ef4444);color:white;font-size:9px;font-weight:900;padding:2px 7px;border-radius:20px;letter-spacing:0.8px;text-transform:uppercase;">Beta</span>
-              </div>
-              <div style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Used in chat corners (watching/typing/stickers)</div>
-            </div>
-          </div>
-          <button id="edit-buddy-btn" type="button" style="padding:6px 14px;background:transparent;border:1px solid var(--glass-border);color:var(--text);border-radius:8px;font-weight:800;cursor:pointer;font-size:12px;">Customize</button>
         </div>
         <div>
           <label class="field-label">Bio</label>
@@ -713,10 +693,6 @@ function showEditModal(profile) {
   document.getElementById('edit-change-avatar-btn')?.addEventListener('click', () => {
     showAvatarSelectionModal(profile);
   });
-
-  document.getElementById('edit-buddy-btn')?.addEventListener('click', () => {
-    showBuddyStudio(profile);
-  });
 }
 
 function showAvatarSelectionModal(profile) {
@@ -754,6 +730,74 @@ function showAvatarSelectionModal(profile) {
           Sync from Google
         </button>
       </div>
+
+      <details id="flux-avatar-details" style="margin-top:12px;border:1px solid var(--glass-border);border-radius:14px;overflow:hidden;">
+        <summary style="list-style:none;cursor:pointer;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;background:rgba(0,0,0,0.02);font-weight:800;color:var(--text);font-size:13px;">
+          <span style="display:flex;align-items:center;gap:8px;">
+            ✨ Flux Avatar
+            <span style="display:inline-flex;align-items:center;background:linear-gradient(135deg,#f59e0b,#ef4444);color:white;font-size:9px;font-weight:900;padding:2px 7px;border-radius:20px;letter-spacing:0.8px;text-transform:uppercase;">Beta</span>
+          </span>
+          <span style="color:var(--muted);font-weight:900;">▾</span>
+        </summary>
+        <div style="padding:12px;">
+          <div style="display:flex;gap:12px;align-items:center;margin-bottom:10px;">
+            <div style="width:74px;height:74px;border-radius:50%;background:var(--bg);border:1px solid var(--glass-border);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;">
+              <img id="flux-avatar-preview" alt="Flux avatar preview" style="width:74px;height:74px;object-fit:cover;display:block;">
+            </div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:4px;">Create your own little avatar</div>
+              <div style="font-size:11px;color:var(--muted);line-height:1.3;">This is a lightweight Bitmoji-style avatar you can use across Flux.</div>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <label style="display:flex;flex-direction:column;gap:4px;">
+              <span style="font-size:10px;font-weight:900;color:var(--muted);letter-spacing:0.6px;text-transform:uppercase;">Skin</span>
+              <input id="fluxav-skin" type="color" value="#f1c27d" style="height:34px;border-radius:10px;border:1px solid var(--glass-border);background:transparent;padding:2px;cursor:pointer;">
+            </label>
+            <label style="display:flex;flex-direction:column;gap:4px;">
+              <span style="font-size:10px;font-weight:900;color:var(--muted);letter-spacing:0.6px;text-transform:uppercase;">Hair</span>
+              <input id="fluxav-hair" type="color" value="#111827" style="height:34px;border-radius:10px;border:1px solid var(--glass-border);background:transparent;padding:2px;cursor:pointer;">
+            </label>
+            <label style="display:flex;flex-direction:column;gap:4px;">
+              <span style="font-size:10px;font-weight:900;color:var(--muted);letter-spacing:0.6px;text-transform:uppercase;">Shirt</span>
+              <input id="fluxav-shirt" type="color" value="#3a7dff" style="height:34px;border-radius:10px;border:1px solid var(--glass-border);background:transparent;padding:2px;cursor:pointer;">
+            </label>
+            <label style="display:flex;flex-direction:column;gap:4px;">
+              <span style="font-size:10px;font-weight:900;color:var(--muted);letter-spacing:0.6px;text-transform:uppercase;">Hair Style</span>
+              <select id="fluxav-hair-style" style="height:34px;border-radius:10px;border:1px solid var(--glass-border);background:var(--bg);color:var(--text);padding:0 10px;font-weight:800;">
+                <option value="short">Short</option>
+                <option value="long">Long</option>
+                <option value="bun">Bun</option>
+              </select>
+            </label>
+            <label style="display:flex;flex-direction:column;gap:4px;">
+              <span style="font-size:10px;font-weight:900;color:var(--muted);letter-spacing:0.6px;text-transform:uppercase;">Eyes</span>
+              <select id="fluxav-eyes" style="height:34px;border-radius:10px;border:1px solid var(--glass-border);background:var(--bg);color:var(--text);padding:0 10px;font-weight:800;">
+                <option value="normal">Normal</option>
+                <option value="happy">Happy</option>
+              </select>
+            </label>
+            <label style="display:flex;flex-direction:column;gap:4px;">
+              <span style="font-size:10px;font-weight:900;color:var(--muted);letter-spacing:0.6px;text-transform:uppercase;">Mouth</span>
+              <select id="fluxav-mouth" style="height:34px;border-radius:10px;border:1px solid var(--glass-border);background:var(--bg);color:var(--text);padding:0 10px;font-weight:800;">
+                <option value="smile">Smile</option>
+                <option value="neutral">Neutral</option>
+              </select>
+            </label>
+            <label style="grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:12px;border:1px solid var(--glass-border);background:rgba(0,0,0,0.02);cursor:pointer;">
+              <span style="display:flex;flex-direction:column;gap:2px;">
+                <span style="font-size:12px;font-weight:900;color:var(--text);">Glasses</span>
+                <span style="font-size:10px;color:var(--muted);">Optional accessory</span>
+              </span>
+              <input id="fluxav-glasses" type="checkbox">
+            </label>
+          </div>
+
+          <button id="fluxav-use" style="margin-top:10px;width:100%;padding:10px 12px;border:none;border-radius:12px;background:var(--accent);color:white;font-weight:900;cursor:pointer;">Use Flux Avatar</button>
+          <button id="fluxav-reset" style="margin-top:8px;width:100%;padding:10px 12px;border:1px solid var(--glass-border);border-radius:12px;background:transparent;color:var(--text);font-weight:800;cursor:pointer;">Reset</button>
+        </div>
+      </details>
 
       <div id="avatar-loader" style="display:none;position:absolute;inset:0;background:rgba(255,255,255,0.8);border-radius:20px;align-items:center;justify-content:center;flex-direction:column;gap:12px;z-index:5;">
         <img src="assets/loading.gif" style="width:60px;">
@@ -808,150 +852,159 @@ function showAvatarSelectionModal(profile) {
        document.getElementById('avatar-loader').style.display = 'none';
      }
   });
-}
 
-function showBuddyStudio(profile) {
-  const existing = document.getElementById('buddy-studio-overlay');
-  if (existing) existing.remove();
+  // Flux Avatar (Beta) — lightweight SVG avatar builder
+  const buildFluxAvatarSvg = (o) => {
+    const skin = o.skin || '#f1c27d';
+    const hair = o.hair || '#111827';
+    const shirt = o.shirt || '#3a7dff';
+    const hairStyle = o.hairStyle || 'short';
+    const eyes = o.eyes || 'normal';
+    const mouth = o.mouth || 'smile';
+    const glasses = !!o.glasses;
 
-  const start = normalizeFluxBuddy(profile?.fluxBuddy || FLUX_BUDDY_DEFAULT);
+    const hairTop = hairStyle === 'short'
+      ? `<path d="M30 54c2-18 16-30 34-30s32 12 34 30c-8-10-18-14-34-14S38 44 30 54z" fill="${hair}"/>`
+      : hairStyle === 'long'
+        ? `<path d="M28 56c2-22 16-34 36-34s34 12 36 34c0 0-5-10-12-14v40c0 8-6 14-14 14H54c-8 0-14-6-14-14V42c-7 4-12 14-12 14z" fill="${hair}"/>`
+        : `<path d="M30 58c2-22 16-36 34-36s32 14 34 36c-6-8-14-12-22-14l6-10c2-4-2-10-8-10h-20c-6 0-10 6-8 10l6 10c-8 2-16 6-22 14z" fill="${hair}"/>`;
 
-  const FACES = [
-    { id: 'neutral', label: 'Neutral' },
-    { id: 'smile', label: 'Smile' },
-    { id: 'grin', label: 'Grin' },
-    { id: 'sad', label: 'Sad' },
-    { id: 'angry', label: 'Angry' },
-    { id: 'surprised', label: 'Surprised' },
-    { id: 'sleepy', label: 'Sleepy' },
-    { id: 'wink', label: 'Wink' },
-    { id: 'cool', label: 'Cool' },
-    { id: 'blush', label: 'Blush' },
-    { id: 'love', label: 'Love' },
-    { id: 'dead', label: 'Dead' },
-  ];
+    const eyeMarks = eyes === 'happy'
+      ? `<path d="M48 58c4 4 8 4 12 0" stroke="#111827" stroke-width="4" stroke-linecap="round" fill="none"/>
+         <path d="M68 58c4 4 8 4 12 0" stroke="#111827" stroke-width="4" stroke-linecap="round" fill="none"/>`
+      : `<circle cx="54" cy="58" r="4.2" fill="#111827"/><circle cx="74" cy="58" r="4.2" fill="#111827"/>`;
 
-  const overlay = document.createElement('div');
-  overlay.id = 'buddy-studio-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;z-index:750;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.55);backdrop-filter:blur(10px);';
-  overlay.innerHTML = `
-    <style>
-      @keyframes fluxyFloat { 0%,100%{transform:translateY(0) rotate(-0.6deg)} 50%{transform:translateY(-8px) rotate(0.6deg)} }
-      @media (max-width: 860px) { #fluxy-grid { grid-template-columns: 1fr !important; } #fluxy-right { border-left: none !important; border-top: 1px solid var(--glass-border) !important; } }
-      @media (max-width: 560px) { #fluxy-faces { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; } }
-    </style>
+    const mouthMark = mouth === 'neutral'
+      ? `<path d="M56 74h16" stroke="#111827" stroke-width="4" stroke-linecap="round" fill="none"/>`
+      : `<path d="M54 72c4 6 16 6 20 0" stroke="#111827" stroke-width="4" stroke-linecap="round" fill="none"/>`;
 
-    <div style="width:min(980px, calc(100vw - 24px));max-height:88vh;background:var(--panel);border-radius:24px;border:1px solid var(--glass-border);box-shadow:0 30px 90px rgba(0,0,0,0.28);overflow:hidden;display:flex;flex-direction:column;">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--glass-border);gap:12px;flex-shrink:0;">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:var(--text);letter-spacing:1px;">Fluxy</div>
-          <span style="display:inline-flex;align-items:center;background:linear-gradient(135deg,#f59e0b,#ef4444);color:white;font-size:9px;font-weight:900;padding:2px 7px;border-radius:20px;letter-spacing:0.8px;text-transform:uppercase;">Beta</span>
-        </div>
-        <button id="fluxy-close" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;">✕</button>
-      </div>
+    const glassesMark = glasses
+      ? `<g opacity="0.92">
+           <rect x="44" y="52" width="18" height="14" rx="6" fill="none" stroke="#111827" stroke-width="3"/>
+           <rect x="66" y="52" width="18" height="14" rx="6" fill="none" stroke="#111827" stroke-width="3"/>
+           <path d="M62 59h4" stroke="#111827" stroke-width="3" stroke-linecap="round"/>
+         </g>`
+      : '';
 
-      <div id="fluxy-grid" style="display:grid;grid-template-columns:420px 1fr;min-height:0;flex:1;">
-        <div style="padding:18px;min-height:0;display:flex;flex-direction:column;gap:12px;">
-          <div style="flex:1;min-height:340px;border-radius:18px;border:1px solid var(--glass-border);background:
-              radial-gradient(220px 140px at 50% 18%, rgba(58,125,255,0.22), rgba(0,0,0,0) 70%),
-              url('assets/room.png') center bottom / cover no-repeat,
-              var(--bg);
-              display:flex;align-items:flex-end;justify-content:center;position:relative;overflow:hidden;padding-bottom:14px;">
-            <div style="position:absolute;left:18px;right:18px;bottom:14px;height:28px;border-radius:999px;background:rgba(0,0,0,0.06);border:1px solid var(--glass-border);"></div>
-            <img id="fluxy-preview" alt="Fluxy preview" style="width:260px;height:auto;transform-origin:50% 100%;animation:fluxyFloat 2.9s ease-in-out infinite;filter:drop-shadow(0 14px 24px rgba(0,0,0,0.12));">
-          </div>
-          <div style="text-align:center;color:var(--muted);font-size:12px;line-height:1.35;">
-            Fluxy appears in chat corners (watching/typing/stickers).<br/>Arms & legs auto-darken from your body color.
-          </div>
-        </div>
-
-        <div id="fluxy-right" style="padding:18px;border-left:1px solid var(--glass-border);overflow:auto;">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;">
-            <div style="display:flex;flex-direction:column;gap:2px;">
-              <div style="font-size:12px;font-weight:900;color:var(--text);">Body Color</div>
-              <div style="font-size:11px;color:var(--muted);">Pick a color — limbs shade automatically</div>
-            </div>
-            <input id="fluxy-body" type="color" value="${start.body}" style="width:46px;height:36px;border-radius:12px;border:1px solid var(--glass-border);background:transparent;padding:2px;cursor:pointer;flex-shrink:0;">
-          </div>
-
-          <div style="font-size:12px;font-weight:900;color:var(--text);margin:10px 0 8px;">Face</div>
-          <div id="fluxy-faces" style="display:grid;grid-template-columns:repeat(6, minmax(0, 1fr));gap:10px;"></div>
-
-          <div style="display:flex;gap:10px;margin-top:16px;">
-            <button id="fluxy-reset" style="flex:1;padding:11px 12px;border:1px solid var(--glass-border);border-radius:12px;background:transparent;color:var(--text);font-weight:900;cursor:pointer;">Reset</button>
-            <button id="fluxy-save" style="flex:1;padding:11px 12px;border:none;border-radius:12px;background:var(--accent);color:white;font-weight:900;cursor:pointer;">Save Fluxy</button>
-          </div>
-          <div id="fluxy-error" style="display:none;margin-top:10px;color:#ef4444;font-size:12px;font-weight:800;text-align:center;"></div>
-        </div>
-      </div>
-    </div>
-  `;
-
-  document.body.appendChild(overlay);
-
-  const close = () => overlay.remove();
-  overlay.querySelector('#fluxy-close')?.addEventListener('click', close);
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    return `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+        <defs>
+          <filter id="s" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000" flood-opacity="0.12"/>
+          </filter>
+        </defs>
+        <g filter="url(#s)">
+          <path d="M32 118c0-18 14-30 32-30s32 12 32 30" fill="${shirt}"/>
+          <circle cx="64" cy="58" r="34" fill="${skin}"/>
+          ${hairTop}
+          ${glassesMark}
+          ${eyeMarks}
+          ${mouthMark}
+          <path d="M42 62c-6-2-10-8-10-14" stroke="rgba(17,24,39,0.25)" stroke-width="3" stroke-linecap="round" fill="none"/>
+          <path d="M86 62c6-2 10-8 10-14" stroke="rgba(17,24,39,0.25)" stroke-width="3" stroke-linecap="round" fill="none"/>
+        </g>
+      </svg>
+    `.trim();
+  };
 
   const els = {
-    preview: overlay.querySelector('#fluxy-preview'),
-    body: overlay.querySelector('#fluxy-body'),
-    faces: overlay.querySelector('#fluxy-faces'),
-    reset: overlay.querySelector('#fluxy-reset'),
-    save: overlay.querySelector('#fluxy-save'),
-    err: overlay.querySelector('#fluxy-error'),
+    preview: document.getElementById('flux-avatar-preview'),
+    skin: document.getElementById('fluxav-skin'),
+    hair: document.getElementById('fluxav-hair'),
+    shirt: document.getElementById('fluxav-shirt'),
+    hairStyle: document.getElementById('fluxav-hair-style'),
+    eyes: document.getElementById('fluxav-eyes'),
+    mouth: document.getElementById('fluxav-mouth'),
+    glasses: document.getElementById('fluxav-glasses'),
+    use: document.getElementById('fluxav-use'),
+    reset: document.getElementById('fluxav-reset'),
+    details: document.getElementById('flux-avatar-details')
   };
 
-  let selectedFace = start.face;
+  const defaults = {
+    skin: '#f1c27d',
+    hair: '#111827',
+    shirt: '#3a7dff',
+    hairStyle: 'short',
+    eyes: 'normal',
+    mouth: 'smile',
+    glasses: false
+  };
 
-  const read = () => normalizeFluxBuddy({ body: els.body.value, face: selectedFace });
+  const applyToUI = (o) => {
+    if (!els.skin) return;
+    els.skin.value = o.skin || defaults.skin;
+    els.hair.value = o.hair || defaults.hair;
+    els.shirt.value = o.shirt || defaults.shirt;
+    els.hairStyle.value = o.hairStyle || defaults.hairStyle;
+    els.eyes.value = o.eyes || defaults.eyes;
+    els.mouth.value = o.mouth || defaults.mouth;
+    els.glasses.checked = !!o.glasses;
+  };
 
-  const render = () => {
-    const cur = read();
-    if (els.preview) els.preview.src = buildFluxBuddyDataUrl(cur, 'full');
-    if (els.faces) {
-      els.faces.innerHTML = FACES.map(f => {
-        const on = f.id === cur.face;
-        const iconSrc = buildFluxBuddyDataUrl({ body: cur.body, face: f.id }, 'icon');
-        return `
-          <button type="button" data-face="${f.id}" title="${f.label}"
-            style="border-radius:14px;border:2px solid ${on ? 'var(--accent)' : 'var(--glass-border)'};background:${on ? 'rgba(58,125,255,0.10)' : 'rgba(0,0,0,0.02)'};cursor:pointer;padding:8px;display:flex;flex-direction:column;align-items:center;gap:6px;">
-            <img src="${iconSrc}" alt="${f.label}" style="width:40px;height:40px;object-fit:contain;display:block;">
-            <span style="font-size:10px;font-weight:900;color:${on ? 'var(--accent)' : 'var(--muted)'};white-space:nowrap;">${f.label}</span>
-          </button>
-        `;
-      }).join('');
+  const readFromUI = () => ({
+    skin: els.skin?.value || defaults.skin,
+    hair: els.hair?.value || defaults.hair,
+    shirt: els.shirt?.value || defaults.shirt,
+    hairStyle: els.hairStyle?.value || defaults.hairStyle,
+    eyes: els.eyes?.value || defaults.eyes,
+    mouth: els.mouth?.value || defaults.mouth,
+    glasses: !!els.glasses?.checked
+  });
+
+  const renderPreview = () => {
+    if (!els.preview) return;
+    const opts = readFromUI();
+    const svg = buildFluxAvatarSvg(opts);
+    const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    els.preview.src = url;
+    return { opts, url };
+  };
+
+  // Init builder with saved settings (if any)
+  try {
+    if (profile?.fluxAvatar) {
+      applyToUI({ ...defaults, ...profile.fluxAvatar });
+      if (els.details) els.details.open = true;
+    } else {
+      applyToUI(defaults);
     }
-  };
+  } catch {
+    applyToUI(defaults);
+  }
+  renderPreview();
 
-  render();
-  els.body?.addEventListener('input', render);
-  els.faces?.addEventListener('click', (e) => {
-    const btn = e.target?.closest?.('button[data-face]');
-    if (!btn) return;
-    selectedFace = btn.dataset.face || selectedFace;
-    render();
+  const onChange = () => renderPreview();
+  [els.skin, els.hair, els.shirt, els.hairStyle, els.eyes, els.mouth, els.glasses].forEach(el => {
+    el?.addEventListener('input', onChange);
+    el?.addEventListener('change', onChange);
   });
+
   els.reset?.addEventListener('click', () => {
-    selectedFace = FLUX_BUDDY_DEFAULT.face;
-    if (els.body) els.body.value = FLUX_BUDDY_DEFAULT.body;
-    render();
+    applyToUI(defaults);
+    renderPreview();
   });
-  els.save?.addEventListener('click', async () => {
-    if (els.err) els.err.style.display = 'none';
-    const prev = els.save.textContent;
-    els.save.textContent = 'Saving…';
-    els.save.disabled = true;
+
+  els.use?.addEventListener('click', async () => {
+    const btn = els.use;
+    if (!btn) return;
+    const prev = btn.textContent;
+    btn.textContent = 'Saving…';
+    btn.disabled = true;
+    document.getElementById('avatar-loader').style.display = 'flex';
     try {
-      const buddy = read();
-      await updateProfile(profile.uid, { fluxBuddy: buddy, fluxBuddyUpdatedAt: new Date().toISOString() });
-      close();
+      const { opts, url } = renderPreview() || {};
+      await updateProfile(profile.uid, {
+        avatarURL: url,
+        avatarSource: 'flux-avatar',
+        fluxAvatar: opts || defaults
+      });
       location.reload();
-    } catch (e) {
-      if (els.err) { els.err.textContent = 'Could not save Fluxy.'; els.err.style.display = 'block'; }
-      console.warn('Fluxy save failed:', e);
-      els.save.textContent = prev;
-      els.save.disabled = false;
+    } catch (err) {
+      alert("Failed to update avatar: " + (err?.message || err));
+      document.getElementById('avatar-loader').style.display = 'none';
+      btn.textContent = prev;
+      btn.disabled = false;
     }
   });
 }
