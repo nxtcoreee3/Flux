@@ -7,8 +7,6 @@ import {
   initDarkMode, initChatLock, reportUser, syncProfileAvatar
 } from './firebase-auth.js';
 
-import { buildFluxBuddyDataUrl } from './flux-buddy.js';
-
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
@@ -43,7 +41,7 @@ let _activeTab = 'inbox'; // 'inbox' | 'requests'
 
 const TYPING_TTL_MS = 4500;
 const TYPING_THROTTLE_MS = 1800;
-const PRESENCE_TTL_MS = 12000; // "watching / stickers" freshness window for the corner indicator
+const PRESENCE_TTL_MS = 12000;
 
 let _pickerOpen = false;
 let _presencePingTimer = null;
@@ -76,7 +74,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const send = document.getElementById('msg-send');
         if (input) { input.disabled = true; input.placeholder = '🔒 Messages locked by an admin'; }
         if (send) send.disabled = true;
-        // Show banner
         let banner = document.getElementById('dm-lock-banner');
         if (!banner) {
           banner = document.createElement('div');
@@ -111,7 +108,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('tab-inbox')?.addEventListener('click', () => switchTab('inbox'));
   document.getElementById('tab-requests')?.addEventListener('click', () => switchTab('requests'));
 
-  // Best-effort cleanup so we don't get "stuck typing" if the tab is hidden/closed
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       _pickerOpen = false;
@@ -172,7 +168,6 @@ function loadConversations() {
   if (_unsubConvos) _unsubConvos();
   _unsubConvos = onSnapshot(q, async (snap) => {
     list.innerHTML = '';
-    // Filter client-side: show accepted OR group OR convos without status field
     const docs = snap.docs.filter(d => {
       const data = d.data();
       return data.type === 'group' || !data.status || data.status === 'accepted';
@@ -203,7 +198,6 @@ function loadRequests() {
   _unsubConvos = onSnapshot(q, async (snap) => {
     list.innerHTML = '';
 
-    // Update requests badge
     const badge = document.getElementById('requests-badge');
     if (badge) { badge.textContent = snap.size; badge.style.display = snap.size > 0 ? 'inline-flex' : 'none'; }
 
@@ -323,7 +317,6 @@ function showDisclaimer(onAccept) {
 }
 
 function loadConversationMessages(convoId, name, isGroup) {
-  // Unsubscribe old listener first
   if (_unsubMessages) { _unsubMessages(); _unsubMessages = null; }
   if (_unsubTyping) { _unsubTyping(); _unsubTyping = null; }
   if (_presencePingTimer) { clearInterval(_presencePingTimer); _presencePingTimer = null; }
@@ -332,7 +325,6 @@ function loadConversationMessages(convoId, name, isGroup) {
   const panel = document.getElementById('chat-panel');
   if (!panel) return;
 
-  // Stamp this load so stale snapshots can be ignored
   const loadId = convoId;
 
   panel.innerHTML = `
@@ -370,7 +362,6 @@ function loadConversationMessages(convoId, name, isGroup) {
   document.getElementById('msg-input').addEventListener('blur', () => setTyping(false));
   document.getElementById('gif-btn').addEventListener('click', showGifPicker);
 
-  // We're in the convo now (shows 👀 Watching in the corner for others)
   {
     const draft = (document.getElementById('msg-input')?.value || '').trim();
     setChatState(draft ? 'thinking' : 'watching').catch(() => {});
@@ -379,15 +370,12 @@ function loadConversationMessages(convoId, name, isGroup) {
     if (!_activeConvoId) return;
     if (_pickerOpen) return;
     if (_typingLastSend && (Date.now() - _typingLastSend) < TYPING_TTL_MS) return;
-    // If user isn't typing, keep "watching" fresh so others can see it.
     const draft = (document.getElementById('msg-input')?.value || '').trim();
     setChatState(draft ? 'thinking' : 'watching').catch(() => {});
   }, 9000);
 
-  // Mark as read
   updateDoc(doc(db, 'conversations', convoId), { [`unread.${_currentUser.uid}`]: 0 }).catch(() => {});
 
-  // Typing indicator (DM + group): watch presence docs for members and update UI
   (async () => {
     try {
       const convoSnap = await getDoc(doc(db, 'conversations', convoId));
@@ -400,7 +388,6 @@ function loadConversationMessages(convoId, name, isGroup) {
 
   const q = query(collection(db, 'conversations', convoId, 'messages'), orderBy('sentAt', 'asc'), limit(100));
   _unsubMessages = onSnapshot(q, (snap) => {
-    // Ignore if we've switched to a different convo
     if (_activeConvoId !== loadId) return;
     const list = document.getElementById('messages-list');
     if (!list) return;
@@ -416,8 +403,7 @@ function loadConversationMessages(convoId, name, isGroup) {
 }
 
 function typingRowHTML(profile, fallbackLetter) {
-  const buddy = profile?.fluxBuddy && typeof profile.fluxBuddy === 'object' ? profile.fluxBuddy : null;
-  const src = buddy ? buildFluxBuddyDataUrl(buddy, 'icon') : (profile?.avatarURL || '');
+  const src = profile?.avatarURL || '';
   const avatar = src
     ? `<img src="${src}" style="width:28px;height:28px;border-radius:8px;object-fit:cover;flex-shrink:0;">`
     : `<div style="width:28px;height:28px;border-radius:8px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-size:12px;font-weight:700;flex-shrink:0;">${(fallbackLetter || '?')[0].toUpperCase()}</div>`;
@@ -464,8 +450,7 @@ function setCornerUI({ typingCount = 0, stickerCount = 0, thinkingCount = 0, wat
   const stack = users.slice(0, 3).map((u, idx) => {
     const p = u.profile;
     const fallback = u.fallbackLetter || '?';
-    const buddy = p?.fluxBuddy && typeof p.fluxBuddy === 'object' ? p.fluxBuddy : null;
-    const src = buddy ? buildFluxBuddyDataUrl(buddy, 'icon') : (p?.avatarURL || '');
+    const src = p?.avatarURL || '';
     const avatar = src
       ? `<img src="${src}" style="width:18px;height:18px;border-radius:6px;object-fit:cover;border:1px solid rgba(0,0,0,0.06);">`
       : `<div style="width:18px;height:18px;border-radius:6px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:800;border:1px solid rgba(0,0,0,0.06);">${escapeHtml((fallback[0] || '?').toUpperCase())}</div>`;
@@ -487,9 +472,9 @@ function bindTypingIndicators(convoId, members = []) {
   if (_unsubTyping) { _unsubTyping(); _unsubTyping = null; }
 
   const otherUids = Array.from(new Set((members || []).filter(uid => uid && uid !== _currentUser.uid)));
-  const latestTyping = new Map(); // uid -> ms
-  const latestState = new Map();  // uid -> { state, ms }
-  const profiles = new Map();     // uid -> profile
+  const latestTyping = new Map();
+  const latestState = new Map();
+  const profiles = new Map();
   let pruneTimer = null;
 
   const render = () => {
@@ -712,7 +697,6 @@ async function sendMessage() {
   if (!text || !_activeConvoId || !_currentProfile) return;
   setTyping(false).catch(() => {});
 
-  // Check if DMs are locked
   try {
     const lockSnap = await getDoc(doc(db, 'stats', 'chatlock'));
     if (lockSnap.exists() && lockSnap.data().dmLocked) {
@@ -775,7 +759,6 @@ async function startDM(targetUid, targetProfile) {
   if (!_currentUser || !_currentProfile) return;
   if (targetUid === _currentUser.uid) return;
 
-  // Deterministic ID — always the same for any two users regardless of who initiates
   const convoId = [_currentUser.uid, targetUid].sort().join('_dm_');
 
   const convoRef = doc(db, 'conversations', convoId);
@@ -783,7 +766,6 @@ async function startDM(targetUid, targetProfile) {
 
   if (convoSnap.exists()) {
     const data = convoSnap.data();
-    // If it was a pending request to us, accept it
     if (data.status === 'pending' && data.to === _currentUser.uid) {
       await updateDoc(convoRef, { status: 'accepted' });
     }
@@ -791,7 +773,6 @@ async function startDM(targetUid, targetProfile) {
     return;
   }
 
-  // Create new DM with deterministic ID
   const myFollowing = _currentProfile.following || [];
   const theirProfile = await getProfile(targetUid);
   const theyFollowMe = (theirProfile?.following || []).includes(_currentUser.uid);
@@ -1042,7 +1023,6 @@ async function showGifPicker() {
     renderStickers(q ? _allStickers.filter(s => s.name.toLowerCase().includes(q)) : _allStickers);
   });
 
-  // Close on outside click
   setTimeout(() => {
     document.addEventListener('click', function handler(e) {
       if (!modal.contains(e.target)) { close(); document.removeEventListener('click', handler); }

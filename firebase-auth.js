@@ -1018,56 +1018,76 @@ export function initNotifications() {
   const user = auth.currentUser;
   if (!user || user.isAnonymous) return;
 
-  // Inject bell into nav
-  const rightActions = document.querySelector('.right-actions');
-  if (!rightActions || document.getElementById('notif-btn')) return;
+  // Inject notifications panel into the profile dropdown (not the nav bar)
+  if (document.getElementById('notif-panel-container')) return;
 
-  const wrapper = document.createElement('div');
-  wrapper.style.cssText = 'position:relative;display:flex;align-items:center;';
-  wrapper.innerHTML = `
-    <button id="notif-btn" class="icon-btn" title="Notifications" style="cursor:pointer;position:relative;padding:8px 10px;font-size:16px;">
-      🔔
-      <span id="notif-badge" style="display:none;position:absolute;top:4px;right:4px;background:#ef4444;color:white;font-size:9px;font-weight:800;padding:1px 4px;border-radius:20px;min-width:14px;text-align:center;line-height:14px;">0</span>
-    </button>
-    <div id="notif-dropdown" style="display:none;position:absolute;top:calc(100% + 10px);right:0;background:var(--panel);border:1px solid var(--glass-border);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.15);width:300px;z-index:300;overflow:hidden;">
-      <div style="padding:14px 16px;border-bottom:1px solid var(--glass-border);display:flex;align-items:center;justify-content:space-between;">
-        <span style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--text);">🔔 Notifications</span>
+  // Build the notifications slide-in panel that appears when clicking the dropdown item
+  const panel = document.createElement('div');
+  panel.id = 'notif-panel-container';
+  panel.style.cssText = 'display:none;position:fixed;top:0;right:0;width:320px;height:100vh;z-index:9500;background:var(--panel);border-left:1px solid var(--glass-border);box-shadow:-20px 0 60px rgba(0,0,0,0.18);flex-direction:column;';
+  panel.innerHTML = `
+    <div style="padding:16px 18px;border-bottom:1px solid var(--glass-border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+      <span style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--text);">🔔 Notifications</span>
+      <div style="display:flex;align-items:center;gap:8px;">
         <button id="notif-mark-all" style="background:none;border:none;font-size:11px;color:var(--accent);cursor:pointer;font-weight:700;">Mark all read</button>
+        <button id="notif-panel-close" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:0;line-height:1;">✕</button>
       </div>
-      <div id="notif-list" style="max-height:340px;overflow-y:auto;"></div>
     </div>
+    <div id="notif-list" style="flex:1;overflow-y:auto;"></div>
   `;
-  rightActions.prepend(wrapper);
+  document.body.appendChild(panel);
 
-  const btn = wrapper.querySelector('#notif-btn');
-  const dd = wrapper.querySelector('#notif-dropdown');
+  const openPanel = () => {
+    panel.style.display = 'flex';
+    loadNotifications(user.uid);
+    // close profile dropdown
+    const dd = document.getElementById('profile-dropdown');
+    if (dd) dd.style.display = 'none';
+  };
+  const closePanel = () => { panel.style.display = 'none'; };
 
-  btn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const isOpen = dd.style.display !== 'none';
-    dd.style.display = isOpen ? 'none' : 'block';
-    if (!isOpen) loadNotifications(user.uid);
+  document.getElementById('notif-panel-close').addEventListener('click', closePanel);
+
+  // Wire the dropdown button (added in initAuthUI HTML)
+  // We use event delegation since the button is added dynamically
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('#notif-dropdown-btn');
+    if (btn) { e.stopPropagation(); openPanel(); }
   });
-  document.addEventListener('click', () => { dd.style.display = 'none'; });
 
   document.getElementById('notif-mark-all').addEventListener('click', async (e) => {
     e.stopPropagation();
     await markAllNotificationsRead(user.uid);
-    document.getElementById('notif-badge').style.display = 'none';
+    const navBadge = document.getElementById('notif-nav-badge');
+    if (navBadge) navBadge.style.display = 'none';
     loadNotifications(user.uid);
   });
 
-  // Listen for unread count
+  // Listen for unread count — update badge on the profile user-display button
   import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({ collection: col, query: q, where: w, onSnapshot: ons }) => {
     const unreadQ = q(col(db, 'notifications'), w('uid', '==', user.uid), w('read', '==', false));
     ons(unreadQ, (snap) => {
-      const badge = document.getElementById('notif-badge');
-      if (!badge) return;
+      let badge = document.getElementById('notif-nav-badge');
+      if (!badge) {
+        // Create a badge on the user-display button if not already there
+        const userDisplay = document.getElementById('user-display');
+        if (userDisplay) {
+          badge = document.createElement('span');
+          badge.id = 'notif-nav-badge';
+          badge.style.cssText = 'position:absolute;top:-4px;right:-4px;background:#ef4444;color:white;font-size:9px;font-weight:800;padding:1px 4px;border-radius:20px;min-width:14px;text-align:center;line-height:14px;display:none;';
+          userDisplay.style.position = 'relative';
+          userDisplay.appendChild(badge);
+        }
+      }
+      // Also update dropdown button badge
+      const ddBadge = document.getElementById('notif-dd-badge');
       if (snap.size > 0) {
-        badge.textContent = snap.size > 9 ? '9+' : snap.size;
-        badge.style.display = 'inline-block';
+        const countStr = snap.size > 9 ? '9+' : String(snap.size);
+        if (badge) { badge.textContent = countStr; badge.style.display = 'inline-block'; }
+        if (ddBadge) { ddBadge.textContent = countStr; ddBadge.style.display = 'inline-block'; }
       } else {
-        badge.style.display = 'none';
+        if (badge) badge.style.display = 'none';
+        if (ddBadge) ddBadge.style.display = 'none';
       }
     });
   });
@@ -1539,6 +1559,9 @@ export async function initAuthUI(onUserChange) {
       <a id="view-profile-btn" href="profile.html" style="display:none;align-items:center;gap:10px;padding:10px 16px;font-size:13px;color:var(--text,#111827);text-decoration:none;border-bottom:1px solid var(--glass-border,rgba(0,0,0,0.06));">
         <span>👤</span> My Profile
       </a>
+      <button id="notif-dropdown-btn" style="width:100%;padding:10px 16px;background:none;border:none;border-bottom:1px solid var(--glass-border,rgba(0,0,0,0.06));text-align:left;cursor:pointer;font-size:13px;color:var(--text,#111827);display:flex;align-items:center;gap:10px;">
+        <span>🔔</span> Notifications <span id="notif-dd-badge" style="display:none;margin-left:auto;background:#ef4444;color:white;font-size:9px;font-weight:800;padding:1px 6px;border-radius:20px;min-width:16px;text-align:center;">0</span>
+      </button>
       <button id="spin-wheel-btn" style="width:100%;padding:10px 16px;background:none;border:none;border-bottom:1px solid var(--glass-border,rgba(0,0,0,0.06));text-align:left;cursor:pointer;font-size:13px;color:var(--text,#111827);display:flex;align-items:center;gap:10px;">
         <span>🎰</span> Spin Wheel <span id="spin-cooldown-label" style="font-size:10px;color:#6b7280;margin-left:auto;"></span>
       </button>

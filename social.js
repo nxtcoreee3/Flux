@@ -7,8 +7,6 @@ import {
   initDarkMode, initChatLock, fetchLeaderboard, reportUser, updateProfile
 } from './firebase-auth.js';
 
-import { buildFluxBuddyDataUrl, normalizeFluxBuddy, FLUX_BUDDY_DEFAULT } from './flux-buddy.js';
-
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
@@ -59,7 +57,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   initChatLock('global',
     () => {
-      // Locked — disable input
       const input = document.getElementById('chat-input');
       const send = document.getElementById('chat-send');
       const area = document.getElementById('chat-input-area');
@@ -68,7 +65,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (area) area.style.opacity = '0.5';
     },
     () => {
-      // Unlocked — re-enable
       const input = document.getElementById('chat-input');
       const send = document.getElementById('chat-send');
       const area = document.getElementById('chat-input-area');
@@ -100,12 +96,6 @@ async function getPresenceProfile(uid) {
   return p;
 }
 
-function bestCornerAvatar(profile) {
-  const buddy = profile?.fluxBuddy && typeof profile.fluxBuddy === 'object' ? profile.fluxBuddy : null;
-  if (buddy) return buildFluxBuddyDataUrl(buddy, 'icon');
-  return profile?.avatarURL || '';
-}
-
 function renderPresenceCorner(items = []) {
   const corner = document.getElementById('global-presence-corner');
   if (!corner) return;
@@ -129,7 +119,7 @@ function renderPresenceCorner(items = []) {
   const stack = items.slice(0, 3).map((i, idx) => {
     const p = i.profile || null;
     const fallback = (p?.displayName || p?.username || i.uid || '?')[0] || '?';
-    const src = bestCornerAvatar(p);
+    const src = p?.avatarURL || '';
     const avatar = src
       ? `<img src="${src}" style="width:18px;height:18px;border-radius:6px;object-fit:cover;border:1px solid rgba(0,0,0,0.06);">`
       : `<div style="width:18px;height:18px;border-radius:6px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:900;border:1px solid rgba(0,0,0,0.06);">${escapeHtml(fallback.toUpperCase())}</div>`;
@@ -236,177 +226,6 @@ function stopPresencePings() {
   setGlobalChatState(null).catch(() => {});
 }
 
-function initFluxyRoom(profile) {
-  const room = document.getElementById('buddy-room');
-  if (!room) return;
-  room.style.display = 'block';
-
-  const img = document.getElementById('buddy-avatar');
-  const hint = document.getElementById('buddy-room-hint');
-  const btn = document.getElementById('buddy-customize');
-
-  const buddy = profile?.fluxBuddy && typeof profile.fluxBuddy === 'object' ? profile.fluxBuddy : null;
-  const src = buddy ? buildFluxBuddyDataUrl(buddy, 'full') : (profile?.avatarURL || '');
-
-  if (img) {
-    img.src = src || '';
-    img.style.opacity = src ? '1' : '0';
-    img.style.borderRadius = buddy ? '0' : '18px';
-    img.style.objectFit = buddy ? 'contain' : 'cover';
-    img.style.background = buddy ? 'transparent' : 'rgba(0,0,0,0.04)';
-    img.style.border = buddy ? 'none' : '1px solid var(--glass-border)';
-    img.style.padding = buddy ? '0' : '8px';
-  }
-
-  if (hint) {
-    hint.innerHTML = buddy
-      ? `Your Fluxy shows up in chat corners.`
-      : `No Fluxy yet — using your profile picture.<br/><span style="font-size:11px;">Tap Customize to create one.</span>`;
-  }
-
-  if (btn && !btn.dataset.bound) {
-    btn.dataset.bound = '1';
-    btn.addEventListener('click', () => showFluxyStudio(profile));
-  }
-}
-
-function showFluxyStudio(profile) {
-  const existing = document.getElementById('fluxy-studio-overlay');
-  if (existing) existing.remove();
-
-  const start = normalizeFluxBuddy(profile?.fluxBuddy || FLUX_BUDDY_DEFAULT);
-  const FACES = [
-    { id: 'neutral', label: 'Neutral' }, { id: 'smile', label: 'Smile' }, { id: 'grin', label: 'Grin' },
-    { id: 'sad', label: 'Sad' }, { id: 'angry', label: 'Angry' }, { id: 'surprised', label: 'Surprised' },
-    { id: 'sleepy', label: 'Sleepy' }, { id: 'wink', label: 'Wink' }, { id: 'cool', label: 'Cool' },
-    { id: 'blush', label: 'Blush' }, { id: 'love', label: 'Love' }, { id: 'dead', label: 'Dead' },
-  ];
-
-  const overlay = document.createElement('div');
-  overlay.id = 'fluxy-studio-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;z-index:900;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.55);backdrop-filter:blur(10px);';
-  overlay.innerHTML = `
-    <style>
-      @keyframes fluxyFloat { 0%,100%{transform:translateY(0) rotate(-0.6deg)} 50%{transform:translateY(-8px) rotate(0.6deg)} }
-      @media (max-width: 860px) { #fluxy-grid { grid-template-columns: 1fr !important; } #fluxy-right { border-left: none !important; border-top: 1px solid var(--glass-border) !important; } }
-      @media (max-width: 560px) { #fluxy-faces { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; } }
-    </style>
-    <div style="width:min(980px, calc(100vw - 24px));max-height:88vh;background:var(--panel);border-radius:24px;border:1px solid var(--glass-border);box-shadow:0 30px 90px rgba(0,0,0,0.28);overflow:hidden;display:flex;flex-direction:column;">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--glass-border);gap:12px;flex-shrink:0;">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:var(--text);letter-spacing:1px;">Fluxy</div>
-          <span style="display:inline-flex;align-items:center;background:linear-gradient(135deg,#f59e0b,#ef4444);color:white;font-size:9px;font-weight:900;padding:2px 7px;border-radius:20px;letter-spacing:0.8px;text-transform:uppercase;">Beta</span>
-        </div>
-        <button id="fluxy-close" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;">✕</button>
-      </div>
-
-      <div id="fluxy-grid" style="display:grid;grid-template-columns:420px 1fr;min-height:0;flex:1;">
-        <div style="padding:18px;min-height:0;display:flex;flex-direction:column;gap:12px;">
-          <div style="flex:1;min-height:340px;border-radius:18px;border:1px solid var(--glass-border);background:
-              radial-gradient(220px 140px at 50% 18%, rgba(58,125,255,0.22), rgba(0,0,0,0) 70%),
-              url('assets/room.png') center bottom / cover no-repeat,
-              var(--bg);
-              display:flex;align-items:flex-end;justify-content:center;position:relative;overflow:hidden;padding-bottom:14px;">
-            <div style="position:absolute;left:18px;right:18px;bottom:14px;height:28px;border-radius:999px;background:rgba(0,0,0,0.06);border:1px solid var(--glass-border);"></div>
-            <img id="fluxy-preview" alt="Fluxy preview" style="width:260px;height:auto;transform-origin:50% 100%;animation:fluxyFloat 2.9s ease-in-out infinite;filter:drop-shadow(0 14px 24px rgba(0,0,0,0.12));">
-          </div>
-          <div style="text-align:center;color:var(--muted);font-size:12px;line-height:1.35;">
-            Fluxy appears in chat corners (watching/typing/stickers).<br/>Arms & legs auto-darken from your body color.
-          </div>
-        </div>
-
-        <div id="fluxy-right" style="padding:18px;border-left:1px solid var(--glass-border);overflow:auto;">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;">
-            <div style="display:flex;flex-direction:column;gap:2px;">
-              <div style="font-size:12px;font-weight:900;color:var(--text);">Body Color</div>
-              <div style="font-size:11px;color:var(--muted);">Pick a color — limbs shade automatically</div>
-            </div>
-            <input id="fluxy-body" type="color" value="${start.body}" style="width:46px;height:36px;border-radius:12px;border:1px solid var(--glass-border);background:transparent;padding:2px;cursor:pointer;flex-shrink:0;">
-          </div>
-
-          <div style="font-size:12px;font-weight:900;color:var(--text);margin:10px 0 8px;">Face</div>
-          <div id="fluxy-faces" style="display:grid;grid-template-columns:repeat(6, minmax(0, 1fr));gap:10px;"></div>
-
-          <div style="display:flex;gap:10px;margin-top:16px;">
-            <button id="fluxy-reset" style="flex:1;padding:11px 12px;border:1px solid var(--glass-border);border-radius:12px;background:transparent;color:var(--text);font-weight:900;cursor:pointer;">Reset</button>
-            <button id="fluxy-save" style="flex:1;padding:11px 12px;border:none;border-radius:12px;background:var(--accent);color:white;font-weight:900;cursor:pointer;">Save Fluxy</button>
-          </div>
-          <div id="fluxy-error" style="display:none;margin-top:10px;color:#ef4444;font-size:12px;font-weight:800;text-align:center;"></div>
-        </div>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(overlay);
-
-  const close = () => overlay.remove();
-  overlay.querySelector('#fluxy-close')?.addEventListener('click', close);
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
-
-  const els = {
-    preview: overlay.querySelector('#fluxy-preview'),
-    body: overlay.querySelector('#fluxy-body'),
-    faces: overlay.querySelector('#fluxy-faces'),
-    reset: overlay.querySelector('#fluxy-reset'),
-    save: overlay.querySelector('#fluxy-save'),
-    err: overlay.querySelector('#fluxy-error'),
-  };
-
-  let selectedFace = start.face;
-
-  const read = () => normalizeFluxBuddy({ body: els.body.value, face: selectedFace });
-
-  const render = () => {
-    const cur = read();
-    if (els.preview) els.preview.src = buildFluxBuddyDataUrl(cur, 'full');
-    if (els.faces) {
-      els.faces.innerHTML = FACES.map(f => {
-        const on = f.id === cur.face;
-        const iconSrc = buildFluxBuddyDataUrl({ body: cur.body, face: f.id }, 'icon');
-        return `
-          <button type="button" data-face="${f.id}" title="${escapeHtml(f.label)}"
-            style="border-radius:14px;border:2px solid ${on ? 'var(--accent)' : 'var(--glass-border)'};background:${on ? 'rgba(58,125,255,0.10)' : 'rgba(0,0,0,0.02)'};cursor:pointer;padding:8px;display:flex;flex-direction:column;align-items:center;gap:6px;">
-            <img src="${iconSrc}" alt="${escapeHtml(f.label)}" style="width:40px;height:40px;object-fit:contain;display:block;">
-            <span style="font-size:10px;font-weight:900;color:${on ? 'var(--accent)' : 'var(--muted)'};white-space:nowrap;">${escapeHtml(f.label)}</span>
-          </button>
-        `;
-      }).join('');
-    }
-  };
-
-  render();
-  els.body?.addEventListener('input', render);
-  els.faces?.addEventListener('click', (e) => {
-    const btn = e.target?.closest?.('button[data-face]');
-    if (!btn) return;
-    selectedFace = btn.dataset.face || selectedFace;
-    render();
-  });
-  els.reset?.addEventListener('click', () => {
-    selectedFace = FLUX_BUDDY_DEFAULT.face;
-    if (els.body) els.body.value = FLUX_BUDDY_DEFAULT.body;
-    render();
-  });
-  els.save?.addEventListener('click', async () => {
-    if (!_currentProfile) return;
-    if (els.err) els.err.style.display = 'none';
-    const prev = els.save.textContent;
-    els.save.textContent = 'Saving…';
-    els.save.disabled = true;
-    try {
-      const buddy = read();
-      await updateProfile(_currentProfile.uid, { fluxBuddy: buddy, fluxBuddyUpdatedAt: new Date().toISOString() });
-      _currentProfile.fluxBuddy = buddy;
-      initFluxyRoom(_currentProfile);
-      close();
-    } catch (e) {
-      if (els.err) { els.err.textContent = 'Could not save Fluxy.'; els.err.style.display = 'block'; }
-      console.warn('Fluxy save failed:', e);
-      els.save.textContent = prev;
-      els.save.disabled = false;
-    }
-  });
-}
-
 async function initChat() {
   onAuthStateChanged(auth, async (user) => {
     const inputArea = document.getElementById('chat-input-area');
@@ -423,14 +242,12 @@ async function initChat() {
       if (profile && !profile.isBanned) {
         inputArea.style.display = 'flex';
         signinPrompt.style.display = 'none';
-        // Show my profile card in sidebar
         showMyProfileCard(profile);
       } else if (!profile) {
         inputArea.style.display = 'none';
         signinPrompt.style.display = 'block';
         signinPrompt.innerHTML = '<p>Create a profile to join the chat.</p><a href="index.html" style="color:var(--accent);font-size:13px;font-weight:600;">Set up profile →</a>';
       } else {
-        // Banned
         inputArea.style.display = 'none';
         signinPrompt.style.display = 'block';
         signinPrompt.innerHTML = '<p style="color:#ef4444;">🚫 You are banned from chat.</p>';
@@ -440,15 +257,12 @@ async function initChat() {
     startChatListener(user);
   });
 
-  // Send on click
   document.getElementById('chat-send')?.addEventListener('click', sendMessage);
 
-  // Send on Enter
   document.getElementById('chat-input')?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   });
 
-  // GIF button
   document.getElementById('global-gif-btn')?.addEventListener('click', (e) => {
     e.stopPropagation();
     showGlobalGifPicker();
@@ -485,7 +299,6 @@ function renderChatSnap(snap, currentUser) {
     patchMessageBadges(el, msg.uid);
   });
 
-  // Track last message id for poll comparison
   _lastChatDocId = snap.docs[snap.docs.length - 1]?.id || null;
 
   if (wasAtBottom) container.scrollTop = container.scrollHeight;
@@ -496,12 +309,10 @@ function startChatListener(currentUser) {
 
   const q = query(collection(db, 'chat'), orderBy('sentAt', 'asc'), limit(MAX_MESSAGES));
 
-  // Primary: real-time listener
   _unsubChat = onSnapshot(q, (snap) => {
     renderChatSnap(snap, currentUser);
   });
 
-  // Fallback poll every 2s for mobile Safari
   setInterval(async () => {
     try {
       const { getDocs } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
@@ -525,7 +336,6 @@ function renderMessageSync(msg, currentUser) {
     ? `<img class="chat-msg-avatar" src="${msg.avatarURL}" style="width:28px;height:28px;border-radius:8px;object-fit:cover;margin-${isOwn?'left':'right'}:8px;flex-shrink:0;">`
     : `<div class="chat-msg-avatar-placeholder" style="width:28px;height:28px;border-radius:8px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:12px;margin-${isOwn?'left':'right'}:8px;flex-shrink:0;">${(msg.displayName || msg.username || '?')[0].toUpperCase()}</div>`;
 
-  // Use baked-in badges for instant render
   const badgesHTML = renderBadges(msg.badges || [], msg.roles || []);
 
   const div = document.createElement('div');
@@ -588,7 +398,6 @@ async function patchMessageBadges(el, uid) {
     if (badgesEl) {
       badgesEl.innerHTML = renderBadges(liveProfile.badges || [], liveProfile.roles || []);
     }
-    // Show currently playing
     const playingEl = el.querySelector('.msg-playing');
     if (playingEl && liveProfile.currentlyPlaying) {
       playingEl.innerHTML = `<span style="font-size:10px;color:#22c55e;">🎮 Playing ${liveProfile.currentlyPlaying.title}</span>`;
@@ -601,12 +410,10 @@ async function sendMessage() {
   const text = input.value.trim();
   if (!text || !_currentProfile) return;
 
-  // Check if global chat is locked
   try {
     const lockSnap = await getDoc(doc(db, 'stats', 'chatlock'));
     if (lockSnap.exists() && lockSnap.data().globalLocked) {
       input.value = '';
-      // Show locked notice
       const container = document.getElementById('chat-messages');
       const notice = document.createElement('div');
       notice.style.cssText = 'text-align:center;padding:8px;color:#ef4444;font-size:12px;font-weight:600;';
@@ -621,7 +428,6 @@ async function sendMessage() {
   input.disabled = true;
 
   try {
-    // Always re-fetch profile so roles/badges are current at send time
     const freshProfile = await getProfile(auth.currentUser.uid) || _currentProfile;
     if (freshProfile.isBanned) { input.disabled = false; return; }
 
@@ -729,7 +535,6 @@ function showGlobalGifPicker() {
       _allStickers = await resp.json();
       renderStickers(_allStickers);
     } catch {
-      // Fallback: try to auto-discover common filenames
       results.innerHTML = '<div style="grid-column:1/-1;padding:12px;font-size:12px;color:var(--muted);text-align:center;">No stickers yet.<br><span style="font-size:10px;">Create a <strong>GIFs/manifest.json</strong> file.</span></div>';
     }
   };
@@ -739,7 +544,6 @@ function showGlobalGifPicker() {
     renderStickers(q ? _allStickers.filter(s => s.name.toLowerCase().includes(q)) : _allStickers);
   });
 
-  // Close when clicking outside
   setTimeout(() => {
     document.addEventListener('click', function handler(e) {
       if (!picker.contains(e.target) && e.target.id !== 'global-gif-btn') {
@@ -888,7 +692,6 @@ async function initLeaderboard() {
     <div id="lb-streaks-list" style="display:none;">${renderList(streaks, 'loginStreak', 'days', '🔥')}</div>
   `;
 
-  // Remove border from last items
   card.querySelectorAll('#lb-points-list > div:last-child, #lb-streaks-list > div:last-child').forEach(el => el.style.borderBottom = 'none');
 
   document.getElementById('lb-tab-points').addEventListener('click', () => {
@@ -927,7 +730,6 @@ async function initRecommended() {
     const recommendations = [];
     const seen = new Set([user.uid, ...myFollowing]);
 
-    // 1. Mutuals — people that people I follow also follow
     try {
       for (const followedUid of myFollowing.slice(0, 5)) {
         const theirProfile = await getProfile(followedUid);
@@ -944,7 +746,6 @@ async function initRecommended() {
       }
     } catch {}
 
-    // 2. Fill remaining with newest users
     if (recommendations.length < 5) {
       try {
         const q = query(collection(db, 'profiles'), orderBy('joinedAt', 'desc'), limit(20));
@@ -997,7 +798,6 @@ async function initRecommended() {
       list.appendChild(item);
     });
 
-    // Remove border from last item
     list.lastChild?.style.setProperty('border-bottom', 'none');
     card.style.display = 'block';
   });
@@ -1007,6 +807,5 @@ async function initRecommended() {
 function escapeHtml(str) {
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-
 
 setTimeout(() => { if(window.hideGlobalLoader) window.hideGlobalLoader(); }, 600);
