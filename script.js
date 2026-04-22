@@ -271,7 +271,14 @@ const GAMES = [
     thumb: 'assets/subway-surfers-houston.png',
     url: 'https://nxtcoreee3.github.io/Subway-Surfers-Houston/',
     desc: 'Run through tracks, dodge trains, and collect coins in this Houston-themed endless runner.'
-  }
+  },
+{
+  id: 'eggy-car',
+  title: 'Eggy Car',
+  thumb: 'assets/eggy-car.png',
+  url: 'https://nxtcoreee3.github.io/EggyCar/',
+  desc: 'Drive carefully over hills while keeping a fragile egg from falling.'
+}
 ];
 
 // expose game count globally for stats button
