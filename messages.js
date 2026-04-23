@@ -1068,7 +1068,7 @@ function renderMessage(msg) {
 
   div.innerHTML = `
     ${avatarHTML}
-    <div class="message-body" style="max-width:65%;min-width:0;">
+    <div class="message-body" style="flex:1;min-width:0;max-width:100%;display:flex;flex-direction:column;align-items:${isOwn ? 'flex-end' : 'flex-start'};">
       ${!isOwn ? `<div style="font-size:10px;color:var(--muted);margin-bottom:2px;padding-left:2px;">@${escapeHtml(msg.username || '')}</div>` : ''}
       <div class="message-bubble ${bubbleClass}" style="position:relative;display:inline-block;text-align:left;min-height:auto;height:auto;${bubbleStyle}">
         ${content}
