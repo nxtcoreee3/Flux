@@ -2,6 +2,7 @@
 
 import {
   getProfile, getProfileByUsername, renderBadges,
+  sendNotification,
   initAuthUI, initServerStatus, initBroadcast,
   initChaos, initJumpscare, initPresence, initCookieConsent,
   initDarkMode, initChatLock, reportUser, syncProfileAvatar
@@ -14,6 +15,7 @@ import {
   doc, query, orderBy, limit, onSnapshot, where,
   serverTimestamp, getDoc, getDocs, updateDoc, arrayUnion, deleteField
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getDatabase, ref as rref, onValue as onRtdbValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCHm6nxHzrIGHmWb1W_xDAYwnSoed6oTi4",
@@ -28,6 +30,7 @@ const firebaseConfig = {
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+const rtdb = getDatabase(app);
 
 let _currentUser = null;
 let _currentProfile = null;
@@ -38,6 +41,7 @@ let _unsubTyping = null;
 let _typingIdleTimer = null;
 let _typingLastSend = 0;
 let _activeTab = 'inbox'; // 'inbox' | 'requests'
+let _convoRenderSeq = 0;
 
 const TYPING_TTL_MS = 4500;
 const TYPING_THROTTLE_MS = 1800;
@@ -45,6 +49,10 @@ const PRESENCE_TTL_MS = 12000;
 
 let _pickerOpen = false;
 let _presencePingTimer = null;
+let _unsubOnline = null;
+let _onlineUidCounts = new Map();
+let _activeMembers = [];
+let _activeIsGroup = false;
 
 /* ── Init ── */
 document.addEventListener('DOMContentLoaded', () => {
@@ -94,7 +102,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const params = new URLSearchParams(location.search);
     const openWith = params.get('with');
-    if (openWith) openDMWithUsername(openWith);
+    const openConvo = params.get('convo');
+    if (openConvo) openConversationById(openConvo);
+    else if (openWith) openDMWithUsername(openWith);
   });
 
   document.getElementById('new-dm-btn')?.addEventListener('click', () => {
@@ -150,7 +160,122 @@ function showSignInPrompt() {
 function initMessagesUI() {
   document.getElementById('messages-auth-required').innerHTML = '';
   document.getElementById('messages-root').style.display = 'flex';
+  startOnlineListener();
   loadConversations();
+}
+
+async function openConversationById(convoId) {
+  if (!_currentUser) return;
+  try {
+    const snap = await getDoc(doc(db, 'conversations', convoId));
+    if (!snap.exists()) return;
+    const convo = snap.data() || {};
+    const members = convo.members || [];
+    if (!Array.isArray(members) || !members.includes(_currentUser.uid)) return;
+
+    const isGroup = convo.type === 'group';
+    if (isGroup) {
+      switchTab('inbox');
+      openConversation(convoId, convo.name || 'Group Chat', true);
+      return;
+    }
+
+    const otherUid = members.find(m => m !== _currentUser.uid);
+    const other = await getProfile(otherUid);
+    const name = other?.displayName || other?.username || 'Unknown';
+    switchTab('inbox');
+    openConversation(convoId, name, false);
+  } catch {}
+}
+
+function startOnlineListener() {
+  if (_unsubOnline) return;
+  _unsubOnline = onRtdbValue(rref(rtdb, 'presence'), (snap) => {
+    const val = snap.val() || {};
+    const counts = new Map();
+    Object.values(val).forEach((sess) => {
+      const uid = sess?.uid || null;
+      if (!uid) return;
+      counts.set(uid, (counts.get(uid) || 0) + 1);
+    });
+    _onlineUidCounts = counts;
+    refreshConvoOnlineBadges();
+    refreshActiveOnlineBadge();
+  }, () => {});
+}
+
+function extractMentions(text = '') {
+  const out = new Set();
+  const re = /@([a-z0-9_.]{3,20})/gi;
+  let m;
+  while ((m = re.exec(text))) out.add((m[1] || '').toLowerCase());
+  return Array.from(out);
+}
+
+function renderTextWithMentions(text = '') {
+  const re = /@([a-z0-9_.]{3,20})/gi;
+  let last = 0;
+  let m;
+  const parts = [];
+  while ((m = re.exec(text))) {
+    const start = m.index;
+    const raw = m[0] || '';
+    const uname = (m[1] || '').toLowerCase();
+    parts.push(escapeHtml(text.slice(last, start)));
+    parts.push(`<a href="profile.html?user=${encodeURIComponent(uname)}" style="color:var(--accent);font-weight:900;text-decoration:none;">${escapeHtml(raw[0] === '@' ? `@${uname}` : raw)}</a>`);
+    last = start + raw.length;
+  }
+  parts.push(escapeHtml(text.slice(last)));
+  return parts.join('');
+}
+
+function isUidOnline(uid) {
+  return !!uid && (_onlineUidCounts.get(uid) || 0) > 0;
+}
+
+function countOnline(members = []) {
+  if (!Array.isArray(members)) return 0;
+  let c = 0;
+  for (const uid of members) if (isUidOnline(uid)) c++;
+  return c;
+}
+
+function refreshConvoOnlineBadges() {
+  document.querySelectorAll('.convo-item').forEach((el) => {
+    const type = el.dataset.type || '';
+    if (type === 'dm') {
+      const otherUid = el.dataset.otherUid || '';
+      const online = isUidOnline(otherUid);
+      const dot = el.querySelector('.convo-online-dot');
+      const pill = el.querySelector('.convo-online-pill');
+      if (dot) dot.style.opacity = online ? '1' : '0';
+      if (pill) pill.style.display = online ? 'inline-flex' : 'none';
+    } else if (type === 'group') {
+      let members = [];
+      try { members = JSON.parse(el.dataset.members || '[]'); } catch {}
+      const onlineCount = countOnline(members);
+      const pill = el.querySelector('.convo-group-online-pill');
+      if (pill) {
+        pill.textContent = `${onlineCount} online`;
+        pill.style.display = onlineCount > 0 ? 'inline-flex' : 'none';
+      }
+    }
+  });
+}
+
+function refreshActiveOnlineBadge() {
+  const el = document.getElementById('chat-online-pill');
+  if (!el || !_activeConvoId) return;
+  if (_activeIsGroup) {
+    const onlineCount = countOnline(_activeMembers);
+    el.textContent = onlineCount > 0 ? `${onlineCount} online` : '';
+    el.style.display = onlineCount > 0 ? 'inline-flex' : 'none';
+  } else {
+    const otherUid = (_activeMembers || []).find(uid => uid && uid !== _currentUser?.uid) || '';
+    const online = isUidOnline(otherUid);
+    el.textContent = online ? 'Online' : '';
+    el.style.display = online ? 'inline-flex' : 'none';
+  }
 }
 
 /* ── Tabs ── */
@@ -167,6 +292,7 @@ function loadConversations() {
 
   if (_unsubConvos) _unsubConvos();
   _unsubConvos = onSnapshot(q, async (snap) => {
+    const seq = ++_convoRenderSeq;
     list.innerHTML = '';
     const docs = snap.docs.filter(d => {
       const data = d.data();
@@ -178,6 +304,7 @@ function loadConversations() {
     }
     for (const d of docs) {
       const item = await buildConvoItem({ id: d.id, ...d.data() });
+      if (seq !== _convoRenderSeq) return; // stale async render
       list.appendChild(item);
     }
   });
@@ -196,6 +323,7 @@ function loadRequests() {
 
   if (_unsubConvos) _unsubConvos();
   _unsubConvos = onSnapshot(q, async (snap) => {
+    const seq = ++_convoRenderSeq;
     list.innerHTML = '';
 
     const badge = document.getElementById('requests-badge');
@@ -207,6 +335,7 @@ function loadRequests() {
     }
     for (const d of snap.docs) {
       const item = await buildRequestItem({ id: d.id, ...d.data() });
+      if (seq !== _convoRenderSeq) return; // stale async render
       list.appendChild(item);
     }
   });
@@ -215,6 +344,7 @@ function loadRequests() {
 async function buildConvoItem(convo) {
   const isGroup = convo.type === 'group';
   let name, avatarHTML;
+  const members = Array.isArray(convo.members) ? convo.members : [];
 
   if (isGroup) {
     name = convo.name || 'Group Chat';
@@ -223,21 +353,42 @@ async function buildConvoItem(convo) {
     const otherUid = convo.members.find(m => m !== _currentUser.uid);
     const other = await getProfile(otherUid);
     name = other?.displayName || other?.username || 'Unknown';
-    avatarHTML = other?.avatarURL
+    const online = isUidOnline(otherUid);
+    const avatarCore = other?.avatarURL
       ? `<img src="${other.avatarURL}" style="width:44px;height:44px;border-radius:50%;object-fit:cover;flex-shrink:0;">`
       : `<div style="width:44px;height:44px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:18px;flex-shrink:0;">${(name[0]||'?').toUpperCase()}</div>`;
+    avatarHTML = `
+      <div style="position:relative;flex-shrink:0;">
+        ${avatarCore}
+        <span class="convo-online-dot" style="position:absolute;right:2px;bottom:2px;width:10px;height:10px;border-radius:999px;background:#22c55e;border:2px solid var(--panel);opacity:${online ? 1 : 0};transition:opacity 0.15s;"></span>
+      </div>
+    `;
   }
 
   const unread = (convo.unread || {})[_currentUser.uid] || 0;
   const item = document.createElement('div');
   item.className = 'convo-item';
   item.dataset.id = convo.id;
+  item.dataset.type = isGroup ? 'group' : 'dm';
+  item.dataset.members = JSON.stringify(members);
   if (convo.id === _activeConvoId) item.classList.add('active');
+  if (!isGroup) item.dataset.otherUid = (members.find(m => m !== _currentUser.uid) || '');
+
+  const onlinePill = isGroup
+    ? (() => {
+      const onlineCount = countOnline(members);
+      return `<span class="convo-group-online-pill" style="display:${onlineCount > 0 ? 'inline-flex' : 'none'};align-items:center;gap:6px;background:rgba(34,197,94,0.12);color:#16a34a;border:1px solid rgba(34,197,94,0.18);padding:2px 8px;border-radius:999px;font-size:10px;font-weight:900;flex-shrink:0;">${onlineCount} online</span>`;
+    })()
+    : `<span class="convo-online-pill" style="display:${isUidOnline(item.dataset.otherUid) ? 'inline-flex' : 'none'};align-items:center;gap:6px;background:rgba(34,197,94,0.12);color:#16a34a;border:1px solid rgba(34,197,94,0.18);padding:2px 8px;border-radius:999px;font-size:10px;font-weight:900;flex-shrink:0;">Online</span>`;
+
   item.innerHTML = `
     ${avatarHTML}
     <div style="flex:1;min-width:0;">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-        <span style="font-size:14px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(name)}</span>
+        <span style="display:flex;align-items:center;gap:8px;min-width:0;">
+          <span style="font-size:14px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(name)}</span>
+          ${onlinePill}
+        </span>
         ${unread > 0 ? `<span style="background:var(--accent);color:white;font-size:10px;font-weight:700;padding:2px 6px;border-radius:20px;flex-shrink:0;">${unread}</span>` : ''}
       </div>
       <div style="font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;">${escapeHtml(convo.lastMessage || '')}</div>
@@ -331,6 +482,7 @@ function loadConversationMessages(convoId, name, isGroup) {
     <div class="chat-header-bar">
       <button id="back-btn" class="back-btn">←</button>
       <div style="font-size:15px;font-weight:700;color:var(--text);flex:1;">${escapeHtml(name)}</div>
+      <div id="chat-online-pill" style="display:none;align-items:center;gap:6px;background:rgba(34,197,94,0.12);color:#16a34a;border:1px solid rgba(34,197,94,0.18);padding:4px 10px;border-radius:999px;font-size:11px;font-weight:900;flex-shrink:0;">Online</div>
       <div id="chat-presence-corner" style="display:flex;align-items:center;justify-content:flex-end;gap:8px;min-width:120px;"></div>
     </div>
     <div id="messages-list" class="messages-list"><div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;"><div style="display:flex;justify-content:center;padding:20px;"><img src="assets/loading.gif" style="width:80px;height:auto;" alt="Loading..."></div></div></div>
@@ -350,6 +502,8 @@ function loadConversationMessages(convoId, name, isGroup) {
     _pickerOpen = false;
     setChatState(null).catch(() => {});
     _activeConvoId = null;
+    _activeMembers = [];
+    _activeIsGroup = false;
     panel.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:14px;flex-direction:column;gap:12px;"><span style="font-size:40px;">💬</span><span>Select a conversation</span></div>';
     document.querySelectorAll('.convo-item').forEach(el => el.classList.remove('active'));
   });
@@ -380,6 +534,9 @@ function loadConversationMessages(convoId, name, isGroup) {
     try {
       const convoSnap = await getDoc(doc(db, 'conversations', convoId));
       const members = convoSnap.exists() ? (convoSnap.data().members || []) : [];
+      _activeMembers = Array.isArray(members) ? members : [];
+      _activeIsGroup = !!isGroup;
+      refreshActiveOnlineBadge();
       bindTypingIndicators(convoId, members);
     } catch {
       bindTypingIndicators(convoId, []);
@@ -417,16 +574,33 @@ function typingRowHTML(profile, fallbackLetter) {
   `;
 }
 
-function setTypingUI(typingUsers = []) {
+function thinkingRowHTML(profile, fallbackLetter) {
+  const src = profile?.avatarURL || '';
+  const avatar = src
+    ? `<img src="${src}" style="width:28px;height:28px;border-radius:8px;object-fit:cover;flex-shrink:0;">`
+    : `<div style="width:28px;height:28px;border-radius:8px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-size:12px;font-weight:700;flex-shrink:0;">${(fallbackLetter || '?')[0].toUpperCase()}</div>`;
+  return `
+    <div class="flux-typing-row">
+      ${avatar}
+      <div class="flux-typing-bubble" aria-label="Thinking" style="gap:8px;">
+        <span style="font-size:14px;">🧠</span>
+        <span style="font-size:12px;font-weight:800;color:var(--muted);">Thinking…</span>
+      </div>
+    </div>
+  `;
+}
+
+function setTypingUI(typingUsers = [], thinkingUsers = []) {
   const strip = document.getElementById('typing-strip');
   if (!strip) return;
-  if (!typingUsers.length) {
+  if (!typingUsers.length && !thinkingUsers.length) {
     strip.style.display = 'none';
     strip.innerHTML = '';
     return;
   }
   strip.style.display = 'block';
-  strip.innerHTML = typingUsers.map(u => typingRowHTML(u.profile, u.fallbackLetter)).join('');
+  if (typingUsers.length) strip.innerHTML = typingUsers.map(u => typingRowHTML(u.profile, u.fallbackLetter)).join('');
+  else strip.innerHTML = thinkingUsers.map(u => thinkingRowHTML(u.profile, u.fallbackLetter)).join('');
 }
 
 function setCornerUI({ typingCount = 0, stickerCount = 0, thinkingCount = 0, watchingCount = 0, users = [] } = {}) {
@@ -489,7 +663,6 @@ function bindTypingIndicators(convoId, members = []) {
         profile: profiles.get(uid) || null,
         fallbackLetter: (profiles.get(uid)?.displayName || profiles.get(uid)?.username || uid)[0] || '?'
       }));
-    setTypingUI(typingUids);
 
     const active = Array.from(latestState.entries())
       .filter(([, v]) => v?.ms && (now - v.ms) < PRESENCE_TTL_MS)
@@ -500,6 +673,17 @@ function bindTypingIndicators(convoId, members = []) {
         profile: profiles.get(uid) || null,
         fallbackLetter: (profiles.get(uid)?.displayName || profiles.get(uid)?.username || uid)[0] || '?'
       }));
+
+    const thinkingUids = active
+      .filter(a => a.state === 'thinking' && !typingUids.some(t => t.uid === a.uid))
+      .sort((a, b) => b.ms - a.ms)
+      .slice(0, 3)
+      .map(a => ({
+        uid: a.uid,
+        profile: a.profile || null,
+        fallbackLetter: a.fallbackLetter || '?'
+      }));
+    setTypingUI(typingUids, thinkingUids);
 
     if (!active.length) { setCornerUI({ users: [] }); return; }
     const typingCount = active.filter(a => a.state === 'typing').length;
@@ -566,7 +750,7 @@ function bindTypingIndicators(convoId, members = []) {
   _unsubTyping = () => {
     try { unsubs.forEach(fn => fn()); } catch {}
     try { clearInterval(pruneTimer); } catch {}
-    setTypingUI([]);
+    setTypingUI([], []);
     setCornerUI({ users: [] });
   };
 }
@@ -653,7 +837,7 @@ function renderMessage(msg) {
 
   const content = isGif
     ? `<img src="${msg.text}" alt="${msg.stickerName || 'sticker'}" style="max-width:160px;max-height:160px;border-radius:12px;display:block;object-fit:contain;" loading="lazy">`
-    : `${escapeHtml(msg.text)}`;
+    : `${renderTextWithMentions(msg.text || '')}`;
 
   div.innerHTML = `
     ${avatarHTML}
@@ -696,6 +880,7 @@ async function sendMessage() {
   const text = input?.value.trim();
   if (!text || !_activeConvoId || !_currentProfile) return;
   setTyping(false).catch(() => {});
+  const mentionUsernames = extractMentions(text);
 
   try {
     const lockSnap = await getDoc(doc(db, 'stats', 'chatlock'));
@@ -725,6 +910,7 @@ async function sendMessage() {
       senderAvatar: _currentProfile.avatarURL || '',
       text,
       type: 'text',
+      mentions: mentionUsernames,
       sentAt: serverTimestamp(),
     });
     const convoRef = doc(db, 'conversations', _activeConvoId);
@@ -734,6 +920,25 @@ async function sendMessage() {
       const unreadUpdate = {};
       members.forEach(uid => { if (uid !== _currentUser.uid) unreadUpdate[`unread.${uid}`] = (convoSnap.data().unread?.[uid] || 0) + 1; });
       await updateDoc(convoRef, { lastMessage: text.slice(0, 60), lastMessageAt: serverTimestamp(), ...unreadUpdate });
+
+      // Mention pings (@username)
+      if (mentionUsernames.length) {
+        for (const uname of mentionUsernames) {
+          try {
+            const p = await getProfileByUsername(uname);
+            const targetUid = p?.uid || '';
+            if (!targetUid) continue;
+            if (targetUid === _currentUser.uid) continue;
+            if (!Array.isArray(members) || !members.includes(targetUid)) continue;
+            await sendNotification(targetUid, {
+              type: 'message',
+              title: `💬 @${_currentProfile.username} mentioned you`,
+              body: text.length > 90 ? (text.slice(0, 87) + '…') : text,
+              link: `messages.html?convo=${encodeURIComponent(_activeConvoId)}`
+            });
+          } catch {}
+        }
+      }
     }
   } catch (e) { console.warn('Send failed:', e); }
 

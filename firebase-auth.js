@@ -1049,10 +1049,12 @@ export function initNotifications() {
   document.getElementById('notif-panel-close').addEventListener('click', closePanel);
 
   // Wire the dropdown button (added in initAuthUI HTML)
-  // We use event delegation since the button is added dynamically
-  document.addEventListener('click', (e) => {
-    const btn = e.target.closest('#notif-dropdown-btn');
-    if (btn) { e.stopPropagation(); openPanel(); }
+  // Do not rely on document-level delegation because clicks inside the dropdown
+  // can be stopped by parent handlers.
+  const ddBtn = document.getElementById('notif-dropdown-btn');
+  ddBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openPanel();
   });
 
   document.getElementById('notif-mark-all').addEventListener('click', async (e) => {
@@ -1762,8 +1764,10 @@ export async function initAuthUI(onUserChange) {
   });
 
   userDisplay.addEventListener('click', async (e) => {
-    e.stopPropagation();
     const dd = document.getElementById('profile-dropdown');
+    // If the click is inside the dropdown, let the dropdown handle it.
+    if (e.target && e.target.closest && e.target.closest('#profile-dropdown')) return;
+    e.stopPropagation();
     const isOpening = dd.style.display === 'none';
     dd.style.display = isOpening ? 'block' : 'none';
     if (isOpening) {
@@ -1792,6 +1796,8 @@ export async function initAuthUI(onUserChange) {
       } catch {}
     }
   });
+  // Keep dropdown clicks from bubbling to the document-level "close dropdown" handler.
+  document.getElementById('profile-dropdown')?.addEventListener('click', (e) => e.stopPropagation());
   document.addEventListener('click', () => {
     const dd = document.getElementById('profile-dropdown');
     if (dd) dd.style.display = 'none';
