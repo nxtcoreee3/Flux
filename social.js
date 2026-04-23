@@ -35,6 +35,14 @@ const GLOBAL_CONVO_ID = 'global';
 const PRESENCE_TTL_MS = 12000;
 const TYPING_TTL_MS = 4500;
 const TYPING_THROTTLE_MS = 1800;
+const SPAM_WINDOW_MS = 8000;
+const SPAM_MAX_MSGS = 7;
+
+let _myModeration = null;
+let _unsubMyModeration = null;
+let _sendBurst = [];
+let _suspiciousUids = new Set();
+let _unsubUserModeration = new Map(); // uid -> unsub
 
 /* ── Year footer ── */
 document.addEventListener('DOMContentLoaded', () => {
@@ -255,13 +263,125 @@ async function initChat() {
     }
 
     startChatListener(user);
+    startMyModerationListener();
   });
 
   document.getElementById('chat-send')?.addEventListener('click', sendMessage);
 
   document.getElementById('chat-input')?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+function startMyModerationListener() {
+  if (_unsubMyModeration) { try { _unsubMyModeration(); } catch {} _unsubMyModeration = null; }
+  const user = auth.currentUser;
+  if (!user || user.isAnonymous) return;
+  _unsubMyModeration = onSnapshot(doc(db, 'moderation', user.uid), (snap) => {
+    _myModeration = snap.exists() ? (snap.data() || {}) : null;
+    applyMyModerationToUI();
+  }, () => {
+    _myModeration = null;
+    applyMyModerationToUI();
   });
+}
+
+function getMuteRemainingMs() {
+  const until = _myModeration?.mutedUntil;
+  if (!until) return 0;
+  const ms = new Date(until).getTime() - Date.now();
+  return ms > 0 ? ms : 0;
+}
+
+function canSendType(type) {
+  if (_myModeration?.speakBanned) return { ok: false, reason: '🚫 You are banned from speaking.' };
+  const muteMs = getMuteRemainingMs();
+  if (muteMs > 0) return { ok: false, reason: `🔇 You are muted for ${Math.ceil(muteMs / 60000)} min.` };
+  if (type === 'text' && _myModeration && _myModeration.allowText === false) return { ok: false, reason: '✍️ Text messages are disabled for you.' };
+  if (type === 'gif' && _myModeration && _myModeration.allowStickers === false) return { ok: false, reason: '🎬 Stickers are disabled for you.' };
+  return { ok: true };
+}
+
+function applyMyModerationToUI() {
+  const input = document.getElementById('chat-input');
+  const send = document.getElementById('chat-send');
+  const gifBtn = document.getElementById('global-gif-btn');
+  if (!input || !send) return;
+  const muteMs = getMuteRemainingMs();
+  const speakBanned = !!_myModeration?.speakBanned;
+  const allowText = _myModeration?.allowText !== false;
+  const allowStickers = _myModeration?.allowStickers !== false;
+
+  if (speakBanned) {
+    input.disabled = true;
+    send.disabled = true;
+    input.placeholder = '🚫 You are banned from speaking';
+  } else if (muteMs > 0) {
+    input.disabled = true;
+    send.disabled = true;
+    input.placeholder = `🔇 Muted (${Math.ceil(muteMs / 60000)} min left)`;
+  } else {
+    input.disabled = !allowText;
+    send.disabled = !allowText;
+    input.placeholder = allowText ? 'Say something...' : '✍️ Text disabled (stickers only)';
+  }
+
+  if (gifBtn) {
+    gifBtn.disabled = !allowStickers;
+    gifBtn.style.opacity = allowStickers ? '1' : '0.4';
+    gifBtn.style.pointerEvents = allowStickers ? '' : 'none';
+  }
+}
+
+async function autoMuteForSpam() {
+  const user = auth.currentUser;
+  if (!user || user.isAnonymous) return;
+  const until = new Date(Date.now() + 10 * 60000).toISOString();
+  _myModeration = { ...(_myModeration || {}), mutedUntil: until, muteReason: 'spam' };
+  applyMyModerationToUI();
+  try {
+    await setDoc(doc(db, 'moderation', user.uid), {
+      mutedUntil: until,
+      muteReason: 'spam',
+      updatedAt: new Date().toISOString(),
+      updatedBy: user.uid
+    }, { merge: true });
+  } catch {}
+}
+
+function checkSpamAndRecord() {
+  const now = Date.now();
+  _sendBurst = _sendBurst.filter(t => now - t < SPAM_WINDOW_MS);
+  _sendBurst.push(now);
+  return _sendBurst.length >= SPAM_MAX_MSGS;
+}
+
+function isViewerModerator(user, profile) {
+  if (!user || user.isAnonymous) return false;
+  if (user.uid === OWNER_UID) return true;
+  const badges = profile?.badges || [];
+  const roles = profile?.roles || [];
+  if (badges.includes('admin')) return true;
+  if ((roles || []).some(r => r?.id === 'moderator')) return true;
+  return false;
+}
+
+function ensureModerationWatch(uid) {
+  if (!uid) return;
+  if (_unsubUserModeration.has(uid)) return;
+  const unsub = onSnapshot(doc(db, 'moderation', uid), (snap) => {
+    const data = snap.exists() ? (snap.data() || {}) : {};
+    if (data.suspicious) _suspiciousUids.add(uid);
+    else _suspiciousUids.delete(uid);
+  }, () => {});
+  _unsubUserModeration.set(uid, unsub);
+  // best-effort cap to avoid leaks
+  if (_unsubUserModeration.size > 120) {
+    const firstKey = _unsubUserModeration.keys().next().value;
+    try { _unsubUserModeration.get(firstKey)?.(); } catch {}
+    _unsubUserModeration.delete(firstKey);
+    _suspiciousUids.delete(firstKey);
+  }
+}
 
   document.getElementById('global-gif-btn')?.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -328,6 +448,8 @@ function startChatListener(currentUser) {
 function renderMessageSync(msg, currentUser) {
   const isAdmin = currentUser?.uid === OWNER_UID;
   const isOwn = currentUser?.uid === msg.uid;
+  ensureModerationWatch(msg.uid);
+  const shouldHide = !isOwn && !isAdmin && !isViewerModerator(currentUser, _currentProfile) && _suspiciousUids.has(msg.uid);
   const time = msg.sentAt?.toDate
     ? msg.sentAt.toDate().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
     : '';
@@ -345,9 +467,12 @@ function renderMessageSync(msg, currentUser) {
   div.style.cssText = `display:flex;align-items:flex-end;margin-bottom:12px;flex-direction:${isOwn?'row-reverse':'row'}`;
   
   const isGif = msg.type === 'gif';
-  const msgContent = isGif
+  const rawContent = isGif
     ? `<img src="${msg.text}" alt="GIF" style="max-width:180px;border-radius:10px;display:block;">`
     : `<div class="chat-msg-text" style="font-size:13px;line-height:1.4;word-break:break-word;">${escapeHtml(msg.text)}</div>`;
+  const msgContent = shouldHide
+    ? `<span class="flux-suspicious" style="filter:blur(6px);transition:filter 0.18s;cursor:pointer;user-select:none;">${rawContent}</span>`
+    : rawContent;
 
   const bubbleStyle = isGif
     ? 'padding:0;background:transparent;border:none;border-radius:18px;position:relative;'
@@ -376,6 +501,20 @@ function renderMessageSync(msg, currentUser) {
 
   div.addEventListener('mouseenter', () => div.querySelector('.msg-actions').style.display = 'flex');
   div.addEventListener('mouseleave', () => div.querySelector('.msg-actions').style.display = 'none');
+
+  if (shouldHide) {
+    const el = div.querySelector('.flux-suspicious');
+    if (el) {
+      const reveal = () => { el.style.filter = 'none'; };
+      const hide = () => { el.style.filter = 'blur(6px)'; };
+      div.addEventListener('mouseenter', reveal);
+      div.addEventListener('mouseleave', hide);
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        el.style.filter = el.style.filter === 'none' ? 'blur(6px)' : 'none';
+      });
+    }
+  }
 
   div.querySelector('.msg-report')?.addEventListener('click', async () => {
     const reason = prompt('Why are you reporting this user?');
@@ -409,6 +548,29 @@ async function sendMessage() {
   const input = document.getElementById('chat-input');
   const text = input.value.trim();
   if (!text || !_currentProfile) return;
+
+  const gate = canSendType('text');
+  if (!gate.ok) {
+    input.value = '';
+    const container = document.getElementById('chat-messages');
+    const notice = document.createElement('div');
+    notice.style.cssText = 'text-align:center;padding:8px;color:#ef4444;font-size:12px;font-weight:700;';
+    notice.textContent = gate.reason;
+    container.appendChild(notice);
+    setTimeout(() => notice.remove(), 3500);
+    applyMyModerationToUI();
+    return;
+  }
+  if (checkSpamAndRecord()) {
+    await autoMuteForSpam();
+    const container = document.getElementById('chat-messages');
+    const notice = document.createElement('div');
+    notice.style.cssText = 'text-align:center;padding:8px;color:#ef4444;font-size:12px;font-weight:800;';
+    notice.textContent = '🚨 Spam detected — muted for 10 minutes.';
+    container.appendChild(notice);
+    setTimeout(() => notice.remove(), 4500);
+    return;
+  }
 
   try {
     const lockSnap = await getDoc(doc(db, 'stats', 'chatlock'));
@@ -458,6 +620,27 @@ async function deleteMessage(msgId) {
 
 async function sendGifToChat(url, name) {
   if (!_currentProfile) return;
+  const gate = canSendType('gif');
+  if (!gate.ok) {
+    const container = document.getElementById('chat-messages');
+    const notice = document.createElement('div');
+    notice.style.cssText = 'text-align:center;padding:8px;color:#ef4444;font-size:12px;font-weight:700;';
+    notice.textContent = gate.reason;
+    container.appendChild(notice);
+    setTimeout(() => notice.remove(), 3500);
+    applyMyModerationToUI();
+    return;
+  }
+  if (checkSpamAndRecord()) {
+    await autoMuteForSpam();
+    const container = document.getElementById('chat-messages');
+    const notice = document.createElement('div');
+    notice.style.cssText = 'text-align:center;padding:8px;color:#ef4444;font-size:12px;font-weight:800;';
+    notice.textContent = '🚨 Spam detected — muted for 10 minutes.';
+    container.appendChild(notice);
+    setTimeout(() => notice.remove(), 4500);
+    return;
+  }
   try {
     const freshProfile = await getProfile(auth.currentUser.uid) || _currentProfile;
     if (freshProfile.isBanned) return;

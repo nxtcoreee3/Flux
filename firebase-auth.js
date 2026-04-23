@@ -1222,6 +1222,16 @@ export async function unbanUser(targetUid) {
   await updateDoc(doc(db, 'profiles', targetUid), { isBanned: false, banReason: '', bannedAt: null });
 }
 
+function _isModeratorUser(user, profile) {
+  if (!user || user.isAnonymous) return false;
+  if (user.uid === OWNER_UID) return true;
+  const badges = profile?.badges || [];
+  const roles = profile?.roles || [];
+  if (badges.includes('admin')) return true;
+  if (roles.find(r => r?.id === 'moderator')) return true;
+  return false;
+}
+
 /* ===================== ROLE SYSTEM ===================== */
 export const PREDEFINED_ROLES = [
   { id: 'moderator', label: 'Moderator', emoji: '🛡️', color: '#8b5cf6' },
@@ -1857,6 +1867,55 @@ export async function initAuthUI(onUserChange) {
 
       <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
 
+      <!-- ── MEMBER MODERATION ── -->
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🛡️ Member Moderation</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px;">
+        <input id="mod-user-username" type="text" placeholder="Username (without @)..." maxlength="20"
+          style="padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;outline:none;box-sizing:border-box;">
+        <div id="mod-user-current" style="display:none;font-size:12px;color:#6b7280;padding:8px 12px;background:#f9fafb;border-radius:10px;border:1px solid rgba(0,0,0,0.07);"></div>
+
+        <div style="display:flex;gap:8px;align-items:flex-end;">
+          <div style="flex:1;">
+            <label style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:3px;">Mute minutes</label>
+            <input id="mod-user-mute-min" type="number" placeholder="10" min="1" max="10080"
+              style="width:100%;padding:8px 10px;border:1px solid rgba(0,0,0,0.1);border-radius:8px;font-size:13px;outline:none;box-sizing:border-box;">
+          </div>
+          <button id="mod-user-mute-btn" style="padding:9px 12px;background:#f59e0b;color:white;border:none;border-radius:10px;font-weight:800;cursor:pointer;font-size:12px;flex-shrink:0;">🔇 Mute</button>
+          <button id="mod-user-unmute-btn" style="padding:9px 12px;background:#6b7280;color:white;border:none;border-radius:10px;font-weight:800;cursor:pointer;font-size:12px;flex-shrink:0;">🔊 Unmute</button>
+        </div>
+
+        <div style="display:flex;gap:8px;">
+          <button id="mod-user-ban-speak-btn" style="flex:1;padding:9px 12px;background:#ef4444;color:white;border:none;border-radius:10px;font-weight:800;cursor:pointer;font-size:12px;">🚫 Ban Speaking</button>
+          <button id="mod-user-unban-speak-btn" style="flex:1;padding:9px 12px;background:#22c55e;color:white;border:none;border-radius:10px;font-weight:800;cursor:pointer;font-size:12px;">✅ Allow Speaking</button>
+        </div>
+
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div style="flex:1;">
+            <label style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:3px;">Messaging mode</label>
+            <select id="mod-user-mode" style="width:100%;padding:8px 10px;border:1px solid rgba(0,0,0,0.1);border-radius:8px;font-size:13px;color:#111827;background:#fff;outline:none;cursor:pointer;">
+              <option value="all">All (text + stickers)</option>
+              <option value="text">Text only</option>
+              <option value="stickers">Stickers only</option>
+            </select>
+          </div>
+          <button id="mod-user-apply-mode" style="padding:9px 12px;background:#3a7dff;color:white;border:none;border-radius:10px;font-weight:800;cursor:pointer;font-size:12px;flex-shrink:0;">Apply</button>
+        </div>
+
+        <div style="display:flex;gap:10px;align-items:center;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#111827;font-weight:700;">
+            <input id="mod-user-suspicious" type="checkbox">
+            Flag suspicious (hide messages)
+          </label>
+          <button id="mod-user-apply-suspicious" style="margin-left:auto;padding:7px 12px;background:#111827;color:white;border:none;border-radius:10px;font-weight:800;cursor:pointer;font-size:12px;">Apply</button>
+        </div>
+
+        <input id="mod-user-reason" type="text" placeholder="Reason (optional)..." maxlength="60"
+          style="padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;outline:none;box-sizing:border-box;">
+        <div id="mod-user-status" style="display:none;font-size:12px;text-align:center;font-weight:800;"></div>
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
+
       <!-- ── INCIDENT BANNER ── -->
       <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">📢 Incident Banner</div>
       <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px;">
@@ -2117,6 +2176,131 @@ export async function initAuthUI(onUserChange) {
   modModal.addEventListener('click', (e) => { if (e.target === modModal) modModal.style.display = 'none'; });
 
   let _autoRestoreTimer = null;
+  let _modTargetUser = null; // { uid, profile }
+
+  const modStatus = (ok, text) => {
+    const el = document.getElementById('mod-user-status');
+    if (!el) return;
+    el.style.display = 'block';
+    el.style.color = ok ? '#22c55e' : '#ef4444';
+    el.textContent = text;
+    setTimeout(() => { try { el.style.display = 'none'; } catch {} }, 3500);
+  };
+
+  const buildModDefaults = () => ({
+    speakBanned: false,
+    allowText: true,
+    allowStickers: true,
+    suspicious: false,
+    mutedUntil: null,
+  });
+
+  const readModeration = async (uid) => {
+    try {
+      const snap = await getDoc(doc(db, 'moderation', uid));
+      const data = snap.exists() ? (snap.data() || {}) : {};
+      return { ...buildModDefaults(), ...data };
+    } catch {
+      return buildModDefaults();
+    }
+  };
+
+  const writeModeration = async (uid, updates = {}) => {
+    try {
+      await setDoc(doc(db, 'moderation', uid), {
+        ...updates,
+        updatedAt: new Date().toISOString(),
+        updatedBy: auth.currentUser?.uid || null
+      }, { merge: true });
+      return true;
+    } catch (e) {
+      console.warn('Moderation write failed:', e);
+      return false;
+    }
+  };
+
+  const _modEsc = (str = '') => String(str)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+
+  const syncModerationUI = async () => {
+    const box = document.getElementById('mod-user-current');
+    const uname = (document.getElementById('mod-user-username')?.value || '').trim().toLowerCase();
+    if (!uname) { _modTargetUser = null; if (box) box.style.display = 'none'; return; }
+    const prof = await getProfileByUsername(uname);
+    if (!prof) { _modTargetUser = null; if (box) { box.style.display = 'block'; box.textContent = `No profile for @${uname}`; } return; }
+    _modTargetUser = { uid: prof.uid, profile: prof };
+    if (box) {
+      box.style.display = 'block';
+      box.innerHTML = `<div style="font-weight:900;color:#111827;">@${_modEsc(prof.username)}</div><div style="font-size:11px;margin-top:2px;">${_modEsc(prof.displayName || prof.username)}</div>`;
+    }
+    const mod = await readModeration(prof.uid);
+    const muteBox = document.getElementById('mod-user-mute-min');
+    const mode = document.getElementById('mod-user-mode');
+    const suspicious = document.getElementById('mod-user-suspicious');
+    if (muteBox) muteBox.value = '';
+    if (mode) {
+      if (!mod.allowText && mod.allowStickers) mode.value = 'stickers';
+      else if (mod.allowText && !mod.allowStickers) mode.value = 'text';
+      else mode.value = 'all';
+    }
+    if (suspicious) suspicious.checked = !!mod.suspicious;
+  };
+
+  // Member moderation events
+  document.getElementById('mod-user-username')?.addEventListener('input', () => {
+    // debounce-ish
+    clearTimeout(window._fluxModUserTimer);
+    window._fluxModUserTimer = setTimeout(syncModerationUI, 350);
+  });
+  document.getElementById('mod-user-mute-btn')?.addEventListener('click', async () => {
+    const minutes = parseInt(document.getElementById('mod-user-mute-min')?.value || '0', 10) || 0;
+    if (!_modTargetUser) { modStatus(false, 'Pick a user first.'); return; }
+    if (minutes <= 0) { modStatus(false, 'Enter mute minutes.'); return; }
+    const reason = (document.getElementById('mod-user-reason')?.value || '').trim();
+    const until = new Date(Date.now() + minutes * 60000).toISOString();
+    const ok = await writeModeration(_modTargetUser.uid, { mutedUntil: until, muteReason: reason || 'muted' });
+    modStatus(ok, ok ? `Muted @${_modTargetUser.profile.username} for ${minutes}m` : 'Mute failed');
+    syncModerationUI();
+  });
+  document.getElementById('mod-user-unmute-btn')?.addEventListener('click', async () => {
+    if (!_modTargetUser) { modStatus(false, 'Pick a user first.'); return; }
+    const ok = await writeModeration(_modTargetUser.uid, { mutedUntil: null, muteReason: '' });
+    modStatus(ok, ok ? `Unmuted @${_modTargetUser.profile.username}` : 'Unmute failed');
+    syncModerationUI();
+  });
+  document.getElementById('mod-user-ban-speak-btn')?.addEventListener('click', async () => {
+    if (!_modTargetUser) { modStatus(false, 'Pick a user first.'); return; }
+    const reason = (document.getElementById('mod-user-reason')?.value || '').trim();
+    const ok = await writeModeration(_modTargetUser.uid, { speakBanned: true, speakBanReason: reason || 'banned' });
+    modStatus(ok, ok ? `Speaking banned for @${_modTargetUser.profile.username}` : 'Failed');
+    syncModerationUI();
+  });
+  document.getElementById('mod-user-unban-speak-btn')?.addEventListener('click', async () => {
+    if (!_modTargetUser) { modStatus(false, 'Pick a user first.'); return; }
+    const ok = await writeModeration(_modTargetUser.uid, { speakBanned: false, speakBanReason: '' });
+    modStatus(ok, ok ? `Speaking allowed for @${_modTargetUser.profile.username}` : 'Failed');
+    syncModerationUI();
+  });
+  document.getElementById('mod-user-apply-mode')?.addEventListener('click', async () => {
+    if (!_modTargetUser) { modStatus(false, 'Pick a user first.'); return; }
+    const v = document.getElementById('mod-user-mode')?.value || 'all';
+    const allowText = v === 'all' || v === 'text';
+    const allowStickers = v === 'all' || v === 'stickers';
+    const ok = await writeModeration(_modTargetUser.uid, { allowText, allowStickers });
+    modStatus(ok, ok ? `Mode updated for @${_modTargetUser.profile.username}` : 'Failed');
+    syncModerationUI();
+  });
+  document.getElementById('mod-user-apply-suspicious')?.addEventListener('click', async () => {
+    if (!_modTargetUser) { modStatus(false, 'Pick a user first.'); return; }
+    const checked = !!document.getElementById('mod-user-suspicious')?.checked;
+    const reason = (document.getElementById('mod-user-reason')?.value || '').trim();
+    const ok = await writeModeration(_modTargetUser.uid, { suspicious: checked, suspiciousReason: checked ? (reason || 'flagged') : '' });
+    modStatus(ok, ok ? `Suspicious ${checked ? 'enabled' : 'cleared'} for @${_modTargetUser.profile.username}` : 'Failed');
+    syncModerationUI();
+  });
 
   async function setServerStatus(status, message) {
     const msg = document.getElementById('mod-msg');
@@ -2317,6 +2501,7 @@ export async function initAuthUI(onUserChange) {
     e.stopPropagation();
     document.getElementById('profile-dropdown').style.display = 'none';
     modModal.style.display = 'flex';
+    try { syncModerationUI(); } catch {}
     const snap = await getDoc(doc(db, 'stats', 'server'));
     const statusEl = document.getElementById('mod-current-status');
     if (snap.exists()) {
@@ -2841,12 +3026,14 @@ export async function initAuthUI(onUserChange) {
       const profilePlaceholder = document.getElementById('profile-avatar-placeholder');
       const modBtn = document.getElementById('mod-panel-btn');
 
-      // Show mod panel button only for admin
-      if (modBtn) modBtn.style.display = user.uid === ADMIN_UID ? 'flex' : 'none';
+      // Hide mod button until we know role
+      if (modBtn) modBtn.style.display = 'none';
 
       if (!user.isAnonymous) {
         // Check for profile and trigger setup if missing
         const profile = await getProfile(user.uid);
+        // Show mod panel button for moderators/admins/owner
+        if (modBtn) modBtn.style.display = _isModeratorUser(user, profile) ? 'flex' : 'none';
 
         // ── BAN CHECK ── show overlay and block everything if banned
         if (profile && profile.isBanned) {
