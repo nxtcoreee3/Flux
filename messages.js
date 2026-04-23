@@ -363,7 +363,7 @@ function renderTextWithMentions(text = '') {
     last = start + raw.length;
   }
   parts.push(escapeHtml(text.slice(last)));
-  return parts.join('');
+  return parts.join('').replace(/\n/g, '<br>');
 }
 
 function messageMentionsMe(msg) {
