@@ -58,13 +58,6 @@ let _mentionMenuIndex = 0;
 let _mentionMenuItems = [];
 let _mentionAnimatedMsgIds = new Set();
 let _mentionGlobalListenersSet = false;
-let _myModeration = null;
-let _unsubMyModeration = null;
-let _sendBurst = []; // timestamps for spam detection
-const SPAM_WINDOW_MS = 8000;
-const SPAM_MAX_MSGS = 7;
-let _suspiciousUids = new Set();
-let _unsubMemberModeration = [];
 
 /* ── Init ── */
 document.addEventListener('DOMContentLoaded', () => {
@@ -86,7 +79,6 @@ document.addEventListener('DOMContentLoaded', () => {
     _currentProfile = await getProfile(user.uid);
     if (!_currentProfile) { showSignInPrompt(); return; }
     initMessagesUI();
-    startMyModerationListener();
 
     // Enforce DM lock
     initChatLock('dm',
@@ -146,89 +138,6 @@ document.addEventListener('DOMContentLoaded', () => {
     setChatState(null).catch(() => {});
   });
 });
-
-function startMyModerationListener() {
-  if (_unsubMyModeration) { try { _unsubMyModeration(); } catch {} _unsubMyModeration = null; }
-  if (!_currentUser) return;
-  _unsubMyModeration = onSnapshot(doc(db, 'moderation', _currentUser.uid), (snap) => {
-    _myModeration = snap.exists() ? (snap.data() || {}) : null;
-    applyMyModerationToUI();
-  }, () => {
-    _myModeration = null;
-    applyMyModerationToUI();
-  });
-}
-
-function getMuteRemainingMs() {
-  const until = _myModeration?.mutedUntil;
-  if (!until) return 0;
-  const ms = new Date(until).getTime() - Date.now();
-  return ms > 0 ? ms : 0;
-}
-
-function canSendType(type) {
-  if (!_currentUser || !_currentProfile) return { ok: false, reason: 'Sign in required.' };
-  if (_myModeration?.speakBanned) return { ok: false, reason: '🚫 You are banned from speaking.' };
-  const muteMs = getMuteRemainingMs();
-  if (muteMs > 0) return { ok: false, reason: `🔇 You are muted for ${Math.ceil(muteMs / 60000)} min.` };
-  if (type === 'text' && _myModeration && _myModeration.allowText === false) return { ok: false, reason: '✍️ Text messages are disabled for you.' };
-  if (type === 'gif' && _myModeration && _myModeration.allowStickers === false) return { ok: false, reason: '🎬 Stickers are disabled for you.' };
-  return { ok: true };
-}
-
-function applyMyModerationToUI() {
-  const input = document.getElementById('msg-input');
-  const send = document.getElementById('msg-send');
-  const gif = document.getElementById('gif-btn');
-  if (!input || !send) return;
-
-  const muteMs = getMuteRemainingMs();
-  const speakBanned = !!_myModeration?.speakBanned;
-  const allowText = _myModeration?.allowText !== false;
-  const allowStickers = _myModeration?.allowStickers !== false;
-
-  if (speakBanned) {
-    input.disabled = true;
-    send.disabled = true;
-    input.placeholder = '🚫 You are banned from speaking';
-  } else if (muteMs > 0) {
-    input.disabled = true;
-    send.disabled = true;
-    input.placeholder = `🔇 Muted (${Math.ceil(muteMs / 60000)} min left)`;
-  } else {
-    input.disabled = !allowText;
-    send.disabled = !allowText;
-    input.placeholder = allowText ? 'Message...' : '✍️ Text disabled (stickers only)';
-  }
-
-  if (gif) {
-    gif.disabled = !allowStickers;
-    gif.style.opacity = allowStickers ? '1' : '0.4';
-    gif.style.pointerEvents = allowStickers ? '' : 'none';
-  }
-}
-
-async function autoMuteForSpam() {
-  const until = new Date(Date.now() + 10 * 60000).toISOString();
-  _myModeration = { ...(_myModeration || {}), mutedUntil: until, muteReason: 'spam' };
-  applyMyModerationToUI();
-  try {
-    await setDoc(doc(db, 'moderation', _currentUser.uid), {
-      mutedUntil: until,
-      muteReason: 'spam',
-      updatedAt: new Date().toISOString(),
-      updatedBy: _currentUser.uid
-    }, { merge: true });
-  } catch {}
-}
-
-function checkSpamAndRecord() {
-  const now = Date.now();
-  _sendBurst = _sendBurst.filter(t => now - t < SPAM_WINDOW_MS);
-  _sendBurst.push(now);
-  if (_sendBurst.length >= SPAM_MAX_MSGS) return true;
-  return false;
-}
 
 function switchTab(tab) {
   _activeTab = tab;
@@ -390,31 +299,6 @@ async function primeMemberProfiles(members = []) {
     }
   }
   _activeMemberProfiles = m;
-}
-
-function isViewerModerator() {
-  if (!_currentUser || _currentUser.isAnonymous) return false;
-  const badges = _currentProfile?.badges || [];
-  const roles = _currentProfile?.roles || [];
-  if (_currentUser.uid === 'zEy6TO5ligf2um4rssIZs9C9X7f2') return true;
-  if (badges.includes('admin')) return true;
-  if ((roles || []).some(r => r?.id === 'moderator')) return true;
-  return false;
-}
-
-function bindMemberModeration(members = []) {
-  try { _unsubMemberModeration.forEach(fn => fn()); } catch {}
-  _unsubMemberModeration = [];
-  _suspiciousUids = new Set();
-  const uniq = Array.from(new Set((members || []).filter(Boolean)));
-  uniq.forEach((uid) => {
-    const unsub = onSnapshot(doc(db, 'moderation', uid), (snap) => {
-      const data = snap.exists() ? (snap.data() || {}) : {};
-      if (data.suspicious) _suspiciousUids.add(uid);
-      else _suspiciousUids.delete(uid);
-    }, () => {});
-    _unsubMemberModeration.push(unsub);
-  });
 }
 
 async function openConversationById(convoId) {
@@ -784,8 +668,6 @@ function loadConversationMessages(convoId, name, isGroup) {
       <button id="msg-send" class="msg-send-btn">➤</button>
     </div>
   `;
-  // Apply moderation state to freshly-rendered input
-  applyMyModerationToUI();
 
   document.getElementById('back-btn').addEventListener('click', () => {
     if (_unsubMessages) { _unsubMessages(); _unsubMessages = null; }
@@ -798,9 +680,6 @@ function loadConversationMessages(convoId, name, isGroup) {
     _activeMembers = [];
     _activeIsGroup = false;
     _activeMemberProfiles = new Map();
-    try { _unsubMemberModeration.forEach(fn => fn()); } catch {}
-    _unsubMemberModeration = [];
-    _suspiciousUids = new Set();
     hideMentionMenu();
     panel.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:14px;flex-direction:column;gap:12px;"><span style="font-size:40px;">💬</span><span>Select a conversation</span></div>';
     document.querySelectorAll('.convo-item').forEach(el => el.classList.remove('active'));
@@ -861,7 +740,6 @@ function loadConversationMessages(convoId, name, isGroup) {
       _activeMembers = Array.isArray(members) ? members : [];
       _activeIsGroup = !!isGroup;
       await primeMemberProfiles(_activeMembers);
-      bindMemberModeration(_activeMembers);
       refreshActiveOnlineBadge();
       bindTypingIndicators(convoId, members);
     } catch {
@@ -1184,14 +1062,9 @@ function renderMessage(msg) {
   const bubbleClass = isGif ? '' : (isOwn ? 'bubble-own' : 'bubble-other');
   const bubbleStyle = isGif ? 'padding:0;background:transparent;border:none;' : '';
 
-  const rawContent = isGif
+  const content = isGif
     ? `<img src="${msg.text}" alt="${msg.stickerName || 'sticker'}" style="max-width:160px;max-height:160px;border-radius:12px;display:block;object-fit:contain;" loading="lazy">`
     : `${renderTextWithMentions(msg.text || '')}`;
-
-  const shouldHide = !isOwn && !isViewerModerator() && _suspiciousUids.has(msg.uid);
-  const content = shouldHide
-    ? `<span class="flux-suspicious" style="filter:blur(6px);transition:filter 0.18s;cursor:pointer;user-select:none;">${rawContent}</span>`
-    : rawContent;
 
   div.innerHTML = `
     ${avatarHTML}
@@ -1221,20 +1094,6 @@ function renderMessage(msg) {
   div.addEventListener('mouseenter', () => div.querySelector('.msg-actions').style.display = 'flex');
   div.addEventListener('mouseleave', () => div.querySelector('.msg-actions').style.display = 'none');
 
-  if (shouldHide) {
-    const el = div.querySelector('.flux-suspicious');
-    if (el) {
-      const reveal = () => { el.style.filter = 'none'; };
-      const hide = () => { el.style.filter = 'blur(6px)'; };
-      div.addEventListener('mouseenter', reveal);
-      div.addEventListener('mouseleave', hide);
-      el.addEventListener('click', (e) => {
-        e.stopPropagation();
-        el.style.filter = el.style.filter === 'none' ? 'blur(6px)' : 'none';
-      });
-    }
-  }
-
   div.querySelector('.msg-report')?.addEventListener('click', async () => {
     const reason = prompt('Why are you reporting this message?');
     if (reason) {
@@ -1259,35 +1118,6 @@ async function sendMessage() {
   if (!text || !_activeConvoId || !_currentProfile) return;
   setTyping(false).catch(() => {});
   const mentionUsernames = extractMentions(text);
-
-  const gate = canSendType('text');
-  if (!gate.ok) {
-    input.value = '';
-    const list = document.getElementById('messages-list');
-    if (list) {
-      const notice = document.createElement('div');
-      notice.style.cssText = 'text-align:center;padding:8px;color:#ef4444;font-size:12px;font-weight:700;';
-      notice.textContent = gate.reason;
-      list.appendChild(notice);
-      list.scrollTop = list.scrollHeight;
-      setTimeout(() => notice.remove(), 3500);
-    }
-    applyMyModerationToUI();
-    return;
-  }
-  if (checkSpamAndRecord()) {
-    await autoMuteForSpam();
-    const list = document.getElementById('messages-list');
-    if (list) {
-      const notice = document.createElement('div');
-      notice.style.cssText = 'text-align:center;padding:8px;color:#ef4444;font-size:12px;font-weight:800;';
-      notice.textContent = '🚨 Spam detected — muted for 10 minutes.';
-      list.appendChild(notice);
-      list.scrollTop = list.scrollHeight;
-      setTimeout(() => notice.remove(), 4500);
-    }
-    return;
-  }
 
   try {
     const lockSnap = await getDoc(doc(db, 'stats', 'chatlock'));
@@ -1644,33 +1474,6 @@ async function showGifPicker() {
 
 async function sendGif(url, name) {
   if (!_activeConvoId || !_currentProfile) return;
-  const gate = canSendType('gif');
-  if (!gate.ok) {
-    const list = document.getElementById('messages-list');
-    if (list) {
-      const notice = document.createElement('div');
-      notice.style.cssText = 'text-align:center;padding:8px;color:#ef4444;font-size:12px;font-weight:700;';
-      notice.textContent = gate.reason;
-      list.appendChild(notice);
-      list.scrollTop = list.scrollHeight;
-      setTimeout(() => notice.remove(), 3500);
-    }
-    applyMyModerationToUI();
-    return;
-  }
-  if (checkSpamAndRecord()) {
-    await autoMuteForSpam();
-    const list = document.getElementById('messages-list');
-    if (list) {
-      const notice = document.createElement('div');
-      notice.style.cssText = 'text-align:center;padding:8px;color:#ef4444;font-size:12px;font-weight:800;';
-      notice.textContent = '🚨 Spam detected — muted for 10 minutes.';
-      list.appendChild(notice);
-      list.scrollTop = list.scrollHeight;
-      setTimeout(() => notice.remove(), 4500);
-    }
-    return;
-  }
   try {
     await addDoc(collection(db, 'conversations', _activeConvoId, 'messages'), {
       uid: _currentUser.uid,
