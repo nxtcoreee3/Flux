@@ -53,6 +53,11 @@ let _unsubOnline = null;
 let _onlineUidCounts = new Map();
 let _activeMembers = [];
 let _activeIsGroup = false;
+let _activeMemberProfiles = new Map(); // uid -> profile
+let _mentionMenuIndex = 0;
+let _mentionMenuItems = [];
+let _mentionAnimatedMsgIds = new Set();
+let _mentionGlobalListenersSet = false;
 
 /* ── Init ── */
 document.addEventListener('DOMContentLoaded', () => {
@@ -164,6 +169,138 @@ function initMessagesUI() {
   loadConversations();
 }
 
+function ensureMentionMenu() {
+  let menu = document.getElementById('mention-menu');
+  if (menu) return menu;
+  menu = document.createElement('div');
+  menu.id = 'mention-menu';
+  document.body.appendChild(menu);
+  return menu;
+}
+
+function hideMentionMenu() {
+  const menu = document.getElementById('mention-menu');
+  if (!menu) return;
+  menu.style.display = 'none';
+  menu.innerHTML = '';
+  _mentionMenuIndex = 0;
+  _mentionMenuItems = [];
+}
+
+function getActiveMentionCandidates() {
+  const out = [];
+  for (const uid of (_activeMembers || [])) {
+    if (!uid) continue;
+    if (uid === _currentUser?.uid) continue;
+    const p = _activeMemberProfiles.get(uid) || null;
+    const username = (p?.username || '').toLowerCase();
+    if (!username) continue;
+    out.push({ uid, profile: p, username });
+  }
+  // stable ordering: username
+  out.sort((a, b) => a.username.localeCompare(b.username));
+  return out;
+}
+
+function getMentionQueryAtCursor(inputEl) {
+  const text = inputEl?.value || '';
+  const pos = inputEl?.selectionStart ?? text.length;
+  const before = text.slice(0, pos);
+  const at = before.lastIndexOf('@');
+  if (at < 0) return null;
+  // Only trigger if @ starts a token (start or whitespace)
+  if (at > 0 && !/\s/.test(before[at - 1])) return null;
+  const typed = before.slice(at + 1);
+  if (/\s/.test(typed)) return null;
+  return { at, typed };
+}
+
+function positionMentionMenu(inputEl, menuEl) {
+  const r = inputEl.getBoundingClientRect();
+  const width = Math.min(320, Math.max(260, r.width));
+  menuEl.style.width = `${width}px`;
+  menuEl.style.left = `${Math.max(10, r.left)}px`;
+  const top = r.top - 10;
+  menuEl.style.top = `${Math.max(10, top)}px`;
+  menuEl.style.transform = 'translateY(-100%)';
+}
+
+function renderMentionMenu(inputEl, filterText) {
+  const menu = ensureMentionMenu();
+  const candidates = getActiveMentionCandidates();
+  const q = (filterText || '').toLowerCase();
+  const filtered = candidates.filter(c => {
+    const p = c.profile || {};
+    const display = (p.displayName || '').toLowerCase();
+    return !q || c.username.includes(q) || display.includes(q);
+  }).slice(0, 8);
+
+  if (!filtered.length) { hideMentionMenu(); return; }
+
+  _mentionMenuItems = filtered;
+  _mentionMenuIndex = Math.min(_mentionMenuIndex, filtered.length - 1);
+
+  positionMentionMenu(inputEl, menu);
+  menu.style.display = 'block';
+  menu.innerHTML = filtered.map((c, idx) => {
+    const p = c.profile || {};
+    const name = p.displayName || c.username;
+    const avatar = p.avatarURL
+      ? `<img class="mention-avatar" src="${p.avatarURL}" alt="">`
+      : `<div class="mention-placeholder">${escapeHtml((name[0] || '?').toUpperCase())}</div>`;
+    return `
+      <div class="mention-item ${idx === _mentionMenuIndex ? 'active' : ''}" data-idx="${idx}">
+        ${avatar}
+        <div style="min-width:0;">
+          <div class="mention-name" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(name)}</div>
+          <div class="mention-username">@${escapeHtml(c.username)}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  menu.querySelectorAll('.mention-item').forEach(el => {
+    el.addEventListener('mousedown', (e) => {
+      // prevent input blur
+      e.preventDefault();
+      const idx = Number(el.dataset.idx || '0');
+      applyMentionSelection(inputEl, idx);
+    });
+  });
+}
+
+function applyMentionSelection(inputEl, idx) {
+  const item = _mentionMenuItems[idx];
+  if (!item) return;
+  const query = getMentionQueryAtCursor(inputEl);
+  if (!query) return;
+  const text = inputEl.value || '';
+  const before = text.slice(0, query.at);
+  const after = text.slice((inputEl.selectionStart ?? text.length));
+  const insert = `@${item.username} `;
+  inputEl.value = before + insert + after;
+  const nextPos = (before + insert).length;
+  inputEl.setSelectionRange(nextPos, nextPos);
+  hideMentionMenu();
+  inputEl.focus();
+  setTyping(true).catch(() => {});
+}
+
+async function primeMemberProfiles(members = []) {
+  const list = Array.isArray(members) ? members : [];
+  const uniq = Array.from(new Set(list.filter(Boolean)));
+  const m = new Map();
+  for (const uid of uniq) {
+    if (uid === _currentUser?.uid) continue;
+    try {
+      m.set(uid, await getProfile(uid));
+    } catch {
+      m.set(uid, null);
+    }
+  }
+  _activeMemberProfiles = m;
+}
+
 async function openConversationById(convoId) {
   if (!_currentUser) return;
   try {
@@ -222,11 +359,20 @@ function renderTextWithMentions(text = '') {
     const raw = m[0] || '';
     const uname = (m[1] || '').toLowerCase();
     parts.push(escapeHtml(text.slice(last, start)));
-    parts.push(`<a href="profile.html?user=${encodeURIComponent(uname)}" style="color:var(--accent);font-weight:900;text-decoration:none;">${escapeHtml(raw[0] === '@' ? `@${uname}` : raw)}</a>`);
+    parts.push(`<a href="profile.html?user=${encodeURIComponent(uname)}" class="flux-mention-link" style="color:var(--accent);font-weight:900;text-decoration:none;">${escapeHtml(raw[0] === '@' ? `@${uname}` : raw)}</a>`);
     last = start + raw.length;
   }
   parts.push(escapeHtml(text.slice(last)));
   return parts.join('');
+}
+
+function messageMentionsMe(msg) {
+  const me = (_currentProfile?.username || '').toLowerCase();
+  if (!me) return false;
+  const direct = Array.isArray(msg?.mentions) ? msg.mentions.map(x => String(x || '').toLowerCase()) : [];
+  if (direct.includes(me)) return true;
+  const fromText = extractMentions(String(msg?.text || ''));
+  return fromText.includes(me);
 }
 
 function isUidOnline(uid) {
@@ -264,18 +410,45 @@ function refreshConvoOnlineBadges() {
 }
 
 function refreshActiveOnlineBadge() {
-  const el = document.getElementById('chat-online-pill');
+  const el = document.getElementById('chat-online-left');
   if (!el || !_activeConvoId) return;
+
+  const avatarChip = (uid) => {
+    const p = _activeMemberProfiles.get(uid) || null;
+    const label = (p?.displayName || p?.username || uid || '?')[0] || '?';
+    const src = p?.avatarURL || '';
+    if (src) {
+      return `<img src="${src}" style="width:18px;height:18px;border-radius:7px;object-fit:cover;border:1px solid rgba(0,0,0,0.06);">`;
+    }
+    return `<div style="width:18px;height:18px;border-radius:7px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-size:9px;font-weight:900;border:1px solid rgba(0,0,0,0.06);">${escapeHtml(label.toUpperCase())}</div>`;
+  };
+
+  const renderStack = (uids = []) => {
+    const top = uids.slice(0, 3);
+    const stack = top.map((uid, idx) => `<div style="margin-left:${idx === 0 ? 0 : -6}px;">${avatarChip(uid)}</div>`).join('');
+    return `<div style="display:flex;align-items:center;">${stack}</div>`;
+  };
+
   if (_activeIsGroup) {
-    const onlineCount = countOnline(_activeMembers);
-    el.textContent = onlineCount > 0 ? `${onlineCount} online` : '';
-    el.style.display = onlineCount > 0 ? 'inline-flex' : 'none';
-  } else {
-    const otherUid = (_activeMembers || []).find(uid => uid && uid !== _currentUser?.uid) || '';
-    const online = isUidOnline(otherUid);
-    el.textContent = online ? 'Online' : '';
-    el.style.display = online ? 'inline-flex' : 'none';
+    const onlineUids = (_activeMembers || []).filter(uid => uid && uid !== _currentUser?.uid && isUidOnline(uid));
+    const onlineCount = onlineUids.length;
+    if (onlineCount <= 0) { el.style.display = 'none'; el.innerHTML = ''; return; }
+    el.style.display = 'inline-flex';
+    el.innerHTML = `
+      ${renderStack(onlineUids)}
+      <span style="display:inline-flex;align-items:center;gap:6px;background:rgba(34,197,94,0.12);color:#16a34a;border:1px solid rgba(34,197,94,0.18);padding:4px 10px;border-radius:999px;font-size:11px;font-weight:900;">${onlineCount} online</span>
+    `;
+    return;
   }
+
+  const otherUid = (_activeMembers || []).find(uid => uid && uid !== _currentUser?.uid) || '';
+  const online = isUidOnline(otherUid);
+  if (!online) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'inline-flex';
+  el.innerHTML = `
+    ${renderStack([otherUid])}
+    <span style="display:inline-flex;align-items:center;gap:6px;background:rgba(34,197,94,0.12);color:#16a34a;border:1px solid rgba(34,197,94,0.18);padding:4px 10px;border-radius:999px;font-size:11px;font-weight:900;">Online</span>
+  `;
 }
 
 /* ── Tabs ── */
@@ -481,13 +654,15 @@ function loadConversationMessages(convoId, name, isGroup) {
   panel.innerHTML = `
     <div class="chat-header-bar">
       <button id="back-btn" class="back-btn">←</button>
-      <div style="font-size:15px;font-weight:700;color:var(--text);flex:1;">${escapeHtml(name)}</div>
-      <div id="chat-online-pill" style="display:none;align-items:center;gap:6px;background:rgba(34,197,94,0.12);color:#16a34a;border:1px solid rgba(34,197,94,0.18);padding:4px 10px;border-radius:999px;font-size:11px;font-weight:900;flex-shrink:0;">Online</div>
+      <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;">
+        <div style="font-size:15px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(name)}</div>
+        <div id="chat-online-left" style="display:none;align-items:center;gap:8px;flex-shrink:0;"></div>
+      </div>
       <div id="chat-presence-corner" style="display:flex;align-items:center;justify-content:flex-end;gap:8px;min-width:120px;"></div>
     </div>
     <div id="messages-list" class="messages-list"><div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;"><div style="display:flex;justify-content:center;padding:20px;"><img src="assets/loading.gif" style="width:80px;height:auto;" alt="Loading..."></div></div></div>
     <div id="typing-strip" style="display:none;padding:0 16px 8px 16px;"></div>
-    <div class="message-input-bar">
+    <div class="message-input-bar" style="position:relative;">
       <button id="gif-btn" class="gif-btn" style="background:none;border:none;font-size:18px;cursor:pointer;padding:0 8px;">🎬</button>
       <input id="msg-input" type="text" placeholder="Message..." maxlength="1000" autocomplete="off" class="msg-input">
       <button id="msg-send" class="msg-send-btn">➤</button>
@@ -504,17 +679,45 @@ function loadConversationMessages(convoId, name, isGroup) {
     _activeConvoId = null;
     _activeMembers = [];
     _activeIsGroup = false;
+    _activeMemberProfiles = new Map();
+    hideMentionMenu();
     panel.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:14px;flex-direction:column;gap:12px;"><span style="font-size:40px;">💬</span><span>Select a conversation</span></div>';
     document.querySelectorAll('.convo-item').forEach(el => el.classList.remove('active'));
   });
 
   document.getElementById('msg-send').addEventListener('click', sendMessage);
-  document.getElementById('msg-input').addEventListener('keydown', (e) => {
+  const inputEl = document.getElementById('msg-input');
+  inputEl.addEventListener('keydown', (e) => {
+    if (document.getElementById('mention-menu')?.style?.display === 'block') {
+      if (e.key === 'ArrowDown') { e.preventDefault(); _mentionMenuIndex = Math.min(_mentionMenuIndex + 1, _mentionMenuItems.length - 1); renderMentionMenu(inputEl, getMentionQueryAtCursor(inputEl)?.typed || ''); return; }
+      if (e.key === 'ArrowUp') { e.preventDefault(); _mentionMenuIndex = Math.max(_mentionMenuIndex - 1, 0); renderMentionMenu(inputEl, getMentionQueryAtCursor(inputEl)?.typed || ''); return; }
+      if (e.key === 'Enter') { e.preventDefault(); applyMentionSelection(inputEl, _mentionMenuIndex); return; }
+      if (e.key === 'Escape') { e.preventDefault(); hideMentionMenu(); return; }
+    }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   });
-  document.getElementById('msg-input').addEventListener('input', () => setTyping(true));
-  document.getElementById('msg-input').addEventListener('blur', () => setTyping(false));
+  inputEl.addEventListener('input', () => {
+    setTyping(true).catch(() => {});
+    const q = getMentionQueryAtCursor(inputEl);
+    if (q) renderMentionMenu(inputEl, q.typed);
+    else hideMentionMenu();
+  });
+  inputEl.addEventListener('blur', () => {
+    setTyping(false).catch(() => {});
+    setTimeout(() => hideMentionMenu(), 80);
+  });
   document.getElementById('gif-btn').addEventListener('click', showGifPicker);
+  if (!_mentionGlobalListenersSet) {
+    _mentionGlobalListenersSet = true;
+    document.addEventListener('scroll', () => hideMentionMenu(), true);
+    document.addEventListener('click', (e) => {
+      const menu = document.getElementById('mention-menu');
+      if (!menu || menu.style.display !== 'block') return;
+      if (e.target.closest && (e.target.closest('#mention-menu') || e.target.closest('#msg-input'))) return;
+      hideMentionMenu();
+    }, true);
+    window.addEventListener('resize', () => hideMentionMenu());
+  }
 
   {
     const draft = (document.getElementById('msg-input')?.value || '').trim();
@@ -536,6 +739,7 @@ function loadConversationMessages(convoId, name, isGroup) {
       const members = convoSnap.exists() ? (convoSnap.data().members || []) : [];
       _activeMembers = Array.isArray(members) ? members : [];
       _activeIsGroup = !!isGroup;
+      await primeMemberProfiles(_activeMembers);
       refreshActiveOnlineBadge();
       bindTypingIndicators(convoId, members);
     } catch {
@@ -590,16 +794,33 @@ function thinkingRowHTML(profile, fallbackLetter) {
   `;
 }
 
-function setTypingUI(typingUsers = [], thinkingUsers = []) {
+function stickerRowHTML(profile, fallbackLetter) {
+  const src = profile?.avatarURL || '';
+  const avatar = src
+    ? `<img src="${src}" style="width:28px;height:28px;border-radius:8px;object-fit:cover;flex-shrink:0;">`
+    : `<div style="width:28px;height:28px;border-radius:8px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-size:12px;font-weight:700;flex-shrink:0;">${(fallbackLetter || '?')[0].toUpperCase()}</div>`;
+  return `
+    <div class="flux-typing-row">
+      ${avatar}
+      <div class="flux-typing-bubble" aria-label="Sticker" style="gap:8px;">
+        <span style="font-size:14px;">🎬</span>
+        <span style="font-size:12px;font-weight:800;color:var(--muted);">Picking a sticker…</span>
+      </div>
+    </div>
+  `;
+}
+
+function setTypingUI(typingUsers = [], stickerUsers = [], thinkingUsers = []) {
   const strip = document.getElementById('typing-strip');
   if (!strip) return;
-  if (!typingUsers.length && !thinkingUsers.length) {
+  if (!typingUsers.length && !stickerUsers.length && !thinkingUsers.length) {
     strip.style.display = 'none';
     strip.innerHTML = '';
     return;
   }
   strip.style.display = 'block';
   if (typingUsers.length) strip.innerHTML = typingUsers.map(u => typingRowHTML(u.profile, u.fallbackLetter)).join('');
+  else if (stickerUsers.length) strip.innerHTML = stickerUsers.map(u => stickerRowHTML(u.profile, u.fallbackLetter)).join('');
   else strip.innerHTML = thinkingUsers.map(u => thinkingRowHTML(u.profile, u.fallbackLetter)).join('');
 }
 
@@ -683,7 +904,16 @@ function bindTypingIndicators(convoId, members = []) {
         profile: a.profile || null,
         fallbackLetter: a.fallbackLetter || '?'
       }));
-    setTypingUI(typingUids, thinkingUids);
+    const stickerUids = active
+      .filter(a => a.state === 'stickers' && !typingUids.some(t => t.uid === a.uid))
+      .sort((a, b) => b.ms - a.ms)
+      .slice(0, 3)
+      .map(a => ({
+        uid: a.uid,
+        profile: a.profile || null,
+        fallbackLetter: a.fallbackLetter || '?'
+      }));
+    setTypingUI(typingUids, stickerUids, thinkingUids);
 
     if (!active.length) { setCornerUI({ users: [] }); return; }
     const typingCount = active.filter(a => a.state === 'typing').length;
@@ -750,7 +980,7 @@ function bindTypingIndicators(convoId, members = []) {
   _unsubTyping = () => {
     try { unsubs.forEach(fn => fn()); } catch {}
     try { clearInterval(pruneTimer); } catch {}
-    setTypingUI([], []);
+    setTypingUI([], [], []);
     setCornerUI({ users: [] });
   };
 }
@@ -841,7 +1071,7 @@ function renderMessage(msg) {
 
   div.innerHTML = `
     ${avatarHTML}
-    <div class="message-body" style="max-width:65%;">
+    <div class="message-body" style="flex:1;min-width:0;max-width:78%;">
       ${!isOwn ? `<div style="font-size:10px;color:var(--muted);margin-bottom:2px;padding-left:2px;">@${escapeHtml(msg.username || '')}</div>` : ''}
       <div class="message-bubble" style="position:relative;border-radius:18px;${bubbleStyle}">
         ${content}
@@ -853,6 +1083,16 @@ function renderMessage(msg) {
       <div style="font-size:9px;color:var(--muted);margin-top:2px;${isOwn ? 'text-align:right;' : ''}">${time}</div>
     </div>
   `;
+
+  // Pop animation when you get mentioned
+  if (msg?.id && messageMentionsMe(msg) && !_mentionAnimatedMsgIds.has(msg.id)) {
+    const bubble = div.querySelector('.message-bubble');
+    if (bubble) {
+      _mentionAnimatedMsgIds.add(msg.id);
+      bubble.classList.add('flux-mention-pop');
+      bubble.addEventListener('animationend', () => bubble.classList.remove('flux-mention-pop'), { once: true });
+    }
+  }
 
   div.addEventListener('mouseenter', () => div.querySelector('.msg-actions').style.display = 'flex');
   div.addEventListener('mouseleave', () => div.querySelector('.msg-actions').style.display = 'none');
