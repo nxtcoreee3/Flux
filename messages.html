@@ -143,6 +143,8 @@
 
     .message-bubble {
       display: inline-block;
+      width: fit-content;
+      text-align: left;
       padding: 10px 14px;
       border-radius: 18px;
       font-size: 14px;
@@ -298,6 +300,27 @@
     }
     .mention-name { font-size: 13px; font-weight: 900; color: var(--text); line-height: 1.2; }
     .mention-username { font-size: 11px; color: var(--muted); font-weight: 800; margin-top: 2px; }
+
+    /* Mentions inside message bubbles */
+    .flux-mention-link {
+      display: inline-flex;
+      align-items: center;
+      font-weight: 900;
+      text-decoration: none;
+      padding: 1px 7px;
+      border-radius: 999px;
+      line-height: 1.35;
+    }
+    .bubble-other .flux-mention-link {
+      color: var(--accent);
+      background: rgba(58, 125, 255, 0.12);
+      border: 1px solid rgba(58, 125, 255, 0.16);
+    }
+    .bubble-own .flux-mention-link {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.22);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+    }
 
     @media (max-width: 768px) {
       #messages-root {

@@ -359,7 +359,7 @@ function renderTextWithMentions(text = '') {
     const raw = m[0] || '';
     const uname = (m[1] || '').toLowerCase();
     parts.push(escapeHtml(text.slice(last, start)));
-    parts.push(`<a href="profile.html?user=${encodeURIComponent(uname)}" class="flux-mention-link" style="color:var(--accent);font-weight:900;text-decoration:none;">${escapeHtml(raw[0] === '@' ? `@${uname}` : raw)}</a>`);
+    parts.push(`<a href="profile.html?user=${encodeURIComponent(uname)}" class="flux-mention-link">${escapeHtml(raw[0] === '@' ? `@${uname}` : raw)}</a>`);
     last = start + raw.length;
   }
   parts.push(escapeHtml(text.slice(last)));
@@ -1059,11 +1059,8 @@ function renderMessage(msg) {
   div.className = `message-row ${isOwn ? 'own' : 'other'}`;
   div.style.cssText = `display:flex;align-items:flex-end;margin-bottom:12px;flex-direction:${isOwn?'row-reverse':'row'}`;
 
-  const bubbleStyle = isGif
-    ? 'padding:0;background:transparent;border:none;'
-    : isOwn
-      ? 'padding:10px 14px;background:var(--accent);color:white;border-bottom-right-radius:4px;'
-      : 'padding:10px 14px;background:var(--panel);color:var(--text);border:1px solid var(--glass-border);border-bottom-left-radius:4px;';
+  const bubbleClass = isGif ? '' : (isOwn ? 'bubble-own' : 'bubble-other');
+  const bubbleStyle = isGif ? 'padding:0;background:transparent;border:none;' : '';
 
   const content = isGif
     ? `<img src="${msg.text}" alt="${msg.stickerName || 'sticker'}" style="max-width:160px;max-height:160px;border-radius:12px;display:block;object-fit:contain;" loading="lazy">`
@@ -1071,9 +1068,9 @@ function renderMessage(msg) {
 
   div.innerHTML = `
     ${avatarHTML}
-    <div class="message-body" style="flex:1;min-width:0;max-width:78%;">
+    <div class="message-body" style="max-width:65%;min-width:0;">
       ${!isOwn ? `<div style="font-size:10px;color:var(--muted);margin-bottom:2px;padding-left:2px;">@${escapeHtml(msg.username || '')}</div>` : ''}
-      <div class="message-bubble" style="position:relative;border-radius:18px;${bubbleStyle}">
+      <div class="message-bubble ${bubbleClass}" style="position:relative;display:inline-block;text-align:left;min-height:auto;height:auto;${bubbleStyle}">
         ${content}
         <div class="msg-actions" style="position:absolute;top:-20px;${isOwn?'right:0;':'left:0;'}display:none;gap:4px;background:var(--panel);padding:2px 6px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);border:1px solid var(--glass-border);z-index:10;">
           <button class="msg-report" style="background:none;border:none;cursor:pointer;font-size:10px;padding:2px;">🚩</button>
