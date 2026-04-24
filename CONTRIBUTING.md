@@ -34,6 +34,10 @@ Add your game to the list in the script.js
 
 Use .png format
 
+Use 16:9 Aspect Ratio
+
+Make sure the main subject/text is centered in the middle of the image
+
 Keep names lowercase with dashes
 
 Example: assets/drift-boss.png
