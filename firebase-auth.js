@@ -122,8 +122,9 @@ export function initPresence() {
           }
         }
       } catch {}
-      set(presenceRef, payload);
-      onDisconnect(presenceRef).remove();
+      onDisconnect(presenceRef).remove().then(() => {
+        set(presenceRef, payload);
+      });
     }
   });
 
@@ -569,85 +570,66 @@ async function fetchVisitorsToday() {
 /* ===================== DARK MODE ===================== */
 /* ===================== DEPLOYMENT UPDATE NOTIFICATION ===================== */
 export function initUpdateNotification() {
-  const CHECK_INTERVAL = 5 * 60 * 1000; // check every 5 minutes
-  const STORAGE_KEY = 'flux_build';
+  const CHECK_INTERVAL = 15000; // 15 seconds for real-time feel
+  const STORAGE_KEY = 'flux_last_seen_commit'; // share key with commits panel
   let _notifShown = false;
 
   async function checkForUpdate() {
+    if (_notifShown) return;
     try {
-      // Fetch version.json with cache-busting
-      const res = await fetch(`version.json?t=${Date.now()}`, { cache: 'no-store' });
+      const res = await fetch(`https://github.com/nxtcoreee3/Flux/commits/main.atom?t=${Date.now()}`, { cache: 'no-store' });
       if (!res.ok) return;
-      const data = await res.json();
-      const latestBuild = data.build;
-      const latestVersion = data.version || '';
-      if (!latestBuild) return;
+      const xmlText = await res.text();
+      const xml = new DOMParser().parseFromString(xmlText, 'application/xml');
+      const latestEntry = xml.querySelector('entry');
+      if (!latestEntry) return;
+      
+      const id = latestEntry.querySelector('id')?.textContent || '';
+      const latestSha = (id.match(/commit\/([0-9a-f]{7,40})/i)?.[1] || '').toLowerCase();
+      if (!latestSha) return;
 
-      const storedBuild = localStorage.getItem(STORAGE_KEY);
+      const storedSha = localStorage.getItem(STORAGE_KEY) || window._fluxBuildSHA;
 
-      if (!storedBuild) {
-        // First visit — store the build number silently
-        localStorage.setItem(STORAGE_KEY, latestBuild);
+      if (!storedSha) {
+        localStorage.setItem(STORAGE_KEY, latestSha);
         return;
       }
 
-      if (storedBuild !== latestBuild && !_notifShown) {
+      if (storedSha && latestSha !== storedSha && !storedSha.startsWith(latestSha)) {
         _notifShown = true;
-        showUpdateBanner(latestBuild, latestVersion, storedBuild);
+        showUpdateBanner(latestSha);
       }
     } catch {}
   }
 
-  function showUpdateBanner(build, version, oldBuild) {
-    const existing = document.getElementById('flux-update-banner');
-    if (existing) existing.remove();
-
-    const banner = document.createElement('div');
-    banner.id = 'flux-update-banner';
-    banner.style.cssText = `
-      position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);
-      z-index:9999;display:flex;align-items:center;gap:14px;
-      background:var(--panel,#fff);
-      border:1px solid var(--glass-border,rgba(0,0,0,0.08));
-      border-radius:16px;padding:14px 18px;
-      box-shadow:0 12px 40px rgba(0,0,0,0.15);
-      max-width:440px;width:calc(100vw - 48px);
-      transition:transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
-    `;
-    banner.innerHTML = `
-      <span style="font-size:22px;flex-shrink:0;">🚀</span>
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:14px;font-weight:700;color:var(--text,#111);">New update available!</div>
-        <div style="font-size:12px;color:var(--muted,#6b7280);margin-top:2px;">
-          Version: <code style="background:rgba(58,125,255,0.1);color:var(--accent,#3a7dff);padding:1px 5px;border-radius:4px;font-size:11px;">#${oldBuild}</code> → <code style="background:rgba(58,125,255,0.1);color:var(--accent,#3a7dff);padding:1px 5px;border-radius:4px;font-size:11px;">#${build}</code>
-        </div>
+  function showUpdateBanner(newSha) {
+    const overlay = document.createElement('div');
+    overlay.id = 'force-refresh-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,0.85);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box;font-family:inherit;';
+    overlay.innerHTML = `
+      <div style="background:var(--panel,#fff);border-radius:24px;padding:32px;max-width:420px;width:100%;text-align:center;box-shadow:0 30px 80px rgba(0,0,0,0.4);animation:popIn 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28);">
+        <div style="font-size:48px;margin-bottom:16px;">🚀</div>
+        <h2 style="font-family:'Bebas Neue',sans-serif;font-size:32px;color:var(--text,#111);margin:0 0 12px;line-height:1;">New Update Available!</h2>
+        <p style="font-size:14px;color:var(--muted,#6b7280);margin:0 0 24px;line-height:1.6;">A new commit has just been pushed to Flux. Please refresh to get the latest features and bug fixes.</p>
+        <button id="force-update-refresh-btn" style="width:100%;padding:14px;background:var(--accent,#3a7dff);color:white;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(58,125,255,0.3);transition:transform 0.15s, box-shadow 0.15s;">
+          🔄 Refresh Now
+        </button>
       </div>
-      <div style="display:flex;gap:8px;flex-shrink:0;">
-        <button id="update-refresh-btn" style="padding:8px 14px;background:var(--accent,#3a7dff);color:white;border:none;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap;">Refresh</button>
-        <button id="update-dismiss-btn" style="background:none;border:none;color:var(--muted,#9ca3af);cursor:pointer;font-size:18px;padding:0 2px;line-height:1;">✕</button>
-      </div>
+      <style>@keyframes popIn { from { transform:scale(0.9); opacity:0; } to { transform:scale(1); opacity:1; } }</style>
     `;
-    document.body.appendChild(banner);
+    document.body.appendChild(overlay);
 
-    // Slide up
-    requestAnimationFrame(() => {
-      banner.style.transform = 'translateX(-50%) translateY(0)';
-    });
-
-    document.getElementById('update-refresh-btn').addEventListener('click', () => {
-      localStorage.setItem(STORAGE_KEY, build);
-      window.location.reload();
-    });
-
-    document.getElementById('update-dismiss-btn').addEventListener('click', () => {
-      banner.style.transform = 'translateX(-50%) translateY(80px)';
-      setTimeout(() => banner.remove(), 400);
-      localStorage.setItem(STORAGE_KEY, build); // User declined this version, don't show until next version
+    const btn = document.getElementById('force-update-refresh-btn');
+    btn.addEventListener('mouseover', () => { btn.style.transform='translateY(-2px)'; btn.style.boxShadow='0 6px 20px rgba(58,125,255,0.4)'; });
+    btn.addEventListener('mouseout', () => { btn.style.transform='none'; btn.style.boxShadow='0 4px 14px rgba(58,125,255,0.3)'; });
+    btn.addEventListener('click', () => {
+      localStorage.setItem(STORAGE_KEY, newSha);
+      window.location.reload(true);
     });
   }
 
-  // Check on load and periodically
-  checkForUpdate();
+  // initial check after 5s
+  setTimeout(checkForUpdate, 5000);
   setInterval(checkForUpdate, CHECK_INTERVAL);
 }
 
