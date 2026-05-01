@@ -1745,6 +1745,10 @@ function openFullscreen(url, title) {
     <div id="fs-bar" style="position:absolute;top:0;left:0;right:0;z-index:6;display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(to bottom,rgba(0,0,0,0.85),transparent);transition:opacity 0.3s;pointer-events:auto;">
       <button id="fs-exit" style="background:rgba(0,0,0,0.7);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:8px;padding:8px 16px;font-size:14px;font-weight:700;cursor:pointer;backdrop-filter:blur(4px);pointer-events:auto;">✕ Exit</button>
       <span style="font-size:13px;font-weight:600;color:rgba(255,255,255,0.85);flex:1;">${title}</span>
+      ${isKillSwitchEnabled() ? `<div style="display:flex;align-items:center;">
+        <button id="fs-kill-btn" title="Kill Switch (Shift+Esc)" style="background:linear-gradient(135deg,#ef4444,#dc2626);color:white;border:none;border-radius:8px 0 0 8px;padding:7px 13px;font-size:13px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:5px;box-shadow:0 2px 10px rgba(239,68,68,0.4);">⚡ Kill</button>
+        <button id="fs-kill-settings-btn" title="Configure Kill Switch" style="background:rgba(239,68,68,0.25);color:#fca5a5;border:none;border-left:1px solid rgba(239,68,68,0.4);border-radius:0 8px 8px 0;padding:7px 8px;font-size:11px;cursor:pointer;">⚙</button>
+      </div>` : ''}
     </div>
     <div id="fs-loading-bg" style="position:absolute;inset:0;background:#fff url('assets/loading.gif') center center / 250px no-repeat;z-index:1;"></div>
     <iframe id="fs-iframe" src="${url}" style="flex:1;border:0;width:100%;height:100%;opacity:0;transition:opacity 0.4s ease;position:relative;z-index:2;" allow="autoplay; fullscreen" sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
@@ -1782,6 +1786,8 @@ function openFullscreen(url, title) {
   showBar();
 
   fs.querySelector('#fs-exit').addEventListener('click', () => fs.remove());
+  fs.querySelector('#fs-kill-btn')?.addEventListener('click', () => triggerKillSwitch());
+  fs.querySelector('#fs-kill-settings-btn')?.addEventListener('click', (e) => { e.stopPropagation(); buildKillSwitchPopover(); });
   fs.querySelector('#fs-fallback-btn').addEventListener('click', () => { fsWarn.style.display = 'none'; });
 
   let fsLoaded = false;
@@ -2689,27 +2695,25 @@ function createKillButton(compact = false) {
   return wrap;
 }
 
+const KILL_ENABLED_KEY = 'flux_kill_switch_enabled';
+function isKillSwitchEnabled() { return localStorage.getItem(KILL_ENABLED_KEY) !== '0'; }
+
 function initKillSwitch() {
+  if (!isKillSwitchEnabled()) return;
+
   // 1. Inject into topbar right-actions
   const rightActions = document.querySelector('.right-actions');
   if (rightActions && !rightActions.querySelector('.flux-kill-btn')) {
     rightActions.prepend(createKillButton(false));
   }
 
-  // 2. Inject into game modal header (modal-tools)
-  const injectIntoModal = () => {
-    const modalTools = document.querySelector('#play-modal .modal-tools');
-    if (modalTools && !modalTools.querySelector('.flux-kill-btn')) {
-      modalTools.prepend(createKillButton(true));
+  // 2. Fill dedicated modal slots (index.html + games.html)
+  ['modal-kill-btn-wrap', 'modal-kill-btn-wrap-2'].forEach(id => {
+    const wrap = document.getElementById(id);
+    if (wrap && !wrap.querySelector('.flux-kill-btn')) {
+      wrap.appendChild(createKillButton(true));
     }
-  };
-  injectIntoModal();
-
-  const playModal = document.getElementById('play-modal');
-  if (playModal) {
-    const observer = new MutationObserver(injectIntoModal);
-    observer.observe(playModal, { attributes: true, attributeFilter: ['aria-hidden'] });
-  }
+  });
 
   // Keyboard shortcut: Shift + Escape
   document.addEventListener('keydown', (e) => {

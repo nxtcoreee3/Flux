@@ -240,6 +240,59 @@
       </div>
     </div>
 
+    <!-- KILL SWITCH -->
+    <div class="settings-section">
+      <div class="settings-section-label">Kill Switch</div>
+      <div class="settings-card">
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:rgba(239,68,68,0.1);">⚡</div>
+            <div class="settings-row-text">
+              <div class="settings-row-label">Enable Kill Switch</div>
+              <div class="settings-row-desc">Show the ⚡ Kill button in the nav and game bar</div>
+            </div>
+          </div>
+          <label class="toggle-wrap">
+            <input type="checkbox" id="kill-switch-toggle">
+            <span class="toggle-track"></span>
+            <span class="toggle-thumb"></span>
+          </label>
+        </div>
+        <div class="settings-row" id="kill-switch-dest-row">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:rgba(239,68,68,0.08);">🎯</div>
+            <div class="settings-row-text">
+              <div class="settings-row-label">Escape Destination</div>
+              <div class="settings-row-desc" id="kill-switch-current-dest">Loading...</div>
+            </div>
+          </div>
+          <button class="settings-btn" id="kill-switch-configure-btn" style="color:#ef4444;border-color:rgba(239,68,68,0.25);">Configure</button>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:rgba(239,68,68,0.08);">⌨️</div>
+            <div class="settings-row-text">
+              <div class="settings-row-label">Keyboard Shortcut</div>
+              <div class="settings-row-desc"><kbd style="background:var(--bg);border:1px solid var(--glass-border);border-radius:4px;padding:1px 6px;font-size:11px;font-family:monospace;">Shift</kbd> + <kbd style="background:var(--bg);border:1px solid var(--glass-border);border-radius:4px;padding:1px 6px;font-size:11px;font-family:monospace;">Esc</kbd> triggers Kill Switch instantly</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Configure panel -->
+      <div id="kill-switch-config-panel" style="display:none;margin-top:8px;background:var(--panel);border:1px solid var(--glass-border);border-radius:14px;overflow:hidden;">
+        <div style="padding:16px 18px;border-bottom:1px solid var(--glass-border);font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">Choose your escape destination</div>
+        <div id="kill-switch-presets-settings" style="display:flex;flex-direction:column;max-height:280px;overflow-y:auto;"></div>
+        <div id="kill-custom-settings-wrap" style="display:none;padding:14px 18px;border-top:1px solid var(--glass-border);">
+          <label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:6px;">Custom URL or App Protocol</label>
+          <input id="kill-custom-settings-input" type="text" placeholder="e.g. https://example.com or figma://" class="settings-input">
+        </div>
+        <div style="padding:14px 18px;border-top:1px solid var(--glass-border);display:flex;gap:8px;">
+          <button id="kill-save-settings-btn" class="settings-btn primary" style="background:linear-gradient(135deg,#ef4444,#dc2626);border-color:#dc2626;">Save Destination</button>
+          <button id="kill-cancel-settings-btn" class="settings-btn">Cancel</button>
+        </div>
+      </div>
+    </div>
+
     <!-- NOT SIGNED IN state -->
     <div id="not-signed-in" style="display:none;text-align:center;padding:40px 20px;background:var(--panel);border-radius:14px;border:1px solid var(--glass-border);">
       <div style="font-size:40px;margin-bottom:12px;">🔐</div>
@@ -369,6 +422,121 @@
       } else if (user && user.isAnonymous) {
         document.getElementById('signout-row').style.display = 'flex';
       }
+    });
+
+    /* ── Kill Switch Settings ── */
+    const KILL_KEY = 'flux_kill_switch';
+    const KILL_ENABLED_KEY = 'flux_kill_switch_enabled';
+    const KILL_PRESETS = [
+      { label: '📊 Google Sheets', value: 'https://docs.google.com/spreadsheets/', type: 'web' },
+      { label: '🔍 Google', value: 'https://www.google.com', type: 'web' },
+      { label: '📰 BBC News', value: 'https://www.bbc.co.uk/news', type: 'web' },
+      { label: '📧 Gmail', value: 'https://mail.google.com', type: 'web' },
+      { label: '📅 Google Calendar', value: 'https://calendar.google.com', type: 'web' },
+      { label: '📄 Google Docs', value: 'https://docs.google.com/document/', type: 'web' },
+      { label: '🎨 Figma', value: 'figma://', type: 'app' },
+      { label: '💻 VS Code', value: 'vscode://', type: 'app' },
+      { label: '🎵 Spotify', value: 'spotify://', type: 'app' },
+      { label: '💬 Slack', value: 'slack://', type: 'app' },
+      { label: '📱 Discord', value: 'discord://', type: 'app' },
+      { label: '🔧 Custom…', value: 'custom', type: 'custom' },
+    ];
+
+    function getKillCfg() {
+      try { return JSON.parse(localStorage.getItem(KILL_KEY)) || { value: 'https://www.google.com', label: '🔍 Google', custom: '' }; }
+      catch { return { value: 'https://www.google.com', label: '🔍 Google', custom: '' }; }
+    }
+    function isKillEnabled() { return localStorage.getItem(KILL_ENABLED_KEY) !== '0'; }
+
+    const killToggle = document.getElementById('kill-switch-toggle');
+    const killDestRow = document.getElementById('kill-switch-dest-row');
+    const killCurrentDest = document.getElementById('kill-switch-current-dest');
+    const killConfigPanel = document.getElementById('kill-switch-config-panel');
+    const killPresetsEl = document.getElementById('kill-switch-presets-settings');
+    const killCustomWrap = document.getElementById('kill-custom-settings-wrap');
+    const killCustomInput = document.getElementById('kill-custom-settings-input');
+
+    // Init state
+    killToggle.checked = isKillEnabled();
+    killDestRow.style.display = isKillEnabled() ? 'flex' : 'none';
+    function updateDestLabel() {
+      const cfg = getKillCfg();
+      killCurrentDest.textContent = cfg.value === 'custom' ? (cfg.custom || 'Not set') : cfg.label;
+    }
+    updateDestLabel();
+
+    killToggle.addEventListener('change', () => {
+      const on = killToggle.checked;
+      localStorage.setItem(KILL_ENABLED_KEY, on ? '1' : '0');
+      killDestRow.style.display = on ? 'flex' : 'none';
+      if (!on) killConfigPanel.style.display = 'none';
+    });
+
+    // Build presets list
+    function buildPresetsUI() {
+      const cfg = getKillCfg();
+      killPresetsEl.innerHTML = KILL_PRESETS.map(p => `
+        <div class="kill-setting-opt settings-row" data-value="${p.value}" data-label="${p.label}" data-type="${p.type}"
+          style="cursor:pointer;${cfg.value === p.value ? 'background:rgba(239,68,68,0.06);' : ''}">
+          <div class="settings-row-left" style="pointer-events:none;">
+            <div style="width:8px;height:8px;border-radius:50%;background:${cfg.value === p.value ? '#ef4444' : 'var(--glass-border)'};flex-shrink:0;margin-right:4px;"></div>
+            <div class="settings-row-text">
+              <div class="settings-row-label" style="font-size:13px;${cfg.value === p.value ? 'color:#ef4444;' : ''}">${p.label}</div>
+            </div>
+          </div>
+          ${p.type !== 'custom' ? `<span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;background:${p.type === 'app' ? 'rgba(58,125,255,0.12)' : 'rgba(34,197,94,0.12)'};color:${p.type === 'app' ? '#3a7dff' : '#16a34a'};">${p.type === 'app' ? 'App' : 'Web'}</span>` : ''}
+        </div>
+      `).join('');
+
+      killCustomWrap.style.display = cfg.value === 'custom' ? 'block' : 'none';
+      killCustomInput.value = cfg.custom || '';
+
+      killPresetsEl.querySelectorAll('.kill-setting-opt').forEach(opt => {
+        opt.addEventListener('click', () => {
+          killPresetsEl.querySelectorAll('.kill-setting-opt').forEach(o => {
+            o.style.background = '';
+            o.querySelector('.settings-row-label').style.color = '';
+            o.querySelector('[style*="border-radius:50%"]').style.background = 'var(--glass-border)';
+          });
+          opt.style.background = 'rgba(239,68,68,0.06)';
+          opt.querySelector('.settings-row-label').style.color = '#ef4444';
+          opt.querySelector('[style*="border-radius:50%"]').style.background = '#ef4444';
+          killCustomWrap.style.display = opt.dataset.type === 'custom' ? 'block' : 'none';
+        });
+      });
+    }
+
+    document.getElementById('kill-switch-configure-btn').addEventListener('click', () => {
+      const isOpen = killConfigPanel.style.display !== 'none';
+      killConfigPanel.style.display = isOpen ? 'none' : 'block';
+      if (!isOpen) buildPresetsUI();
+    });
+
+    document.getElementById('kill-save-settings-btn').addEventListener('click', () => {
+      const selected = killPresetsEl.querySelector('.kill-setting-opt[style*="rgba(239,68,68,0.06)"]');
+      if (!selected) return;
+      const val = selected.dataset.value;
+      const label = selected.dataset.label;
+      const custom = killCustomInput.value.trim();
+      if (val === 'custom' && !custom) {
+        killCustomInput.style.borderColor = '#ef4444';
+        killCustomInput.focus();
+        return;
+      }
+      localStorage.setItem(KILL_KEY, JSON.stringify({ value: val, label, custom }));
+      killConfigPanel.style.display = 'none';
+      updateDestLabel();
+      // Toast
+      const t = document.createElement('div');
+      t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:99999;background:linear-gradient(135deg,#ef4444,#dc2626);color:white;padding:12px 22px;border-radius:20px;font-size:13px;font-weight:700;box-shadow:0 8px 30px rgba(239,68,68,0.35);pointer-events:none;opacity:0;transition:opacity 0.2s;';
+      t.textContent = `⚡ Kill Switch → ${val === 'custom' ? custom : label}`;
+      document.body.appendChild(t);
+      requestAnimationFrame(() => t.style.opacity = '1');
+      setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 200); }, 2500);
+    });
+
+    document.getElementById('kill-cancel-settings-btn').addEventListener('click', () => {
+      killConfigPanel.style.display = 'none';
     });
   </script>
 
