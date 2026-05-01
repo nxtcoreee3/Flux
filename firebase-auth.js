@@ -140,7 +140,14 @@ export function initPresence() {
   };
 
   onValue(ref(rtdb, 'presence'), (snap) => {
-    _onlineCount = snap.exists() ? Object.keys(snap.val()).length : 0;
+    let validCount = 0;
+    const now = Date.now();
+    if (snap.exists()) {
+      Object.values(snap.val()).forEach(s => {
+        if (!s.timestamp || now - s.timestamp < 12 * 60 * 60 * 1000) validCount++;
+      });
+    }
+    _onlineCount = validCount;
     // update stats dropdown if open
     const el = document.getElementById('stats-online-count');
     if (el) el.textContent = _onlineCount;
@@ -2395,7 +2402,10 @@ export async function initAuthUI(onUserChange) {
         // Deduplicate by uid (one user may have multiple tabs)
         const byUid = {};
         const anonymous = [];
+        const now = Date.now();
         sessionList.forEach(s => {
+          if (s.timestamp && now - s.timestamp > 12 * 60 * 60 * 1000) return; // Ignore ghost sessions
+
           if (s.uid) {
             if (!byUid[s.uid]) byUid[s.uid] = s;
           } else {
