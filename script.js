@@ -2485,3 +2485,240 @@ function showNotificationToast(title, text, avatar, link) {
     setTimeout(() => toast.remove(), 300);
   }, 5000);
 }
+
+/* ===================== KILL SWITCH (Boss Key) ===================== */
+
+const KILL_SWITCH_KEY = 'flux_kill_switch';
+
+const KILL_SWITCH_PRESETS = [
+  { label: '📊 Google Sheets', value: 'https://docs.google.com/spreadsheets/', type: 'web' },
+  { label: '🔍 Google', value: 'https://www.google.com', type: 'web' },
+  { label: '📰 BBC News', value: 'https://www.bbc.co.uk/news', type: 'web' },
+  { label: '📧 Gmail', value: 'https://mail.google.com', type: 'web' },
+  { label: '📅 Google Calendar', value: 'https://calendar.google.com', type: 'web' },
+  { label: '📄 Google Docs', value: 'https://docs.google.com/document/', type: 'web' },
+  { label: '🎨 Figma', value: 'figma://', type: 'app' },
+  { label: '💻 VS Code', value: 'vscode://', type: 'app' },
+  { label: '🎵 Spotify', value: 'spotify://', type: 'app' },
+  { label: '💬 Slack', value: 'slack://', type: 'app' },
+  { label: '📱 Discord', value: 'discord://', type: 'app' },
+  { label: '🔧 Custom…', value: 'custom', type: 'custom' },
+];
+
+function loadKillSwitch() {
+  try {
+    return JSON.parse(localStorage.getItem(KILL_SWITCH_KEY)) || { value: 'https://www.google.com', label: '🔍 Google', custom: '' };
+  } catch { return { value: 'https://www.google.com', label: '🔍 Google', custom: '' }; }
+}
+
+function saveKillSwitch(data) {
+  localStorage.setItem(KILL_SWITCH_KEY, JSON.stringify(data));
+}
+
+function triggerKillSwitch() {
+  const cfg = loadKillSwitch();
+  const target = cfg.value === 'custom' ? cfg.custom : cfg.value;
+  if (!target) return;
+  // Close game modal if open
+  const modal = document.getElementById('play-modal');
+  if (modal) { modal.setAttribute('aria-hidden', 'true'); const iframe = modal.querySelector('iframe'); if (iframe) iframe.src = ''; }
+  window.location.replace(target);
+}
+
+function buildKillSwitchPopover() {
+  const existing = document.getElementById('kill-switch-popover');
+  if (existing) { existing.remove(); return; }
+
+  const cfg = loadKillSwitch();
+
+  const pop = document.createElement('div');
+  pop.id = 'kill-switch-popover';
+  pop.style.cssText = `
+    position: fixed;
+    top: 70px; right: 16px;
+    width: 300px;
+    background: var(--panel);
+    border: 1px solid var(--glass-border);
+    border-radius: 18px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    z-index: 9999;
+    padding: 18px;
+    animation: killPopIn 0.18s cubic-bezier(0.34,1.56,0.64,1) both;
+  `;
+
+  const isCustom = cfg.value === 'custom';
+  pop.innerHTML = `
+    <style>
+      @keyframes killPopIn {
+        from { opacity: 0; transform: scale(0.92) translateY(-8px); }
+        to   { opacity: 1; transform: scale(1) translateY(0); }
+      }
+      .kill-preset-opt {
+        display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+        border-radius: 10px; cursor: pointer; font-size: 13px;
+        color: var(--text); transition: background 0.12s;
+        border: 1px solid transparent;
+      }
+      .kill-preset-opt:hover { background: rgba(239,68,68,0.07); border-color: rgba(239,68,68,0.15); }
+      .kill-preset-opt.selected { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.3); color: #ef4444; font-weight: 700; }
+      .kill-preset-opt .opt-type { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 20px; flex-shrink: 0; }
+      .kill-preset-opt .opt-type.web { background: rgba(34,197,94,0.15); color: #16a34a; }
+      .kill-preset-opt .opt-type.app { background: rgba(58,125,255,0.15); color: #3a7dff; }
+    </style>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div style="font-size:14px;font-weight:800;color:var(--text);">⚡ Kill Switch</div>
+      <button id="kill-pop-close" style="background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:2px;">✕</button>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin:0 0 12px;line-height:1.5;">Choose where to instantly escape to when you hit Kill Switch. <strong style="color:var(--text);">Shift+Esc</strong> also works as a hotkey.</p>
+    <div id="kill-presets-list" style="display:flex;flex-direction:column;gap:3px;max-height:220px;overflow-y:auto;margin-bottom:12px;">
+      ${KILL_SWITCH_PRESETS.map(p => `
+        <div class="kill-preset-opt ${cfg.value === p.value ? 'selected' : ''}" data-value="${p.value}" data-label="${p.label}" data-type="${p.type}">
+          <span style="flex:1;">${p.label}</span>
+          ${p.type !== 'custom' ? `<span class="opt-type ${p.type}">${p.type === 'app' ? 'App' : 'Web'}</span>` : ''}
+        </div>
+      `).join('')}
+    </div>
+    <div id="kill-custom-wrap" style="display:${isCustom ? 'block' : 'none'};margin-bottom:12px;">
+      <input id="kill-custom-input" type="text" placeholder="e.g. https://... or figma://"
+        value="${cfg.custom || ''}"
+        style="width:100%;padding:8px 12px;border:1px solid var(--glass-border);border-radius:10px;font-size:13px;box-sizing:border-box;background:var(--bg);color:var(--text);outline:none;">
+    </div>
+    <button id="kill-save-btn" style="width:100%;padding:10px;background:linear-gradient(135deg,#ef4444,#dc2626);color:white;border:none;border-radius:12px;font-weight:800;font-size:13px;cursor:pointer;letter-spacing:0.3px;">
+      Save & Close
+    </button>
+  `;
+
+  document.body.appendChild(pop);
+
+  let currentSelection = { value: cfg.value, label: cfg.label, custom: cfg.custom || '' };
+
+  const presetsList = pop.querySelector('#kill-presets-list');
+  const customWrap = pop.querySelector('#kill-custom-wrap');
+  const customInput = pop.querySelector('#kill-custom-input');
+
+  presetsList.querySelectorAll('.kill-preset-opt').forEach(opt => {
+    opt.addEventListener('click', () => {
+      presetsList.querySelectorAll('.kill-preset-opt').forEach(o => o.classList.remove('selected'));
+      opt.classList.add('selected');
+      currentSelection.value = opt.dataset.value;
+      currentSelection.label = opt.dataset.label;
+      customWrap.style.display = opt.dataset.type === 'custom' ? 'block' : 'none';
+    });
+  });
+
+  customInput?.addEventListener('input', () => { currentSelection.custom = customInput.value.trim(); });
+
+  pop.querySelector('#kill-pop-close').addEventListener('click', () => pop.remove());
+  pop.querySelector('#kill-save-btn').addEventListener('click', () => {
+    if (currentSelection.value === 'custom' && !currentSelection.custom) {
+      customInput.style.borderColor = '#ef4444';
+      customInput.focus();
+      return;
+    }
+    saveKillSwitch(currentSelection);
+    pop.remove();
+    showToast('Kill Switch configured! ⚡', 'success');
+    document.querySelectorAll('.flux-kill-btn').forEach(btn => {
+      btn.title = `Kill Switch → ${currentSelection.value === 'custom' ? currentSelection.custom : currentSelection.label}`;
+    });
+  });
+
+  setTimeout(() => {
+    document.addEventListener('click', function outsideClick(e) {
+      if (!pop.contains(e.target) && !e.target.closest('.flux-kill-btn-settings')) {
+        pop.remove();
+        document.removeEventListener('click', outsideClick);
+      }
+    });
+  }, 0);
+}
+
+function createKillButton(compact = false) {
+  const cfg = loadKillSwitch();
+  const target = cfg.value === 'custom' ? cfg.custom : cfg.label;
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;align-items:center;flex-shrink:0;';
+
+  const killBtn = document.createElement('button');
+  killBtn.className = 'flux-kill-btn';
+  killBtn.title = `Kill Switch → ${target} (Shift+Esc)`;
+  killBtn.style.cssText = `
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: white;
+    border: none;
+    border-radius: ${compact ? '8px 0 0 8px' : '10px 0 0 10px'};
+    padding: ${compact ? '6px 10px' : '8px 13px'};
+    font-weight: 800;
+    font-size: ${compact ? '12px' : '13px'};
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    letter-spacing: 0.3px;
+    transition: opacity 0.15s, transform 0.1s;
+    box-shadow: 0 2px 12px rgba(239,68,68,0.35);
+  `;
+  killBtn.innerHTML = `<span>⚡</span>${compact ? '' : '<span>Kill</span>'}`;
+  killBtn.addEventListener('click', triggerKillSwitch);
+  killBtn.addEventListener('mouseenter', () => { killBtn.style.opacity = '0.88'; });
+  killBtn.addEventListener('mouseleave', () => { killBtn.style.opacity = '1'; });
+
+  const settingsBtn = document.createElement('button');
+  settingsBtn.className = 'flux-kill-btn-settings';
+  settingsBtn.title = 'Configure Kill Switch';
+  settingsBtn.style.cssText = `
+    background: rgba(239,68,68,0.15);
+    color: #ef4444;
+    border: none;
+    border-left: 1px solid rgba(239,68,68,0.3);
+    border-radius: ${compact ? '0 8px 8px 0' : '0 10px 10px 0'};
+    padding: ${compact ? '6px 7px' : '8px 8px'};
+    font-size: ${compact ? '10px' : '11px'};
+    cursor: pointer;
+    transition: background 0.15s;
+    box-shadow: 0 2px 12px rgba(239,68,68,0.15);
+  `;
+  settingsBtn.textContent = '⚙';
+  settingsBtn.addEventListener('click', (e) => { e.stopPropagation(); buildKillSwitchPopover(); });
+  settingsBtn.addEventListener('mouseenter', () => { settingsBtn.style.background = 'rgba(239,68,68,0.25)'; });
+  settingsBtn.addEventListener('mouseleave', () => { settingsBtn.style.background = 'rgba(239,68,68,0.15)'; });
+
+  wrap.appendChild(killBtn);
+  wrap.appendChild(settingsBtn);
+  return wrap;
+}
+
+function initKillSwitch() {
+  // 1. Inject into topbar right-actions
+  const rightActions = document.querySelector('.right-actions');
+  if (rightActions && !rightActions.querySelector('.flux-kill-btn')) {
+    rightActions.prepend(createKillButton(false));
+  }
+
+  // 2. Inject into game modal header (modal-tools)
+  const injectIntoModal = () => {
+    const modalTools = document.querySelector('#play-modal .modal-tools');
+    if (modalTools && !modalTools.querySelector('.flux-kill-btn')) {
+      modalTools.prepend(createKillButton(true));
+    }
+  };
+  injectIntoModal();
+
+  const playModal = document.getElementById('play-modal');
+  if (playModal) {
+    const observer = new MutationObserver(injectIntoModal);
+    observer.observe(playModal, { attributes: true, attributeFilter: ['aria-hidden'] });
+  }
+
+  // Keyboard shortcut: Shift + Escape
+  document.addEventListener('keydown', (e) => {
+    if (e.shiftKey && e.key === 'Escape') { e.preventDefault(); triggerKillSwitch(); }
+  });
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initKillSwitch);
+} else {
+  initKillSwitch();
+}
