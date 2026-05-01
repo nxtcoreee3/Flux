@@ -82,9 +82,8 @@
   </main>
 
   <script type="module">
-    import { onAuthChange, signInWithGoogle, logOut } from './firebase-auth.js';
-    import { getApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getDatabase, ref, query, limitToLast, orderByChild, equalTo, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+    import { onAuthChange, signInWithGoogle, logOut, rtdb } from './firebase-auth.js';
+    import { ref, query, limitToLast, orderByChild, equalTo, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
     const ADMIN_UID = 'zEy6TO5ligf2um4rssIZs9C9X7f2';
 
@@ -110,16 +109,13 @@
     onAuthChange((user) => {
       if (user && !user.isAnonymous) {
         if (user.uid === ADMIN_UID) {
-          // Is Admin!
           authView.style.display = 'none';
           logsView.style.display = 'block';
           loadLogs();
         } else {
-          // Not an admin
           window.location.href = 'denied.html';
         }
       } else {
-        // Not signed in or anonymous
         authView.style.display = 'block';
         logsView.style.display = 'none';
       }
@@ -127,61 +123,52 @@
 
     function loadLogs() {
       if (_logsUnsub) _logsUnsub();
-      
-      try {
-        const app = getApp();
-        const rtdb = getDatabase(app);
-        
-        const filterUid = userFilter.value;
-        let logsQuery;
-        
-        if (filterUid === 'all') {
-          logsQuery = query(ref(rtdb, 'activityLogs'), limitToLast(100));
-        } else {
-          logsQuery = query(ref(rtdb, 'activityLogs'), orderByChild('uid'), equalTo(filterUid), limitToLast(100));
+
+      const filterUid = userFilter.value;
+      let logsQuery;
+
+      if (filterUid === 'all') {
+        logsQuery = query(ref(rtdb, 'activityLogs'), limitToLast(100));
+      } else {
+        logsQuery = query(ref(rtdb, 'activityLogs'), orderByChild('uid'), equalTo(filterUid), limitToLast(100));
+      }
+
+      logsList.innerHTML = '<div class="loading-msg">Loading logs...</div>';
+
+      _logsUnsub = onValue(logsQuery, (snap) => {
+        logsList.innerHTML = '';
+        if (!snap.exists()) {
+          logsList.innerHTML = '<div class="loading-msg">No recent activity.</div>';
+          return;
         }
 
-        logsList.innerHTML = '<div class="loading-msg">Loading logs...</div>';
+        const logs = [];
+        snap.forEach(child => { logs.push(child.val()); });
+        logs.reverse();
 
-        _logsUnsub = onValue(logsQuery, (snap) => {
-          logsList.innerHTML = '';
-          if (!snap.exists()) {
-            logsList.innerHTML = '<div class="loading-msg">No recent activity.</div>';
-            return;
+        const uniqueUsers = {};
+        logs.forEach(l => { if (l.uid && l.username) uniqueUsers[l.uid] = l.username; });
+        Object.entries(uniqueUsers).forEach(([uid, name]) => {
+          if (!userFilter.querySelector(`option[value="${uid}"]`)) {
+            const opt = document.createElement('option');
+            opt.value = uid; opt.textContent = `@${name}`;
+            userFilter.appendChild(opt);
           }
-
-          const logs = [];
-          snap.forEach(child => { logs.push(child.val()); });
-          logs.reverse(); // Newest first
-
-          // Populate filter dynamically
-          const uniqueUsers = {};
-          logs.forEach(l => { if (l.uid && l.username) uniqueUsers[l.uid] = l.username; });
-          Object.entries(uniqueUsers).forEach(([uid, name]) => {
-            if (!userFilter.querySelector(`option[value="${uid}"]`)) {
-              const opt = document.createElement('option');
-              opt.value = uid; opt.textContent = `@${name}`;
-              userFilter.appendChild(opt);
-            }
-          });
-
-          // Render
-          logs.forEach(l => {
-            const item = document.createElement('div');
-            item.className = 'log-item';
-            const timeStr = l.timestamp ? new Date(l.timestamp).toLocaleString() : '';
-            item.innerHTML = `
-              <div><span class="log-user">@${l.username}</span> <span class="log-action">${l.action}</span></div>
-              <div class="log-time">${timeStr}</div>
-            `;
-            logsList.appendChild(item);
-          });
-        }, (err) => {
-          logsList.innerHTML = `<div class="loading-msg" style="color:#ef4444;">Failed to load logs: ${err.message}</div>`;
         });
-      } catch(e) {
-        logsList.innerHTML = `<div class="loading-msg" style="color:#ef4444;">Error initializing DB: ${e.message}</div>`;
-      }
+
+        logs.forEach(l => {
+          const item = document.createElement('div');
+          item.className = 'log-item';
+          const timeStr = l.timestamp ? new Date(l.timestamp).toLocaleString() : '';
+          item.innerHTML = `
+            <div><span class="log-user">@${l.username}</span> <span class="log-action">${l.action}</span></div>
+            <div class="log-time">${timeStr}</div>
+          `;
+          logsList.appendChild(item);
+        });
+      }, (err) => {
+        logsList.innerHTML = `<div class="loading-msg" style="color:#ef4444;">Failed to load logs: ${err.message}</div>`;
+      });
     }
 
     userFilter.addEventListener('change', loadLogs);
