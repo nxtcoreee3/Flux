@@ -2258,7 +2258,7 @@ window.openSpinWheel = async function () {
     const seg = result.segment;
     const segIdx = segs.findIndex(s => s.label === seg.label);
     const segAngleDeg = segs.slice(0, segIdx).reduce((acc, s) => acc + (s.weight / total) * 360, 0) + (seg.weight / total) * 180;
-    const spins = 5 + Math.random() * 3;
+    const spins = 5 + Math.floor(Math.random() * 3);
     document.getElementById('spin-wheel-svg').style.transform = `rotate(${spins * 360 + (360 - segAngleDeg)}deg)`;
     setTimeout(() => {
       if (seg.points > 0) res.innerHTML = `<span style="color:#22c55e;">🎉 You won <strong style="font-size:28px;">${seg.points}</strong> pts!</span>`;
