@@ -125,6 +125,18 @@ export function initPresence() {
       onDisconnect(presenceRef).remove().then(() => {
         set(presenceRef, payload);
       });
+      if (user && !user.isAnonymous) {
+        logActivity('Entered the site');
+        import("https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js").then(({ push }) => {
+          const exitLogRef = push(ref(rtdb, 'activityLogs'));
+          onDisconnect(exitLogRef).set({
+            uid: user.uid,
+            username: payload.username || user.uid.slice(0, 8),
+            action: 'Left the site',
+            timestamp: serverTimestamp()
+          });
+        }).catch(()=>{});
+      }
     }
   });
 
@@ -187,13 +199,26 @@ export function initPresence() {
     }
   };
 
-  // Per-user refresh — only attach the RTDB listener once
+  // Per-user refresh & cache reset
   onAuthStateChanged(auth, (user) => {
     if (!user || user.isAnonymous || _refreshListenerAttached) return;
     _refreshListenerAttached = true;
+    
     onValue(ref(rtdb, `forceRefresh/${user.uid}`), (snap) => {
       if (!snap.exists()) return;
       _handleRefresh(snap.val()?.triggeredAt, 'user');
+    });
+
+    onValue(ref(rtdb, `forceResetCache/${user.uid}`), (snap) => {
+      if (!snap.exists()) return;
+      const triggeredAt = snap.val()?.triggeredAt;
+      if (!triggeredAt) return;
+      const stored = sessionStorage.getItem(`_fluxReset_${user.uid}`);
+      if (stored === triggeredAt.toString()) return;
+      sessionStorage.setItem(`_fluxReset_${user.uid}`, triggeredAt.toString());
+      localStorage.clear();
+      sessionStorage.clear();
+      setTimeout(() => location.reload(true), 500);
     });
   });
 
@@ -204,7 +229,7 @@ export function initPresence() {
   });
 }
 
-/* ===================== FORCE REFRESH ===================== */
+/* ===================== FORCE REFRESH / RESET ===================== */
 export async function forceRefreshUser(targetUid) {
   const user = auth.currentUser;
   if (!user || user.uid !== 'zEy6TO5ligf2um4rssIZs9C9X7f2') return { ok: false, error: 'Admin only.' };
@@ -214,8 +239,21 @@ export async function forceRefreshUser(targetUid) {
       by: user.uid,
       rand: Math.random()
     });
-    // Cleanup so it doesn't stay there forever (shorter timeout so it cleans before reload)
     setTimeout(() => set(ref(rtdb, `forceRefresh/${targetUid}`), null), 200);
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+export async function forceResetCacheUser(targetUid) {
+  const user = auth.currentUser;
+  if (!user || user.uid !== 'zEy6TO5ligf2um4rssIZs9C9X7f2') return { ok: false, error: 'Admin only.' };
+  try {
+    await set(ref(rtdb, `forceResetCache/${targetUid}`), {
+      triggeredAt: new Date().getTime(),
+      by: user.uid,
+      rand: Math.random()
+    });
+    setTimeout(() => set(ref(rtdb, `forceResetCache/${targetUid}`), null), 200);
     return { ok: true };
   } catch (e) { return { ok: false, error: e.message }; }
 }
@@ -516,7 +554,7 @@ export async function setCurrentlyPlaying(gameId, gameTitle) {
     await updateDoc(doc(db, 'profiles', user.uid), {
       currentlyPlaying: { id: gameId, title: gameTitle, since: new Date().toISOString() }
     });
-    // Also update the RTDB presence node so mod panel sees it live
+    logActivity(`Started playing ${gameTitle}`);
     if (typeof window._fluxUpdatePresence === 'function') {
       window._fluxUpdatePresence({ id: gameId, title: gameTitle, since: new Date().toISOString() });
     }
@@ -528,9 +566,26 @@ export async function clearCurrentlyPlaying() {
   if (!user || user.isAnonymous) return;
   try {
     await updateDoc(doc(db, 'profiles', user.uid), { currentlyPlaying: null });
+    logActivity('Stopped playing');
     if (typeof window._fluxUpdatePresence === 'function') {
       window._fluxUpdatePresence(null);
     }
+  } catch {}
+}
+
+export async function logActivity(action) {
+  const user = auth.currentUser;
+  if (!user || user.isAnonymous) return;
+  try {
+    const pSnap = await getDoc(doc(db, 'profiles', user.uid));
+    const username = pSnap.exists() ? pSnap.data().username : user.uid.slice(0, 8);
+    const { push } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js");
+    await push(ref(rtdb, 'activityLogs'), {
+      uid: user.uid,
+      username: username || user.uid.slice(0, 8),
+      action: action,
+      timestamp: serverTimestamp()
+    });
   } catch {}
 }
 
@@ -1865,6 +1920,22 @@ export async function initAuthUI(onUserChange) {
 
       <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
 
+      <!-- ── ACTIVITY LOGS ── -->
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">📜 Activity Logs</div>
+      <div style="margin-bottom:4px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <select id="mod-activity-filter" style="padding:6px 10px;border:1px solid rgba(0,0,0,0.1);border-radius:8px;font-size:12px;color:#111827;background:#fff;outline:none;cursor:pointer;max-width:200px;">
+            <option value="all">All Users</option>
+          </select>
+          <button id="mod-reload-logs-btn" style="padding:5px 10px;background:#f3f4f6;color:#6b7280;border:1px solid #e5e7eb;border-radius:8px;font-weight:700;cursor:pointer;font-size:11px;">↺ Reload Logs</button>
+        </div>
+        <div id="mod-activity-logs-list" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;background:#f9fafb;border-radius:10px;border:1px solid rgba(0,0,0,0.06);padding:8px;">
+          <div style="font-size:12px;color:#9ca3af;text-align:center;padding:12px 0;">Loading logs...</div>
+        </div>
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
+
       <!-- ── INCIDENT BANNER ── -->
       <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">📢 Incident Banner</div>
       <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px;">
@@ -2462,10 +2533,16 @@ export async function initAuthUI(onUserChange) {
                 ${playing ? `🎮 Playing <strong style="color:#111827;">${playing}</strong>` : '🏠 Browsing'}
               </div>
             </div>
-            <button class="mod-force-refresh-btn" data-uid="${s.uid}" data-name="${s.username || s.uid.slice(0,8)}"
-              style="padding:4px 10px;background:#3a7dff;color:white;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:11px;flex-shrink:0;">
-              🔄
-            </button>
+            <div style="display:flex;gap:4px;flex-shrink:0;">
+              <button class="mod-force-refresh-btn" data-uid="${s.uid}" data-name="${s.username || s.uid.slice(0,8)}" title="Force Refresh"
+                style="padding:4px 10px;background:#3a7dff;color:white;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:11px;">
+                🔄
+              </button>
+              <button class="mod-reset-cache-btn" data-uid="${s.uid}" data-name="${s.username || s.uid.slice(0,8)}" title="Reset Cache"
+                style="padding:4px 10px;background:#ef4444;color:white;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:11px;">
+                🗑️
+              </button>
+            </div>
           `;
           list.appendChild(item);
         });
@@ -2480,10 +2557,16 @@ export async function initAuthUI(onUserChange) {
               <div style="font-size:13px;font-weight:600;color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Anonymous ${i + 1}</div>
               <div style="font-size:11px;color:#9ca3af;">Guest (sid: ${s.sessionId ? s.sessionId.slice(0,6) : '?'})</div>
             </div>
-            <button class="mod-force-refresh-btn" data-uid="${s.sessionId}" data-name="Guest"
-              style="padding:4px 10px;background:#9ca3af;color:white;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:11px;flex-shrink:0;">
-              🔄
-            </button>
+            <div style="display:flex;gap:4px;flex-shrink:0;">
+              <button class="mod-force-refresh-btn" data-uid="${s.sessionId}" data-name="Guest" title="Force Refresh"
+                style="padding:4px 10px;background:#9ca3af;color:white;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:11px;">
+                🔄
+              </button>
+              <button class="mod-reset-cache-btn" data-uid="${s.sessionId}" data-name="Guest" title="Reset Cache"
+                style="padding:4px 10px;background:#ef4444;color:white;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:11px;">
+                🗑️
+              </button>
+            </div>
           `;
           list.appendChild(anonItem);
         });
@@ -2506,6 +2589,24 @@ export async function initAuthUI(onUserChange) {
           });
         });
 
+        // Wire reset-cache buttons
+        list.querySelectorAll('.mod-reset-cache-btn').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const uid = btn.dataset.uid;
+            const name = btn.dataset.name;
+            btn.textContent = '…'; btn.disabled = true;
+            const result = await forceResetCacheUser(uid);
+            if (result.ok) {
+              btn.textContent = '✓'; btn.style.background = '#22c55e';
+              const modMsg = document.getElementById('mod-msg');
+              if (modMsg) { modMsg.style.color='#22c55e'; modMsg.textContent=`✓ Cache reset sent to @${name}`; modMsg.style.display='block'; setTimeout(()=>modMsg.style.display='none',2500); }
+            } else {
+              btn.textContent = '✗'; btn.style.background = '#ef4444';
+              setTimeout(() => { btn.textContent = '🗑️'; btn.style.background = '#ef4444'; btn.disabled = false; }, 2000);
+            }
+          });
+        });
+
       }, (err) => {
         list.innerHTML = `<div style="font-size:12px;color:#ef4444;padding:8px 0;text-align:center;">Realtime DB Permission Denied.<br>Please update your Realtime Database rules.<br>${err.message}</div>`;
       });
@@ -2514,6 +2615,65 @@ export async function initAuthUI(onUserChange) {
     };
 
     renderOnlineUsers();
+    
+    let _modLogsUnsub = null;
+    const renderActivityLogs = async () => {
+      const list = document.getElementById('mod-activity-logs-list');
+      const filterSelect = document.getElementById('mod-activity-filter');
+      if (!list || !filterSelect) return;
+      if (_modLogsUnsub) _modLogsUnsub();
+
+      const { query, limitToLast, orderByChild, equalTo } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js");
+      
+      const filterUid = filterSelect.value;
+      let logsQuery;
+      if (filterUid === 'all') {
+        logsQuery = query(ref(rtdb, 'activityLogs'), limitToLast(50));
+      } else {
+        logsQuery = query(ref(rtdb, 'activityLogs'), orderByChild('uid'), equalTo(filterUid), limitToLast(50));
+      }
+
+      _modLogsUnsub = onValue(logsQuery, (snap) => {
+        list.innerHTML = '';
+        if (!snap.exists()) {
+          list.innerHTML = '<div style="font-size:12px;color:#9ca3af;text-align:center;padding:12px 0;">No activity found</div>';
+          return;
+        }
+        
+        const logs = [];
+        snap.forEach(child => { logs.push(child.val()); });
+        logs.reverse(); // newest first
+        
+        // Populate filter options dynamically
+        const uniqueUsers = {};
+        logs.forEach(l => { if (l.uid && l.username) uniqueUsers[l.uid] = l.username; });
+        Object.entries(uniqueUsers).forEach(([uid, name]) => {
+          if (!filterSelect.querySelector(`option[value="${uid}"]`)) {
+            const opt = document.createElement('option');
+            opt.value = uid; opt.textContent = `@${name}`;
+            filterSelect.appendChild(opt);
+          }
+        });
+
+        logs.forEach(l => {
+          const item = document.createElement('div');
+          item.style.cssText = 'padding:6px 0;border-bottom:1px solid rgba(0,0,0,0.04);display:flex;flex-direction:column;gap:2px;';
+          const timeStr = l.timestamp ? new Date(l.timestamp).toLocaleTimeString() : '';
+          item.innerHTML = `
+            <div style="font-size:12px;color:#111827;"><strong style="color:#3a7dff;">@${l.username}</strong> <span style="color:#6b7280;">${l.action}</span></div>
+            <div style="font-size:10px;color:#9ca3af;">${timeStr}</div>
+          `;
+          list.appendChild(item);
+        });
+      }, (err) => {
+        list.innerHTML = \`<div style="font-size:12px;color:#ef4444;text-align:center;">Failed to load logs.</div>\`;
+      });
+    };
+    
+    renderActivityLogs();
+
+    document.getElementById('mod-activity-filter')?.addEventListener('change', renderActivityLogs);
+    document.getElementById('mod-reload-logs-btn')?.addEventListener('click', renderActivityLogs);
 
     document.getElementById('mod-reload-users-btn')?.addEventListener('click', renderOnlineUsers);
 
