@@ -2210,7 +2210,7 @@ window.openSpinWheel = async function () {
   const size = 260, cx = 130, cy = 130, r = 126;
   let svgSlices = ''; let angle = -Math.PI / 2;
   segs.forEach(seg => {
-    const sweep = (seg.weight / total) * 2 * Math.PI;
+    const sweep = (1 / segs.length) * 2 * Math.PI;
     const x1 = cx + r * Math.cos(angle), y1 = cy + r * Math.sin(angle);
     const x2 = cx + r * Math.cos(angle + sweep), y2 = cy + r * Math.sin(angle + sweep);
     const large = sweep > Math.PI ? 1 : 0;
@@ -2257,7 +2257,7 @@ window.openSpinWheel = async function () {
     if (!result.ok) { res.innerHTML = `<span style="color:#ef4444;font-size:14px;">${result.error === 'cooldown' ? '⏱ Come back later!' : result.error}</span>`; btn.disabled = false; btn.textContent = '🎰 Spin!'; return; }
     const seg = result.segment;
     const segIdx = segs.findIndex(s => s.label === seg.label);
-    const segAngleDeg = segs.slice(0, segIdx).reduce((acc, s) => acc + (s.weight / total) * 360, 0) + (seg.weight / total) * 180;
+    const segAngleDeg = (segIdx * (360 / segs.length)) + (180 / segs.length);
     const spins = 5 + Math.floor(Math.random() * 3);
     document.getElementById('spin-wheel-svg').style.transform = `rotate(${spins * 360 + (360 - segAngleDeg)}deg)`;
     setTimeout(() => {
