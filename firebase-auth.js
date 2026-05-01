@@ -2666,7 +2666,7 @@ export async function initAuthUI(onUserChange) {
           list.appendChild(item);
         });
       }, (err) => {
-        list.innerHTML = \`<div style="font-size:12px;color:#ef4444;text-align:center;">Failed to load logs.</div>\`;
+        list.innerHTML = `<div style="font-size:12px;color:#ef4444;text-align:center;">Failed to load logs.</div>`;
       });
     };
     
