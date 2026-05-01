@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Admin Activity Logs - Flux</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script>
+    (function() {
+      try {
+        if (localStorage.getItem('flux_dark') === '1' ||
+            (localStorage.getItem('flux_dark') === null && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        }
+        if (localStorage.getItem('flux_beta') === '1') document.documentElement.classList.add('beta');
+      } catch(e) {}
+    })();
+  </script>
+  <style>
+    body { background: var(--bg); color: var(--text); }
+    .logs-page { max-width: 800px; margin: 40px auto; padding: 20px; }
+    .logs-header { font-family: 'Bebas Neue', sans-serif; font-size: 42px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; }
+    
+    .auth-container { text-align: center; margin-top: 100px; }
+    .auth-title { font-family: 'Bebas Neue', sans-serif; font-size: 32px; margin-bottom: 10px; }
+    .auth-btn { background: #3a7dff; color: white; border: none; padding: 12px 24px; border-radius: 30px; font-weight: 700; cursor: pointer; font-size: 16px; transition: background 0.2s; }
+    .auth-btn:hover { background: #2563eb; }
+
+    .logs-container { display: none; background: var(--panel); border: 1px solid var(--glass-border); border-radius: 16px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.1); }
+    .logs-toolbar { padding: 12px 20px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--glass-border); display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+    
+    .log-item { padding: 12px 20px; border-bottom: 1px solid var(--glass-border); display: flex; flex-direction: column; gap: 4px; }
+    .log-item:last-child { border-bottom: none; }
+    .log-user { font-weight: 700; color: var(--accent); }
+    .log-action { color: var(--text); font-size: 14px; }
+    .log-time { color: var(--muted); font-size: 11px; }
+
+    select, button.tool-btn { padding: 6px 12px; border: 1px solid var(--glass-border); border-radius: 8px; font-size: 13px; background: var(--panel); color: var(--text); outline: none; }
+    button.tool-btn { cursor: pointer; font-weight: 700; }
+    button.tool-btn:hover { background: rgba(0,0,0,0.05); }
+    
+    .loading-msg { padding: 40px; text-align: center; color: var(--muted); }
+  </style>
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="brand">
+      <a href="index.html" class="logo"><img src="assets/logo.png" alt="Flux" style="height:32px;vertical-align:middle;margin-right:6px;"> FLUX</a>
+    </div>
+  </header>
+
+  <main class="logs-page">
+    
+    <!-- Auth View -->
+    <div id="auth-view" class="auth-container">
+      <h1 class="auth-title">Admin Authentication</h1>
+      <p style="color:var(--muted); margin-bottom: 24px;">Please sign in with your Google Admin account to access the logs.</p>
+      <button id="google-signin-btn" class="auth-btn">Sign in with Google</button>
+    </div>
+
+    <!-- Logs View -->
+    <div id="logs-view" style="display: none;">
+      <div class="logs-header">
+        <span>Activity Logs</span>
+        <button id="sign-out-btn" class="tool-btn" style="font-size:12px; background: rgba(239,68,68,0.1); color: #ef4444; border-color: rgba(239,68,68,0.2);">Sign Out</button>
+      </div>
+      <div class="logs-container">
+        <div class="logs-toolbar">
+          <select id="user-filter">
+            <option value="all">All Users</option>
+          </select>
+          <button id="refresh-logs-btn" class="tool-btn">↻ Refresh</button>
+        </div>
+        <div id="logs-list">
+          <div class="loading-msg">Loading logs...</div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script type="module">
+    import { onAuthChange, signInWithGoogle, logOut } from './firebase-auth.js';
+    import { getApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getDatabase, ref, query, limitToLast, orderByChild, equalTo, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+    const ADMIN_UID = 'zEy6TO5ligf2um4rssIZs9C9X7f2';
+
+    const authView = document.getElementById('auth-view');
+    const logsView = document.getElementById('logs-view');
+    const signinBtn = document.getElementById('google-signin-btn');
+    const signoutBtn = document.getElementById('sign-out-btn');
+    const logsList = document.getElementById('logs-list');
+    const userFilter = document.getElementById('user-filter');
+    const refreshBtn = document.getElementById('refresh-logs-btn');
+
+    let _logsUnsub = null;
+
+    signinBtn.addEventListener('click', async () => {
+      try { await signInWithGoogle(); } catch (err) { console.error('Sign in failed', err); }
+    });
+
+    signoutBtn.addEventListener('click', async () => {
+      await logOut();
+      window.location.reload();
+    });
+
+    onAuthChange((user) => {
+      if (user && !user.isAnonymous) {
+        if (user.uid === ADMIN_UID) {
+          // Is Admin!
+          authView.style.display = 'none';
+          logsView.style.display = 'block';
+          loadLogs();
+        } else {
+          // Not an admin
+          window.location.href = 'denied.html';
+        }
+      } else {
+        // Not signed in or anonymous
+        authView.style.display = 'block';
+        logsView.style.display = 'none';
+      }
+    });
+
+    function loadLogs() {
+      if (_logsUnsub) _logsUnsub();
+      
+      try {
+        const app = getApp();
+        const rtdb = getDatabase(app);
+        
+        const filterUid = userFilter.value;
+        let logsQuery;
+        
+        if (filterUid === 'all') {
+          logsQuery = query(ref(rtdb, 'activityLogs'), limitToLast(100));
+        } else {
+          logsQuery = query(ref(rtdb, 'activityLogs'), orderByChild('uid'), equalTo(filterUid), limitToLast(100));
+        }
+
+        logsList.innerHTML = '<div class="loading-msg">Loading logs...</div>';
+
+        _logsUnsub = onValue(logsQuery, (snap) => {
+          logsList.innerHTML = '';
+          if (!snap.exists()) {
+            logsList.innerHTML = '<div class="loading-msg">No recent activity.</div>';
+            return;
+          }
+
+          const logs = [];
+          snap.forEach(child => { logs.push(child.val()); });
+          logs.reverse(); // Newest first
+
+          // Populate filter dynamically
+          const uniqueUsers = {};
+          logs.forEach(l => { if (l.uid && l.username) uniqueUsers[l.uid] = l.username; });
+          Object.entries(uniqueUsers).forEach(([uid, name]) => {
+            if (!userFilter.querySelector(`option[value="${uid}"]`)) {
+              const opt = document.createElement('option');
+              opt.value = uid; opt.textContent = `@${name}`;
+              userFilter.appendChild(opt);
+            }
+          });
+
+          // Render
+          logs.forEach(l => {
+            const item = document.createElement('div');
+            item.className = 'log-item';
+            const timeStr = l.timestamp ? new Date(l.timestamp).toLocaleString() : '';
+            item.innerHTML = `
+              <div><span class="log-user">@${l.username}</span> <span class="log-action">${l.action}</span></div>
+              <div class="log-time">${timeStr}</div>
+            `;
+            logsList.appendChild(item);
+          });
+        }, (err) => {
+          logsList.innerHTML = `<div class="loading-msg" style="color:#ef4444;">Failed to load logs: ${err.message}</div>`;
+        });
+      } catch(e) {
+        logsList.innerHTML = `<div class="loading-msg" style="color:#ef4444;">Error initializing DB: ${e.message}</div>`;
+      }
+    }
+
+    userFilter.addEventListener('change', loadLogs);
+    refreshBtn.addEventListener('click', loadLogs);
+
+  </script>
+</body>
+</html>

@@ -1923,15 +1923,9 @@ export async function initAuthUI(onUserChange) {
       <!-- ── ACTIVITY LOGS ── -->
       <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">📜 Activity Logs</div>
       <div style="margin-bottom:4px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-          <select id="mod-activity-filter" style="padding:6px 10px;border:1px solid rgba(0,0,0,0.1);border-radius:8px;font-size:12px;color:#111827;background:#fff;outline:none;cursor:pointer;max-width:200px;">
-            <option value="all">All Users</option>
-          </select>
-          <button id="mod-reload-logs-btn" style="padding:5px 10px;background:#f3f4f6;color:#6b7280;border:1px solid #e5e7eb;border-radius:8px;font-weight:700;cursor:pointer;font-size:11px;">↺ Reload Logs</button>
-        </div>
-        <div id="mod-activity-logs-list" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;background:#f9fafb;border-radius:10px;border:1px solid rgba(0,0,0,0.06);padding:8px;">
-          <div style="font-size:12px;color:#9ca3af;text-align:center;padding:12px 0;">Loading logs...</div>
-        </div>
+        <button id="mod-open-logs-btn" style="width:100%;padding:10px;background:#3a7dff;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;gap:6px;">
+          View Full Activity Logs ↗
+        </button>
       </div>
 
       <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
@@ -2616,64 +2610,9 @@ export async function initAuthUI(onUserChange) {
 
     renderOnlineUsers();
     
-    let _modLogsUnsub = null;
-    const renderActivityLogs = async () => {
-      const list = document.getElementById('mod-activity-logs-list');
-      const filterSelect = document.getElementById('mod-activity-filter');
-      if (!list || !filterSelect) return;
-      if (_modLogsUnsub) _modLogsUnsub();
-
-      const { query, limitToLast, orderByChild, equalTo } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js");
-      
-      const filterUid = filterSelect.value;
-      let logsQuery;
-      if (filterUid === 'all') {
-        logsQuery = query(ref(rtdb, 'activityLogs'), limitToLast(50));
-      } else {
-        logsQuery = query(ref(rtdb, 'activityLogs'), orderByChild('uid'), equalTo(filterUid), limitToLast(50));
-      }
-
-      _modLogsUnsub = onValue(logsQuery, (snap) => {
-        list.innerHTML = '';
-        if (!snap.exists()) {
-          list.innerHTML = '<div style="font-size:12px;color:#9ca3af;text-align:center;padding:12px 0;">No activity found</div>';
-          return;
-        }
-        
-        const logs = [];
-        snap.forEach(child => { logs.push(child.val()); });
-        logs.reverse(); // newest first
-        
-        // Populate filter options dynamically
-        const uniqueUsers = {};
-        logs.forEach(l => { if (l.uid && l.username) uniqueUsers[l.uid] = l.username; });
-        Object.entries(uniqueUsers).forEach(([uid, name]) => {
-          if (!filterSelect.querySelector(`option[value="${uid}"]`)) {
-            const opt = document.createElement('option');
-            opt.value = uid; opt.textContent = `@${name}`;
-            filterSelect.appendChild(opt);
-          }
-        });
-
-        logs.forEach(l => {
-          const item = document.createElement('div');
-          item.style.cssText = 'padding:6px 0;border-bottom:1px solid rgba(0,0,0,0.04);display:flex;flex-direction:column;gap:2px;';
-          const timeStr = l.timestamp ? new Date(l.timestamp).toLocaleTimeString() : '';
-          item.innerHTML = `
-            <div style="font-size:12px;color:#111827;"><strong style="color:#3a7dff;">@${l.username}</strong> <span style="color:#6b7280;">${l.action}</span></div>
-            <div style="font-size:10px;color:#9ca3af;">${timeStr}</div>
-          `;
-          list.appendChild(item);
-        });
-      }, (err) => {
-        list.innerHTML = `<div style="font-size:12px;color:#ef4444;text-align:center;">Failed to load logs.</div>`;
-      });
-    };
-    
-    renderActivityLogs();
-
-    document.getElementById('mod-activity-filter')?.addEventListener('change', renderActivityLogs);
-    document.getElementById('mod-reload-logs-btn')?.addEventListener('click', renderActivityLogs);
+    document.getElementById('mod-open-logs-btn')?.addEventListener('click', () => {
+      window.open('logs.html', '_blank');
+    });
 
     document.getElementById('mod-reload-users-btn')?.addEventListener('click', renderOnlineUsers);
 
