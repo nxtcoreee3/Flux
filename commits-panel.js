@@ -89,26 +89,7 @@ async function fetchCommitsFromAtom() {
   }
 }
 
-async function fetchCommitTotalViaSearch() {
-  // Fallback for cases where the `Link` header isn't accessible (CORS/exposed headers)
-  // Uses GitHub Search API which returns a JSON `total_count`.
-  try {
-    const q = encodeURIComponent(`repo:${GH_OWNER}/${GH_REPO}`);
-    const res = await fetch(`https://api.github.com/search/commits?q=${q}&per_page=1`, {
-      headers: {
-        'Accept': 'application/vnd.github+json, application/vnd.github.cloak-preview'
-      },
-      cache: 'no-store'
-    });
-    if (res.status === 403) setBlocked();
-    if (!res.ok) return 0;
-    const data = await res.json();
-    const total = parseInt(data?.total_count || '0', 10) || 0;
-    return total;
-  } catch {
-    return 0;
-  }
-}
+
 
 async function fetchCommitTotal(force = false) {
   const cached = parseInt(localStorage.getItem(TOTAL_KEY) || '0', 10) || 0;
@@ -125,7 +106,7 @@ async function fetchCommitTotal(force = false) {
     if (!res.ok) return cached || 0;
     const link = res.headers.get('Link') || '';
     const lastPage = parseLastPageFromLinkHeader(link);
-    const total = lastPage || (await fetchCommitTotalViaSearch()) || cached || 0;
+    const total = lastPage || cached || 0;
     if (total) {
       localStorage.setItem(TOTAL_KEY, String(total));
       localStorage.setItem(TOTAL_TS_KEY, String(Date.now()));
@@ -138,10 +119,7 @@ async function fetchCommitTotal(force = false) {
 
 async function fetchCommits(force = false) {
   if (!force) {
-    try {
-      const cached = JSON.parse(sessionStorage.getItem(CACHE_KEY) || 'null');
-      if (cached && Date.now() - cached.ts < CACHE_TTL) return cached.data;
-    } catch {}
+    // Rely solely on ETag for caching to avoid stale commits after a fresh push.
   }
 
   // If GitHub API is rate-limiting this client, use the Atom feed instead.

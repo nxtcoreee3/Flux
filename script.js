@@ -1503,25 +1503,44 @@ function timeAgoShort(isoDate) {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+async function fetchCommitsFromAtom() {
+  try {
+    const res = await fetch(`https://github.com/nxtcoreee3/Flux/commits/main.atom`, { cache: 'no-store' });
+    if (!res.ok) return [];
+    const xmlText = await res.text();
+    const xml = new DOMParser().parseFromString(xmlText, 'application/xml');
+    const entries = Array.from(xml.querySelectorAll('entry')).slice(0, COMMITS_PER_PAGE);
+    return entries.map((entry) => {
+      const id = entry.querySelector('id')?.textContent || '';
+      const title = entry.querySelector('title')?.textContent || '';
+      const updated = entry.querySelector('updated')?.textContent || '';
+      const sha = (id.match(/commit\/([0-9a-f]{7,40})/i)?.[1] || '').toLowerCase();
+      return {
+        sha,
+        html_url: `https://github.com/nxtcoreee3/Flux/commit/${sha}`,
+        commit: { message: title, committer: { date: updated }, author: { date: updated } }
+      };
+    }).filter(c => c.sha);
+  } catch { return []; }
+}
+
 async function fetchCommits(force = false) {
-  // Return cache if fresh
-  if (!force) {
-    try {
-      const cached = JSON.parse(sessionStorage.getItem(COMMITS_CACHE_KEY) || 'null');
-      if (cached && Date.now() - cached.ts < COMMITS_CACHE_TTL) return cached.data;
-    } catch {}
+  try {
+    const res = await fetch(`https://api.github.com/repos/nxtcoreee3/Flux/commits?per_page=${COMMITS_PER_PAGE}&sha=main`, {
+      headers: { 'Accept': 'application/vnd.github.v3+json' },
+      cache: 'no-store'
+    });
+    if (!res.ok) throw new Error('GitHub API error');
+    return await res.json();
+  } catch (e) {
+    // Fallback to atom feed if rate-limited
+    const atom = await fetchCommitsFromAtom();
+    if (atom.length) return atom;
+    throw e;
   }
-  const res = await fetch(`https://api.github.com/repos/nxtcoreee3/Flux/commits?per_page=${COMMITS_PER_PAGE}&sha=main`, {
-    headers: { 'Accept': 'application/vnd.github.v3+json' }
-  });
-  if (!res.ok) throw new Error('GitHub API error');
-  const data = await res.json();
-  sessionStorage.setItem(COMMITS_CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
-  return data;
 }
 
 function parseLastPageFromLinkHeader(link) {
-  // Example: <...page=295>; rel="last"
   if (!link) return null;
   const parts = String(link).split(',');
   const lastPart = parts.find(p => /rel=\"last\"/.test(p));
@@ -1532,22 +1551,23 @@ function parseLastPageFromLinkHeader(link) {
 
 async function fetchCommitTotal(force = false) {
   const cached = parseInt(localStorage.getItem(COMMITS_TOTAL_KEY) || '0', 10) || 0;
-  const ts = parseInt(localStorage.getItem(COMMITS_TOTAL_TS_KEY) || '0', 10) || 0;
-  if (!force && cached > 0 && Date.now() - ts < COMMITS_TOTAL_TTL) return cached;
-
+  
   try {
-    // With per_page=1, the "last" page number equals total commits
     const res = await fetch('https://api.github.com/repos/nxtcoreee3/Flux/commits?per_page=1&sha=main', {
-      headers: { 'Accept': 'application/vnd.github.v3+json' }
+      headers: { 'Accept': 'application/vnd.github.v3+json' },
+      cache: 'no-store'
     });
     if (!res.ok) return cached || 0;
     const link = res.headers.get('Link') || '';
     const lastPage = parseLastPageFromLinkHeader(link);
-    const total = lastPage || 1;
-    localStorage.setItem(COMMITS_TOTAL_KEY, String(total));
-    localStorage.setItem(COMMITS_TOTAL_TS_KEY, String(Date.now()));
+    const total = lastPage || cached || 0;
+    if (total) {
+      localStorage.setItem(COMMITS_TOTAL_KEY, String(total));
+      localStorage.setItem(COMMITS_TOTAL_TS_KEY, String(Date.now()));
+    }
     return total;
   } catch {
+
     return cached || 0;
   }
 }
