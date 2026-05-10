@@ -3,7 +3,9 @@
    favorites (cloud+local), dark mode, toasts, recently played, new badge, stats button
 */
 
-const isOfficial = window.location.hostname === 'nxtcoreee3.github.io' && (window.location.pathname === '/Flux' || window.location.pathname.startsWith('/Flux/'));
+const isOfficial = window.location.hostname === 'nxtcoreee3.github.io' && 
+  (window.location.pathname === '/Flux' || window.location.pathname.startsWith('/Flux/') ||
+   window.location.pathname === '/Flux-Nightly' || window.location.pathname.startsWith('/Flux-Nightly/'));
 const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname === '';
 
 if (!isOfficial && !isLocal) {
