@@ -288,6 +288,13 @@ const GAMES = [
   thumb: 'assets/eggy-car.png',
   url: 'https://nxtcoreee3.github.io/EggyCar/',
   desc: 'Drive carefully over hills while keeping a fragile egg from falling.'
+},
+{
+  id: 'hill-climb-racing-lite',
+  title: 'Hill Climb Racing Lite',
+  thumb: 'assets/hill-climb-racing-lite.png',
+  url: 'https://nxtcoreee3.github.io/Hill-Climb-Racing-Lite/',
+  desc: 'Drive through hills, upgrade your vehicle, and go as far as possible without flipping.'
 }
 ];
 
