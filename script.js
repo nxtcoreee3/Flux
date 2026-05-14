@@ -1815,6 +1815,7 @@ function openFullscreen(url, title) {
     setMuteAllEnabled(next);
     syncFsMuteBtn();
     applyMuteToIframe(fsIframe);
+    if (next && fsIframe?.__fluxMuteDenied) showToast('Mute All can’t control this site', '');
   });
   fs.querySelector('#fs-kill-btn')?.addEventListener('click', () => triggerKillSwitch());
   fs.querySelector('#fs-kill-settings-btn')?.addEventListener('click', (e) => { e.stopPropagation(); buildKillSwitchPopover(); });
@@ -2713,6 +2714,21 @@ function applyMuteToIframe(iframe) {
           } catch {}
         });
       } catch {}
+
+      // Heuristic: try to find existing AudioContext instances on window
+      try {
+        if (w.__fluxMuteAll) {
+          Object.keys(w).slice(0, 4000).forEach(k => {
+            try {
+              const v = w[k];
+              if (v && typeof v === 'object' && v.constructor && v.constructor.name === 'AudioContext' && typeof v.suspend === 'function') {
+                v.suspend();
+                try { w.__fluxAudioContexts.push(v); } catch {}
+              }
+            } catch {}
+          });
+        }
+      } catch {}
     }
   } catch {}
   if (!isMuteAllEnabled()) return;
@@ -2737,6 +2753,7 @@ function applyMuteToIframe(iframe) {
       } catch {}
     } catch {
       // Cross-origin: cannot mute reliably
+      iframe.__fluxMuteDenied = true;
     }
   };
   run();
@@ -2777,10 +2794,16 @@ function createMuteAllButton(compact = false) {
     setMuteAllEnabled(next);
     syncLabel();
     // Try to mute currently playing iframes
-    applyMuteToIframe(document.querySelector('#fs-iframe'));
+    const fsIframe = document.querySelector('#fs-iframe');
+    applyMuteToIframe(fsIframe);
     const modal = document.getElementById('play-modal') || document.querySelector('.modal');
-    applyMuteToIframe(modal?.querySelector('iframe'));
-    showToast(next ? 'Mute All enabled (best-effort)' : 'Mute All disabled', next ? 'success' : '');
+    const modalIframe = modal?.querySelector('iframe');
+    applyMuteToIframe(modalIframe);
+    if (next && (fsIframe?.__fluxMuteDenied || modalIframe?.__fluxMuteDenied)) {
+      showToast('Mute All can’t control this site', '');
+    } else {
+      showToast(next ? 'Mute All enabled (best-effort)' : 'Mute All disabled', next ? 'success' : '');
+    }
   });
   btn.addEventListener('mouseenter', () => { btn.style.opacity = '0.88'; });
   btn.addEventListener('mouseleave', () => { btn.style.opacity = '1'; });
