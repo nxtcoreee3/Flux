@@ -277,18 +277,76 @@
             </div>
           </div>
         </div>
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:rgba(239,68,68,0.08);">🖐️</div>
+            <div class="settings-row-text">
+              <div class="settings-row-label">Return to Game</div>
+              <div class="settings-row-desc">Tap 5× quickly on the screen to close the Kill overlay</div>
+            </div>
+          </div>
+        </div>
       </div>
       <!-- Configure panel -->
       <div id="kill-switch-config-panel" style="display:none;margin-top:8px;background:var(--panel);border:1px solid var(--glass-border);border-radius:14px;overflow:hidden;">
         <div style="padding:16px 18px;border-bottom:1px solid var(--glass-border);font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">Choose your escape destination</div>
         <div id="kill-switch-presets-settings" style="display:flex;flex-direction:column;max-height:280px;overflow-y:auto;"></div>
         <div id="kill-custom-settings-wrap" style="display:none;padding:14px 18px;border-top:1px solid var(--glass-border);">
-          <label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:6px;">Custom URL or App Protocol</label>
-          <input id="kill-custom-settings-input" type="text" placeholder="e.g. https://example.com or figma://" class="settings-input">
+          <label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:6px;">Custom website URL</label>
+          <input id="kill-custom-settings-input" type="text" placeholder="e.g. https://example.com" class="settings-input">
         </div>
         <div style="padding:14px 18px;border-top:1px solid var(--glass-border);display:flex;gap:8px;">
           <button id="kill-save-settings-btn" class="settings-btn primary" style="background:linear-gradient(135deg,#ef4444,#dc2626);border-color:#dc2626;">Save Destination</button>
           <button id="kill-cancel-settings-btn" class="settings-btn">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- NAVIGATION -->
+    <div class="settings-section">
+      <div class="settings-section-label">Navigation</div>
+      <div class="settings-card">
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:rgba(58,125,255,0.08);">🧭</div>
+            <div class="settings-row-text">
+              <div class="settings-row-label">Customize Nav Bar</div>
+              <div class="settings-row-desc">Choose which tabs show up in the top navigation</div>
+            </div>
+          </div>
+          <button class="settings-btn" id="nav-expand-btn">Edit</button>
+        </div>
+        <div class="settings-expandable" id="nav-expand">
+          <div id="nav-prefs-list" style="display:flex;flex-direction:column;gap:10px;"></div>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap;">
+            <button class="settings-btn primary" id="nav-save-btn">Save</button>
+            <button class="settings-btn" id="nav-reset-btn">Reset</button>
+            <span id="nav-msg" style="font-size:12px;display:none;"></span>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:10px;line-height:1.5;">
+            Changes apply instantly on pages you open next. Reload an already-open page to refresh the nav.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AUDIO -->
+    <div class="settings-section">
+      <div class="settings-section-label">Audio</div>
+      <div class="settings-card">
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:rgba(34,197,94,0.1);">🔇</div>
+            <div class="settings-row-text">
+              <div class="settings-row-label">Mute All Games</div>
+              <div class="settings-row-desc">Mute sound from games (best-effort; may not work on all sites)</div>
+            </div>
+          </div>
+          <label class="toggle-wrap">
+            <input type="checkbox" id="mute-all-toggle">
+            <span class="toggle-track"></span>
+            <span class="toggle-thumb"></span>
+          </label>
         </div>
       </div>
     </div>
@@ -434,11 +492,6 @@
       { label: '📧 Gmail', value: 'https://mail.google.com', type: 'web' },
       { label: '📅 Google Calendar', value: 'https://calendar.google.com', type: 'web' },
       { label: '📄 Google Docs', value: 'https://docs.google.com/document/', type: 'web' },
-      { label: '🎨 Figma', value: 'figma://', type: 'app' },
-      { label: '💻 VS Code', value: 'vscode://', type: 'app' },
-      { label: '🎵 Spotify', value: 'spotify://', type: 'app' },
-      { label: '💬 Slack', value: 'slack://', type: 'app' },
-      { label: '📱 Discord', value: 'discord://', type: 'app' },
       { label: '🔧 Custom…', value: 'custom', type: 'custom' },
     ];
 
@@ -484,7 +537,7 @@
               <div class="settings-row-label" style="font-size:13px;${cfg.value === p.value ? 'color:#ef4444;' : ''}">${p.label}</div>
             </div>
           </div>
-          ${p.type !== 'custom' ? `<span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;background:${p.type === 'app' ? 'rgba(58,125,255,0.12)' : 'rgba(34,197,94,0.12)'};color:${p.type === 'app' ? '#3a7dff' : '#16a34a'};">${p.type === 'app' ? 'App' : 'Web'}</span>` : ''}
+          ${p.type !== 'custom' ? `<span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;background:rgba(34,197,94,0.12);color:#16a34a;">Web</span>` : ''}
         </div>
       `).join('');
 
@@ -523,6 +576,16 @@
         killCustomInput.focus();
         return;
       }
+      if (val === 'custom') {
+        try {
+          const u = new URL(custom, window.location.href);
+          if (!(u.protocol === 'http:' || u.protocol === 'https:')) throw new Error('bad proto');
+        } catch {
+          killCustomInput.style.borderColor = '#ef4444';
+          killCustomInput.focus();
+          return;
+        }
+      }
       localStorage.setItem(KILL_KEY, JSON.stringify({ value: val, label, custom }));
       killConfigPanel.style.display = 'none';
       updateDestLabel();
@@ -537,6 +600,99 @@
 
     document.getElementById('kill-cancel-settings-btn').addEventListener('click', () => {
       killConfigPanel.style.display = 'none';
+    });
+
+    /* ── Navigation Preferences ── */
+    const NAV_KEY = 'flux_nav_prefs';
+    const NAV_DEFAULTS = {
+      home: true,
+      games: true,
+      websites: true,
+      social: true,
+      messages: true,
+      info: true,
+      credits: true,
+      donate: true,
+    };
+    const NAV_LABELS = [
+      { key: 'home', label: 'Home' },
+      { key: 'games', label: 'Games' },
+      { key: 'websites', label: 'Websites' },
+      { key: 'social', label: 'Social' },
+      { key: 'messages', label: 'Messages' },
+      { key: 'info', label: 'Info' },
+      { key: 'credits', label: 'Credits' },
+      { key: 'donate', label: 'Donate' },
+    ];
+
+    const navExpandBtn = document.getElementById('nav-expand-btn');
+    const navExpand = document.getElementById('nav-expand');
+    const navPrefsList = document.getElementById('nav-prefs-list');
+    const navMsg = document.getElementById('nav-msg');
+
+    function loadNavPrefs() {
+      try {
+        const raw = JSON.parse(localStorage.getItem(NAV_KEY));
+        if (!raw || typeof raw !== 'object') return { ...NAV_DEFAULTS };
+        return { ...NAV_DEFAULTS, ...raw };
+      } catch {
+        return { ...NAV_DEFAULTS };
+      }
+    }
+
+    function renderNavPrefs() {
+      const prefs = loadNavPrefs();
+      navPrefsList.innerHTML = NAV_LABELS.map(({ key, label }) => `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid var(--glass-border);border-radius:12px;background:var(--bg,#f9fafb);">
+          <div style="font-size:13px;font-weight:700;color:var(--text);">${label}</div>
+          <label class="toggle-wrap" style="margin:0;">
+            <input type="checkbox" data-nav-key="${key}" ${prefs[key] !== false ? 'checked' : ''}>
+            <span class="toggle-track"></span>
+            <span class="toggle-thumb"></span>
+          </label>
+        </div>
+      `).join('');
+    }
+
+    navExpandBtn?.addEventListener('click', () => {
+      const open = navExpand.classList.toggle('open');
+      if (open) renderNavPrefs();
+    });
+
+    document.getElementById('nav-save-btn')?.addEventListener('click', () => {
+      const prefs = loadNavPrefs();
+      navPrefsList.querySelectorAll('input[data-nav-key]').forEach(inp => {
+        const key = inp.getAttribute('data-nav-key');
+        prefs[key] = inp.checked;
+      });
+      localStorage.setItem(NAV_KEY, JSON.stringify(prefs));
+      navMsg.style.display = 'inline';
+      navMsg.style.color = '#22c55e';
+      navMsg.textContent = '✓ Saved';
+      setTimeout(() => { navMsg.style.display = 'none'; }, 1600);
+    });
+
+    document.getElementById('nav-reset-btn')?.addEventListener('click', () => {
+      localStorage.removeItem(NAV_KEY);
+      renderNavPrefs();
+      navMsg.style.display = 'inline';
+      navMsg.style.color = '#22c55e';
+      navMsg.textContent = '✓ Reset';
+      setTimeout(() => { navMsg.style.display = 'none'; }, 1600);
+    });
+
+    /* ── Mute All Games ── */
+    const MUTE_KEY = 'flux_mute_all';
+    const muteToggle = document.getElementById('mute-all-toggle');
+    muteToggle.checked = localStorage.getItem(MUTE_KEY) === '1';
+    muteToggle.addEventListener('change', () => {
+      localStorage.setItem(MUTE_KEY, muteToggle.checked ? '1' : '0');
+      const t = document.createElement('div');
+      t.style.cssText = `position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:99999;background:#1a1d27;color:white;padding:12px 22px;border-radius:20px;font-size:13px;font-weight:700;box-shadow:0 8px 30px rgba(0,0,0,0.3);pointer-events:none;opacity:0;transition:opacity 0.2s;`;
+      t.textContent = muteToggle.checked ? '🔇 Mute All enabled' : '🔊 Mute All disabled';
+      document.body.appendChild(t);
+      requestAnimationFrame(() => t.style.opacity = '1');
+      setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 200); }, 2000);
     });
   </script>
 

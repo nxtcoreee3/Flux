@@ -1762,6 +1762,7 @@ function openFullscreen(url, title) {
     <div id="fs-bar" style="position:absolute;top:0;left:0;right:0;z-index:6;display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(to bottom,rgba(0,0,0,0.85),transparent);transition:opacity 0.3s;pointer-events:auto;">
       <button id="fs-exit" style="background:rgba(0,0,0,0.7);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:8px;padding:8px 16px;font-size:14px;font-weight:700;cursor:pointer;backdrop-filter:blur(4px);pointer-events:auto;">✕ Exit</button>
       <span style="font-size:13px;font-weight:600;color:rgba(255,255,255,0.85);flex:1;">${title}</span>
+      <button id="fs-mute-btn" style="background:rgba(0,0,0,0.65);border:1px solid rgba(255,255,255,0.25);color:white;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:6px;backdrop-filter:blur(4px);">🔊 Mute</button>
       ${isKillSwitchEnabled() ? `<div style="display:flex;align-items:center;">
         <button id="fs-kill-btn" title="Kill Switch (Shift+Esc)" style="background:linear-gradient(135deg,#ef4444,#dc2626);color:white;border:none;border-radius:8px 0 0 8px;padding:7px 13px;font-size:13px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:5px;box-shadow:0 2px 10px rgba(239,68,68,0.4);">⚡ Kill</button>
         <button id="fs-kill-settings-btn" title="Configure Kill Switch" style="background:rgba(239,68,68,0.25);color:#fca5a5;border:none;border-left:1px solid rgba(239,68,68,0.4);border-radius:0 8px 8px 0;padding:7px 8px;font-size:11px;cursor:pointer;">⚙</button>
@@ -1803,6 +1804,18 @@ function openFullscreen(url, title) {
   showBar();
 
   fs.querySelector('#fs-exit').addEventListener('click', () => fs.remove());
+  const fsMuteBtn = fs.querySelector('#fs-mute-btn');
+  const syncFsMuteBtn = () => {
+    const on = isMuteAllEnabled();
+    fsMuteBtn.textContent = on ? '🔇 Muted' : '🔊 Mute';
+  };
+  syncFsMuteBtn();
+  fsMuteBtn.addEventListener('click', () => {
+    const next = !isMuteAllEnabled();
+    setMuteAllEnabled(next);
+    syncFsMuteBtn();
+    applyMuteToIframe(fsIframe);
+  });
   fs.querySelector('#fs-kill-btn')?.addEventListener('click', () => triggerKillSwitch());
   fs.querySelector('#fs-kill-settings-btn')?.addEventListener('click', (e) => { e.stopPropagation(); buildKillSwitchPopover(); });
   fs.querySelector('#fs-fallback-btn').addEventListener('click', () => { fsWarn.style.display = 'none'; });
@@ -1813,6 +1826,7 @@ function openFullscreen(url, title) {
     fsIframe.style.opacity = '1';
     const lbg = fs.querySelector('#fs-loading-bg');
     if (lbg) lbg.style.display = 'none';
+    applyMuteToIframe(fsIframe);
   }, { once: true });
   setTimeout(() => {
     if (!fsLoaded) {
@@ -1882,6 +1896,7 @@ function openPlayModal(url, title) {
       if (iframe.parentElement) {
         iframe.parentElement.style.background = ""; // remove loading gif once loaded
       }
+      applyMuteToIframe(iframe);
     }, { once: true });
     setTimeout(() => {
       if (!loaded) {
@@ -2512,6 +2527,8 @@ function showNotificationToast(title, text, avatar, link) {
 /* ===================== KILL SWITCH (Boss Key) ===================== */
 
 const KILL_SWITCH_KEY = 'flux_kill_switch';
+const NAV_PREFS_KEY = 'flux_nav_prefs';
+const MUTE_ALL_KEY = 'flux_mute_all';
 
 const KILL_SWITCH_PRESETS = [
   { label: '📊 Google Sheets', value: 'https://docs.google.com/spreadsheets/', type: 'web' },
@@ -2531,6 +2548,114 @@ function loadKillSwitch() {
 
 function saveKillSwitch(data) {
   localStorage.setItem(KILL_SWITCH_KEY, JSON.stringify(data));
+}
+
+function getDefaultNavPrefs() {
+  return {
+    home: true,
+    games: true,
+    websites: true,
+    social: true,
+    messages: true,
+    info: true,
+    credits: true,
+    donate: true,
+  };
+}
+
+function loadNavPrefs() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(NAV_PREFS_KEY));
+    const defaults = getDefaultNavPrefs();
+    if (!raw || typeof raw !== 'object') return defaults;
+    return { ...defaults, ...raw };
+  } catch {
+    return getDefaultNavPrefs();
+  }
+}
+
+function saveNavPrefs(prefs) {
+  localStorage.setItem(NAV_PREFS_KEY, JSON.stringify(prefs));
+}
+
+function applyNavPrefs() {
+  const nav = document.getElementById('main-nav');
+  if (!nav) return;
+  const prefs = loadNavPrefs();
+  nav.querySelectorAll('[data-nav-item]').forEach(li => {
+    const key = li.getAttribute('data-nav-item');
+    if (!key) return;
+    li.style.display = prefs[key] === false ? 'none' : '';
+  });
+}
+
+function isMuteAllEnabled() { return localStorage.getItem(MUTE_ALL_KEY) === '1'; }
+function setMuteAllEnabled(on) { localStorage.setItem(MUTE_ALL_KEY, on ? '1' : '0'); }
+
+function applyMuteToIframe(iframe) {
+  if (!iframe) return;
+  if (!isMuteAllEnabled()) return;
+  try {
+    if (iframe.__fluxMuteTimer) clearInterval(iframe.__fluxMuteTimer);
+  } catch {}
+
+  const run = () => {
+    try {
+      const doc = iframe.contentDocument;
+      if (!doc) return;
+      doc.querySelectorAll('audio,video').forEach(el => {
+        try { el.muted = true; el.volume = 0; } catch {}
+      });
+    } catch {
+      // Cross-origin: cannot mute reliably
+    }
+  };
+  run();
+  try {
+    const start = Date.now();
+    iframe.__fluxMuteTimer = setInterval(() => {
+      run();
+      if (Date.now() - start > 4500) {
+        clearInterval(iframe.__fluxMuteTimer);
+        iframe.__fluxMuteTimer = null;
+      }
+    }, 300);
+  } catch {}
+}
+
+function createMuteAllButton(compact = false) {
+  const btn = document.createElement('button');
+  btn.className = 'flux-mute-btn';
+  const syncLabel = () => {
+    const on = isMuteAllEnabled();
+    btn.title = on ? 'Mute All: ON' : 'Mute All: OFF';
+    btn.style.background = on ? 'linear-gradient(135deg,#111827,#0b1220)' : 'rgba(17,24,39,0.08)';
+    btn.style.border = on ? '1px solid rgba(17,24,39,0.35)' : '1px solid var(--glass-border)';
+    btn.style.color = on ? '#fff' : 'var(--text)';
+    btn.innerHTML = `<span>${on ? '🔇' : '🔊'}</span>${compact ? '' : `<span>${on ? 'Muted' : 'Mute'}</span>`}`;
+  };
+  btn.style.cssText = `
+    display:inline-flex;align-items:center;gap:6px;
+    border-radius:${compact ? '8px' : '10px'};
+    padding:${compact ? '6px 10px' : '8px 12px'};
+    font-weight:800;font-size:${compact ? '12px' : '13px'};
+    cursor:pointer;letter-spacing:0.2px;
+    transition:opacity 0.15s, transform 0.1s;
+  `;
+  syncLabel();
+  btn.addEventListener('click', () => {
+    const next = !isMuteAllEnabled();
+    setMuteAllEnabled(next);
+    syncLabel();
+    // Try to mute currently playing iframes
+    applyMuteToIframe(document.querySelector('#fs-iframe'));
+    const modal = document.getElementById('play-modal') || document.querySelector('.modal');
+    applyMuteToIframe(modal?.querySelector('iframe'));
+    showToast(next ? 'Mute All enabled' : 'Mute All disabled', next ? 'success' : '');
+  });
+  btn.addEventListener('mouseenter', () => { btn.style.opacity = '0.88'; });
+  btn.addEventListener('mouseleave', () => { btn.style.opacity = '1'; });
+  return btn;
 }
 
 function isValidKillUrl(url) {
@@ -2581,17 +2706,13 @@ function openKillOverlay(url) {
   `;
 
   overlay.innerHTML = `
-    <div style="position:absolute;inset:0;">
-      <iframe src="${url}" title="Kill Switch" style="position:absolute;inset:0;width:100%;height:100%;border:0;background:#fff;"></iframe>
-      <div id="flux-kill-exit-hint" style="position:absolute;left:12px;bottom:12px;z-index:2;background:rgba(15,23,36,0.85);color:#fff;border-radius:12px;padding:8px 10px;font-size:12px;font-weight:700;backdrop-filter:blur(6px);cursor:pointer;user-select:none;">
-        Tap 5× quickly to return
-      </div>
+    <div style="position:absolute;inset:0;padding:18px;box-sizing:border-box;background:#fff;">
+      <iframe src="${url}" title="Kill Switch" style="width:100%;height:100%;border:0;background:#fff;"></iframe>
     </div>
   `;
 
   let tapTimes = [];
-  const hint = overlay.querySelector('#flux-kill-exit-hint');
-  hint?.addEventListener('pointerdown', () => {
+  overlay.addEventListener('pointerdown', () => {
     const now = Date.now();
     tapTimes = tapTimes.filter(t => now - t < 900);
     tapTimes.push(now);
@@ -2612,6 +2733,13 @@ function triggerKillSwitch() {
   const target = cfg.value === 'custom' ? cfg.custom : cfg.value;
   if (!target || !isValidKillUrl(target)) return;
   openKillOverlay(target);
+}
+
+// Apply nav visibility preferences early
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', applyNavPrefs);
+} else {
+  applyNavPrefs();
 }
 
 function buildKillSwitchPopover() {
@@ -2658,7 +2786,7 @@ function buildKillSwitchPopover() {
       <div style="font-size:14px;font-weight:800;color:var(--text);">⚡ Kill Switch</div>
       <button id="kill-pop-close" style="background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:2px;">✕</button>
     </div>
-    <p style="font-size:12px;color:var(--muted);margin:0 0 12px;line-height:1.5;">Choose a website to instantly escape to when you hit Kill Switch. It opens in a full-screen iframe. <strong style="color:var(--text);">Shift+Esc</strong> also works as a hotkey. To return, tap <strong style="color:var(--text);">5× quickly</strong> on the screen (the bottom-left hint).</p>
+    <p style="font-size:12px;color:var(--muted);margin:0 0 12px;line-height:1.5;">Choose a website to instantly escape to when you hit Kill Switch. It opens in a full-screen iframe. <strong style="color:var(--text);">Shift+Esc</strong> also works as a hotkey. To return, tap <strong style="color:var(--text);">5× quickly</strong> on the screen.</p>
     <div id="kill-presets-list" style="display:flex;flex-direction:column;gap:3px;max-height:220px;overflow-y:auto;margin-bottom:12px;">
       ${KILL_SWITCH_PRESETS.map(p => `
         <div class="kill-preset-opt ${cfg.value === p.value ? 'selected' : ''}" data-value="${p.value}" data-label="${p.label}" data-type="${p.type}">
@@ -2702,6 +2830,12 @@ function buildKillSwitchPopover() {
     if (currentSelection.value === 'custom' && !currentSelection.custom) {
       customInput.style.borderColor = '#ef4444';
       customInput.focus();
+      return;
+    }
+    if (currentSelection.value === 'custom' && !isValidKillUrl(currentSelection.custom)) {
+      customInput.style.borderColor = '#ef4444';
+      customInput.focus();
+      showToast('Enter a valid http(s) URL', '');
       return;
     }
     saveKillSwitch(currentSelection);
@@ -2804,8 +2938,24 @@ function initKillSwitch() {
   });
 }
 
+function initMuteAll() {
+  // Inject into topbar right-actions
+  const rightActions = document.querySelector('.right-actions');
+  if (rightActions && !rightActions.querySelector('.flux-mute-btn')) {
+    rightActions.prepend(createMuteAllButton(false));
+  }
+
+  // Fill dedicated modal slots (index.html + games.html)
+  ['modal-kill-btn-wrap', 'modal-kill-btn-wrap-2'].forEach(id => {
+    const wrap = document.getElementById(id);
+    if (wrap && !wrap.querySelector('.flux-mute-btn')) {
+      wrap.prepend(createMuteAllButton(true));
+    }
+  });
+}
+
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initKillSwitch);
+  document.addEventListener('DOMContentLoaded', () => { initMuteAll(); initKillSwitch(); });
 } else {
-  initKillSwitch();
+  initMuteAll(); initKillSwitch();
 }
