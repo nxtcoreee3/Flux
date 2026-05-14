@@ -1,26 +1,16 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <script>
-    // Apply dark/beta instantly before first paint to prevent flash
-    (function() {
-      try {
-        if (localStorage.getItem('flux_dark') === '1' || 
-            (localStorage.getItem('flux_dark') === null && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-          document.documentElement.classList.add('dark');
-        }
-        if (localStorage.getItem('flux_beta') === '1') {
-          document.documentElement.classList.add('beta');
-        }
-      } catch(e) {}
-    })();
-  </script>
-
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Donate — Flux</title>
+  <title>Websites — Flux</title>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="assets/thumbnail.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Flux">
   <style>
     @media (max-width: 768px) {
       #main-nav { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; flex-wrap: nowrap !important; }
@@ -57,12 +47,12 @@
       <ul id="main-nav" class="nav-list">
         <li><a href="index.html">Home</a></li>
         <li><a href="games.html">Games</a></li>
-        <li><a href="websites.html">Websites</a></li>
+        <li><a href="websites.html" class="active">Websites</a></li>
         <li><a href="social.html">Social</a></li>
         <li><a href="messages.html">Messages</a></li>
         <li><a href="info.html">Info</a></li>
         <li><a href="credits.html">Credits</a></li>
-        <li><a href="donate.html" class="active accent">Donate</a></li>
+        <li><a href="donate.html" class="accent">Donate</a></li>
       </ul>
     </nav>
     <div class="right-actions">
@@ -72,12 +62,8 @@
 
   <main class="donate-page">
     <section class="section glass">
-      <h2>Support the Project</h2>
-      <p>If you like Flux and want to support development, you can star the repo or buy us a coffee. All support goes to hosting and improvements.</p>
-      <div class="donate-actions">
-        <a class="big-btn" href="https://github.com/nxtcoreee3/flux" target="_blank" rel="noopener">⭐ Star this project</a>
-        <a class="big-btn alt" href="https://ko-fi.com/nxtcoreee3" target="_blank" rel="noopener">☕ Buy us a coffee</a>
-      </div>
+      <h2>Coming soon</h2>
+      <p>Websites will be hosted on another server so they can bypass website restrictions.</p>
     </section>
   </main>
 
@@ -87,15 +73,21 @@
         <a href="index.html" class="logo-small">FLUX</a>
       </div>
     </div>
-    <small class="copyright">Flux © <span id="year5"></span></small>
+    <small class="copyright">Flux © <span id="year"></span></small>
   </footer>
 
   <script type="module" src="script.js"></script>
 
-<script>
-  window.addEventListener('load', () => {
-    setTimeout(() => { const loader = document.getElementById('global-page-loader'); if(loader) { loader.style.opacity = '0'; setTimeout(() => loader.remove(), 400); } }, 400);
-  });
-</script>
+  <script>
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        const loader = document.getElementById('global-page-loader');
+        if (loader) {
+          loader.style.opacity = '0';
+          setTimeout(() => loader.remove(), 400);
+        }
+      }, 400);
+    });
+  </script>
 </body>
 </html>
