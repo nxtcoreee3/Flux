@@ -2520,11 +2520,6 @@ const KILL_SWITCH_PRESETS = [
   { label: '📧 Gmail', value: 'https://mail.google.com', type: 'web' },
   { label: '📅 Google Calendar', value: 'https://calendar.google.com', type: 'web' },
   { label: '📄 Google Docs', value: 'https://docs.google.com/document/', type: 'web' },
-  { label: '🎨 Figma', value: 'figma://', type: 'app' },
-  { label: '💻 VS Code', value: 'vscode://', type: 'app' },
-  { label: '🎵 Spotify', value: 'spotify://', type: 'app' },
-  { label: '💬 Slack', value: 'slack://', type: 'app' },
-  { label: '📱 Discord', value: 'discord://', type: 'app' },
   { label: '🔧 Custom…', value: 'custom', type: 'custom' },
 ];
 
@@ -2538,14 +2533,85 @@ function saveKillSwitch(data) {
   localStorage.setItem(KILL_SWITCH_KEY, JSON.stringify(data));
 }
 
+function isValidKillUrl(url) {
+  if (!url) return false;
+  try {
+    const u = new URL(url, window.location.href);
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+let killOverlayState = null;
+function closeKillOverlay() {
+  const overlay = document.getElementById('flux-kill-overlay');
+  if (!overlay) return;
+  overlay.remove();
+  if (killOverlayState?.playModal && killOverlayState.wasPlayModalOpen) {
+    killOverlayState.playModal.setAttribute('aria-hidden', 'false');
+  }
+  killOverlayState = null;
+}
+
+function openKillOverlay(url) {
+  if (!isValidKillUrl(url)) return;
+
+  const existing = document.getElementById('flux-kill-overlay');
+  if (existing) {
+    const iframe = existing.querySelector('iframe');
+    if (iframe) iframe.src = url;
+    return;
+  }
+
+  const playModal = document.getElementById('play-modal');
+  const wasPlayModalOpen = !!(playModal && playModal.getAttribute('aria-hidden') !== 'true');
+  if (playModal && wasPlayModalOpen) {
+    playModal.setAttribute('aria-hidden', 'true');
+  }
+  killOverlayState = { playModal, wasPlayModalOpen };
+
+  const overlay = document.createElement('div');
+  overlay.id = 'flux-kill-overlay';
+  overlay.style.cssText = `
+    position: fixed;
+    inset: 0;
+    z-index: 2147483647;
+    background: #fff;
+  `;
+
+  overlay.innerHTML = `
+    <div style="position:absolute;inset:0;">
+      <iframe src="${url}" title="Kill Switch" style="position:absolute;inset:0;width:100%;height:100%;border:0;background:#fff;"></iframe>
+      <div id="flux-kill-exit-hint" style="position:absolute;left:12px;bottom:12px;z-index:2;background:rgba(15,23,36,0.85);color:#fff;border-radius:12px;padding:8px 10px;font-size:12px;font-weight:700;backdrop-filter:blur(6px);cursor:pointer;user-select:none;">
+        Tap 5× quickly to return
+      </div>
+    </div>
+  `;
+
+  let tapTimes = [];
+  const hint = overlay.querySelector('#flux-kill-exit-hint');
+  hint?.addEventListener('pointerdown', () => {
+    const now = Date.now();
+    tapTimes = tapTimes.filter(t => now - t < 900);
+    tapTimes.push(now);
+    if (tapTimes.length >= 5) {
+      closeKillOverlay();
+    }
+  }, { passive: true });
+
+  document.body.appendChild(overlay);
+}
+
 function triggerKillSwitch() {
+  if (document.getElementById('flux-kill-overlay')) {
+    closeKillOverlay();
+    return;
+  }
   const cfg = loadKillSwitch();
   const target = cfg.value === 'custom' ? cfg.custom : cfg.value;
-  if (!target) return;
-  // Close game modal if open
-  const modal = document.getElementById('play-modal');
-  if (modal) { modal.setAttribute('aria-hidden', 'true'); const iframe = modal.querySelector('iframe'); if (iframe) iframe.src = ''; }
-  window.location.replace(target);
+  if (!target || !isValidKillUrl(target)) return;
+  openKillOverlay(target);
 }
 
 function buildKillSwitchPopover() {
@@ -2592,7 +2658,7 @@ function buildKillSwitchPopover() {
       <div style="font-size:14px;font-weight:800;color:var(--text);">⚡ Kill Switch</div>
       <button id="kill-pop-close" style="background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:2px;">✕</button>
     </div>
-    <p style="font-size:12px;color:var(--muted);margin:0 0 12px;line-height:1.5;">Choose where to instantly escape to when you hit Kill Switch. <strong style="color:var(--text);">Shift+Esc</strong> also works as a hotkey.</p>
+    <p style="font-size:12px;color:var(--muted);margin:0 0 12px;line-height:1.5;">Choose a website to instantly escape to when you hit Kill Switch. It opens in a full-screen iframe. <strong style="color:var(--text);">Shift+Esc</strong> also works as a hotkey. To return, tap <strong style="color:var(--text);">5× quickly</strong> on the screen (the bottom-left hint).</p>
     <div id="kill-presets-list" style="display:flex;flex-direction:column;gap:3px;max-height:220px;overflow-y:auto;margin-bottom:12px;">
       ${KILL_SWITCH_PRESETS.map(p => `
         <div class="kill-preset-opt ${cfg.value === p.value ? 'selected' : ''}" data-value="${p.value}" data-label="${p.label}" data-type="${p.type}">
@@ -2602,7 +2668,7 @@ function buildKillSwitchPopover() {
       `).join('')}
     </div>
     <div id="kill-custom-wrap" style="display:${isCustom ? 'block' : 'none'};margin-bottom:12px;">
-      <input id="kill-custom-input" type="text" placeholder="e.g. https://... or figma://"
+      <input id="kill-custom-input" type="text" placeholder="e.g. https://example.com"
         value="${cfg.custom || ''}"
         style="width:100%;padding:8px 12px;border:1px solid var(--glass-border);border-radius:10px;font-size:13px;box-sizing:border-box;background:var(--bg);color:var(--text);outline:none;">
     </div>
