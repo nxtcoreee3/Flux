@@ -330,27 +330,6 @@
       </div>
     </div>
 
-    <!-- AUDIO -->
-    <div class="settings-section">
-      <div class="settings-section-label">Audio</div>
-      <div class="settings-card">
-        <div class="settings-row">
-          <div class="settings-row-left">
-            <div class="settings-row-icon" style="background:rgba(34,197,94,0.1);">🔇</div>
-            <div class="settings-row-text">
-              <div class="settings-row-label">Mute All Games</div>
-              <div class="settings-row-desc">Mute sound from games (works best for games hosted on the same site)</div>
-            </div>
-          </div>
-          <label class="toggle-wrap">
-            <input type="checkbox" id="mute-all-toggle">
-            <span class="toggle-track"></span>
-            <span class="toggle-thumb"></span>
-          </label>
-        </div>
-      </div>
-    </div>
-
     <!-- NOT SIGNED IN state -->
     <div id="not-signed-in" style="display:none;text-align:center;padding:40px 20px;background:var(--panel);border-radius:14px;border:1px solid var(--glass-border);">
       <div style="font-size:40px;margin-bottom:12px;">🔐</div>
@@ -681,19 +660,6 @@
       setTimeout(() => { navMsg.style.display = 'none'; }, 1600);
     });
 
-    /* ── Mute All Games ── */
-    const MUTE_KEY = 'flux_mute_all';
-    const muteToggle = document.getElementById('mute-all-toggle');
-    muteToggle.checked = localStorage.getItem(MUTE_KEY) === '1';
-    muteToggle.addEventListener('change', () => {
-      localStorage.setItem(MUTE_KEY, muteToggle.checked ? '1' : '0');
-      const t = document.createElement('div');
-      t.style.cssText = `position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:99999;background:#1a1d27;color:white;padding:12px 22px;border-radius:20px;font-size:13px;font-weight:700;box-shadow:0 8px 30px rgba(0,0,0,0.3);pointer-events:none;opacity:0;transition:opacity 0.2s;`;
-      t.textContent = muteToggle.checked ? '🔇 Mute All enabled' : '🔊 Mute All disabled';
-      document.body.appendChild(t);
-      requestAnimationFrame(() => t.style.opacity = '1');
-      setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 200); }, 2000);
-    });
   </script>
 
 <script>
