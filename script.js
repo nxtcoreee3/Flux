@@ -1769,7 +1769,7 @@ function openFullscreen(url, title) {
       </div>` : ''}
     </div>
     <div id="fs-loading-bg" style="position:absolute;inset:0;background:#fff url('assets/loading.gif') center center / 250px no-repeat;z-index:1;"></div>
-    <iframe id="fs-iframe" src="${url}" style="flex:1;border:0;width:100%;height:100%;opacity:0;transition:opacity 0.4s ease;position:relative;z-index:2;" allow="autoplay; fullscreen" sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
+    <iframe id="fs-iframe" src="" style="flex:1;border:0;width:100%;height:100%;opacity:0;transition:opacity 0.4s ease;position:relative;z-index:2;" allow="autoplay; fullscreen" sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
     <div id="fs-embed-warn" style="display:none;position:absolute;inset:0;z-index:3;align-items:center;justify-content:center;flex-direction:column;gap:12px;background:rgba(0,0,0,0.85);">
       <span style="font-size:32px;">🕒</span>
       <span style="color:white;font-size:15px;font-weight:600;text-align:center;padding:0 20px;">This game might be having trouble loading. Please wait, or report it to an Admin.</span>
@@ -1829,6 +1829,8 @@ function openFullscreen(url, title) {
     if (lbg) lbg.style.display = 'none';
     applyMuteToIframe(fsIframe);
   }, { once: true });
+  // Kick off load after listeners are attached
+  loadUrlIntoIframe(fsIframe, url);
   setTimeout(() => {
     if (!fsLoaded) {
       fsWarn.style.display = 'flex';
@@ -1882,7 +1884,7 @@ function openPlayModal(url, title) {
   if (iframe) {
     embedWarning?.classList.add('hidden');
     if (fsBtn) fsBtn.style.display = '';
-    iframe.src = url;
+    iframe.src = 'about:blank';
     iframe.style.opacity = '0';
     iframe.style.transition = 'opacity 0.4s ease';
     if (iframe.parentElement) {
@@ -1899,6 +1901,8 @@ function openPlayModal(url, title) {
       }
       applyMuteToIframe(iframe);
     }, { once: true });
+    // Kick off load after listeners are attached
+    loadUrlIntoIframe(iframe, url);
     setTimeout(() => {
       if (!loaded) {
         // Fallback for X-Frame-Options
@@ -2767,6 +2771,84 @@ function applyMuteToIframe(iframe) {
       }
     }, 300);
   } catch {}
+}
+
+async function loadUrlIntoIframe(iframe, url) {
+  if (!iframe || !url) return;
+  // Only attempt srcdoc rewriting for same-origin URLs
+  let u;
+  try { u = new URL(url, window.location.href); } catch { iframe.src = url; return; }
+  if (u.origin !== window.location.origin) { iframe.src = url; return; }
+
+  try {
+    const res = await fetch(u.href, { cache: 'no-store' });
+    const html = await res.text();
+    const baseTag = `<base href="${u.href}">`;
+    const mutePatch = `
+<script>
+(() => {
+  try { history.replaceState(null, '', '${u.href}'); } catch(e) {}
+  const isMuted = () => (localStorage.getItem('${MUTE_ALL_KEY}') === '1');
+  const applyMediaMute = () => {
+    if (!isMuted()) return;
+    document.querySelectorAll('audio,video').forEach(el => { try { el.muted = true; el.volume = 0; } catch(e){} });
+  };
+  // Patch Audio constructor (HTMLAudioElement)
+  try {
+    const _Audio = window.Audio;
+    window.Audio = function(...args) {
+      const a = new _Audio(...args);
+      try { if (isMuted()) { a.muted = true; a.volume = 0; } } catch(e) {}
+      return a;
+    };
+    window.Audio.prototype = _Audio.prototype;
+  } catch(e){}
+  // Patch HTMLMediaElement.play
+  try {
+    const p = HTMLMediaElement.prototype;
+    const _play = p.play;
+    p.play = function(...args){ try { if (isMuted()) { this.muted = true; this.volume = 0; } } catch(e){} return _play.apply(this,args); };
+  } catch(e){}
+  // Patch WebAudio
+  const patchCtx = (Ctx) => {
+    if (!Ctx) return;
+    const Original = Ctx;
+    function Wrapped(...args) {
+      const ctx = new Original(...args);
+      try { if (isMuted()) ctx.suspend?.(); } catch(e) {}
+      return ctx;
+    }
+    Wrapped.prototype = Original.prototype;
+    Object.getOwnPropertyNames(Original).forEach(k => { try { Wrapped[k] = Original[k]; } catch(e){} });
+    return Wrapped;
+  };
+  try { window.AudioContext = patchCtx(window.AudioContext) || window.AudioContext; } catch(e){}
+  try { window.webkitAudioContext = patchCtx(window.webkitAudioContext) || window.webkitAudioContext; } catch(e){}
+  // Observe for new media
+  try { new MutationObserver(applyMediaMute).observe(document.documentElement, { childList:true, subtree:true }); } catch(e){}
+  document.addEventListener('play', applyMediaMute, true);
+  document.addEventListener('volumechange', applyMediaMute, true);
+  // Apply periodically while muted
+  setInterval(applyMediaMute, 500);
+  // React to toggles
+  window.addEventListener('storage', (e) => { if (e.key === '${MUTE_ALL_KEY}') applyMediaMute(); });
+  applyMediaMute();
+})();
+</script>
+`;
+
+    // Inject <base> + mutePatch into <head> if present, else prepend.
+    let rewritten = html;
+    if (/<head[^>]*>/i.test(rewritten)) {
+      rewritten = rewritten.replace(/<head[^>]*>/i, (m) => `${m}\n${baseTag}\n${mutePatch}\n`);
+    } else {
+      rewritten = `${baseTag}\n${mutePatch}\n${rewritten}`;
+    }
+    iframe.removeAttribute('src');
+    iframe.srcdoc = rewritten;
+  } catch {
+    iframe.src = url;
+  }
 }
 
 function createMuteAllButton(compact = false) {
