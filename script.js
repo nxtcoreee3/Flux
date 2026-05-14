@@ -2592,8 +2592,67 @@ function applyNavPrefs() {
 function isMuteAllEnabled() { return localStorage.getItem(MUTE_ALL_KEY) === '1'; }
 function setMuteAllEnabled(on) { localStorage.setItem(MUTE_ALL_KEY, on ? '1' : '0'); }
 
+function installMuteHooksInIframe(iframe) {
+  try {
+    const w = iframe.contentWindow;
+    const d = iframe.contentDocument;
+    if (!w || !d) return false;
+    if (w.__fluxMuteHooksInstalled) return true;
+    w.__fluxMuteHooksInstalled = true;
+
+    // HTMLMediaElement hook
+    try {
+      const proto = w.HTMLMediaElement && w.HTMLMediaElement.prototype;
+      if (proto && !proto.__fluxMutePatched) {
+        proto.__fluxMutePatched = true;
+        const _play = proto.play;
+        proto.play = function (...args) {
+          try {
+            if (w.__fluxMuteAll) {
+              this.muted = true;
+              this.volume = 0;
+            }
+          } catch {}
+          return _play.apply(this, args);
+        };
+      }
+    } catch {}
+
+    // WebAudio hook (best-effort)
+    try {
+      const patchCtx = (Ctx) => {
+        if (!Ctx || Ctx.__fluxMutePatched) return;
+        Ctx.__fluxMutePatched = true;
+        const Original = Ctx;
+        const Wrapped = function (...args) {
+          const ctx = new Original(...args);
+          try { if (w.__fluxMuteAll) ctx.suspend?.(); } catch {}
+          return ctx;
+        };
+        Wrapped.prototype = Original.prototype;
+        // Keep static props if any
+        Object.getOwnPropertyNames(Original).forEach(k => {
+          try { Wrapped[k] = Original[k]; } catch {}
+        });
+        return Wrapped;
+      };
+
+      const PatchedAC = patchCtx(w.AudioContext);
+      if (PatchedAC) w.AudioContext = PatchedAC;
+      const PatchedWAC = patchCtx(w.webkitAudioContext);
+      if (PatchedWAC) w.webkitAudioContext = PatchedWAC;
+    } catch {}
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function applyMuteToIframe(iframe) {
   if (!iframe) return;
+  installMuteHooksInIframe(iframe);
+  try { if (iframe.contentWindow) iframe.contentWindow.__fluxMuteAll = isMuteAllEnabled(); } catch {}
   if (!isMuteAllEnabled()) return;
   try {
     if (iframe.__fluxMuteTimer) clearInterval(iframe.__fluxMuteTimer);
@@ -2606,6 +2665,14 @@ function applyMuteToIframe(iframe) {
       doc.querySelectorAll('audio,video').forEach(el => {
         try { el.muted = true; el.volume = 0; } catch {}
       });
+      try {
+        const w = iframe.contentWindow;
+        // If a game creates an AudioContext on user interaction, our constructor patch will suspend it.
+        // For already-created contexts, we can't enumerate references reliably.
+        if (w?.__fluxMuteAll && w?.AudioContext?.prototype?.suspend) {
+          // no-op: intentional (constructor patch handles most games)
+        }
+      } catch {}
     } catch {
       // Cross-origin: cannot mute reliably
     }
@@ -2651,7 +2718,7 @@ function createMuteAllButton(compact = false) {
     applyMuteToIframe(document.querySelector('#fs-iframe'));
     const modal = document.getElementById('play-modal') || document.querySelector('.modal');
     applyMuteToIframe(modal?.querySelector('iframe'));
-    showToast(next ? 'Mute All enabled' : 'Mute All disabled', next ? 'success' : '');
+    showToast(next ? 'Mute All enabled (best-effort)' : 'Mute All disabled', next ? 'success' : '');
   });
   btn.addEventListener('mouseenter', () => { btn.style.opacity = '0.88'; });
   btn.addEventListener('mouseleave', () => { btn.style.opacity = '1'; });
