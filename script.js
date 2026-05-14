@@ -2599,6 +2599,44 @@ function installMuteHooksInIframe(iframe) {
     if (!w || !d) return false;
     if (w.__fluxMuteHooksInstalled) return true;
     w.__fluxMuteHooksInstalled = true;
+    w.__fluxAudioContexts = w.__fluxAudioContexts || [];
+
+    const applyNow = () => {
+      try {
+        const doc = iframe.contentDocument;
+        if (!doc) return;
+        if (!w.__fluxMuteAll) return;
+        doc.querySelectorAll('audio,video').forEach(el => {
+          try { el.muted = true; el.volume = 0; } catch {}
+        });
+      } catch {}
+    };
+    w.__fluxApplyMuteNow = applyNow;
+
+    // Capture play/volumechange and force mute while enabled
+    try {
+      d.addEventListener('play', (e) => {
+        if (!w.__fluxMuteAll) return;
+        const el = e.target;
+        if (el && (el.tagName === 'AUDIO' || el.tagName === 'VIDEO')) {
+          try { el.muted = true; el.volume = 0; } catch {}
+        }
+      }, true);
+      d.addEventListener('volumechange', (e) => {
+        if (!w.__fluxMuteAll) return;
+        const el = e.target;
+        if (el && (el.tagName === 'AUDIO' || el.tagName === 'VIDEO')) {
+          try { el.muted = true; el.volume = 0; } catch {}
+        }
+      }, true);
+    } catch {}
+
+    // Observe DOM for newly added media
+    try {
+      const obs = new w.MutationObserver(() => applyNow());
+      obs.observe(d.documentElement || d.body, { childList: true, subtree: true });
+      w.__fluxMuteObserver = obs;
+    } catch {}
 
     // HTMLMediaElement hook
     try {
@@ -2626,6 +2664,7 @@ function installMuteHooksInIframe(iframe) {
         const Original = Ctx;
         const Wrapped = function (...args) {
           const ctx = new Original(...args);
+          try { w.__fluxAudioContexts.push(ctx); } catch {}
           try { if (w.__fluxMuteAll) ctx.suspend?.(); } catch {}
           return ctx;
         };
@@ -2652,7 +2691,30 @@ function installMuteHooksInIframe(iframe) {
 function applyMuteToIframe(iframe) {
   if (!iframe) return;
   installMuteHooksInIframe(iframe);
-  try { if (iframe.contentWindow) iframe.contentWindow.__fluxMuteAll = isMuteAllEnabled(); } catch {}
+  try {
+    const w = iframe.contentWindow;
+    if (w) {
+      w.__fluxMuteAll = isMuteAllEnabled();
+      try { w.__fluxApplyMuteNow?.(); } catch {}
+      // Common libs
+      try { w.Howler?.mute?.(w.__fluxMuteAll); } catch {}
+      try {
+        const ctx = w.Howler?.ctx;
+        if (ctx) {
+          if (w.__fluxMuteAll) ctx.suspend?.();
+          else ctx.resume?.();
+        }
+      } catch {}
+      try {
+        (w.__fluxAudioContexts || []).forEach(ctx => {
+          try {
+            if (w.__fluxMuteAll) ctx.suspend?.();
+            else ctx.resume?.();
+          } catch {}
+        });
+      } catch {}
+    }
+  } catch {}
   if (!isMuteAllEnabled()) return;
   try {
     if (iframe.__fluxMuteTimer) clearInterval(iframe.__fluxMuteTimer);
