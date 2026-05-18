@@ -262,13 +262,6 @@ const GAMES = [
     desc: 'Control a black hole, swallow everything, and grow bigger than your rivals.'
   },
   {
-    id: 'talking-tom-cat',
-    title: 'Talking Tom Cat',
-    thumb: 'assets/talking-tom-cat.png',
-    url: 'https://gamejolt.net/?token=pUpjLeSCuADJLGguZw4X5LbU6NxbLv',
-    desc: 'Play the original Talking Tom game through an emulator and interact with the classic pet. (Hosted by GameJolt)'
-  },
-  {
     id: 'subway-surfers-mexico',
     title: 'Subway Surfers Mexico',
     thumb: 'assets/subway-surfers-mexico.png',
