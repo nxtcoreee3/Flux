@@ -30,7 +30,9 @@ If you enjoy Flux, you can support the project:
 # Domains
 
 Main Domain: [nxtcoreee3.online/Flux](https://nxtcoreee3.online/Flux)
+
 Second Domain: [nxtcoreee3.github.io/Flux/](https://nxtcoreee3.github.io/Flux)
+
 Vercel Domain: [flux-xi-bice.vercel.app](https://flux-xi-bice.vercel.app/)
 
 ⸻
