@@ -2,7 +2,7 @@
   "name": "Flux",
   "short_name": "Flux",
   "description": "Play great web games instantly",
-  "start_url": "/Flux/",
+  "start_url": ".",
   "display": "standalone",
   "background_color": "#0f1724",
   "theme_color": "#0f1724",

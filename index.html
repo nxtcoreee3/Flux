@@ -1,6 +1,23 @@
 <!doctype html>
 <html lang="en">
 <head>
+  <script>
+    // Dynamic <base> so relative asset paths (style.css, script.js, assets/...)
+    // resolve correctly whether the site is hosted at its own root (Vercel)
+    // or reverse-proxied under a subpath like /Flux (with or without a
+    // trailing slash). Must run before any other resource tag in <head>.
+    (function () {
+      var path = window.location.pathname;
+      var base;
+      var subpathMatch = path.match(/^(\/Flux)(\/|$)/i);
+      if (subpathMatch) {
+        base = subpathMatch[1] + '/';
+      } else {
+        base = path.substring(0, path.lastIndexOf('/') + 1) || '/';
+      }
+      document.write('<base href="' + base + '">');
+    })();
+  </script>
      <script>
     // Apply dark/beta instantly before first paint to prevent flash
     (function() {
