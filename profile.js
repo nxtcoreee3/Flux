@@ -289,7 +289,10 @@ function renderProfile(profile, { isOwn, isAdmin, isFollowing, canSeeContent, cu
 
     <div class="profile-card" style="${cardStyleMap[cardStyle] || ''}">
       <div class="profile-banner">
-        <div class="profile-banner-inner" style="background:${bannerColor};">${bannerInner}</div>
+        <div class="profile-banner-inner" style="background:${bannerColor};">
+          ${theme.bannerImageURL ? `<img src="${theme.bannerImageURL}" alt="Profile banner" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;">` : ''}
+          ${bannerInner}
+        </div>
       </div>
 
       <div class="profile-body">
@@ -375,7 +378,7 @@ function bindEvents(profile, { isOwn, isAdmin, isFollowing, currentUser }) {
   });
 
   // Edit profile
-  document.getElementById('edit-profile-btn')?.addEventListener('click', () => showEditModal(profile));
+  document.getElementById('edit-profile-btn')?.addEventListener('click', () => showEditModal(profile, isAdmin));
 
   // Rank buttons — owner only
   document.querySelectorAll('.rank-btn').forEach(btn => {
@@ -521,7 +524,7 @@ async function showFollowListModal(title, uids) {
   }
 }
 
-function showEditModal(profile) {
+function showEditModal(profile, isAdmin = false) {
   const existing = document.getElementById('edit-modal-overlay');
   if (existing) existing.remove();
 
@@ -531,6 +534,9 @@ function showEditModal(profile) {
   const bannerEmoji = theme.bannerEmoji || '🎮';
   const currentEffect = theme.effect || 'none';
   const currentCardStyle = theme.cardStyle || 'default';
+  const bannerImageURL = theme.bannerImageURL || '';
+  // Elevated users (owner, admin badge, moderator role) can use GIFs
+  const canUseGif = window._fluxIsOwner === true;
 
   const overlay = document.createElement('div');
   overlay.id = 'edit-modal-overlay';
@@ -577,8 +583,25 @@ function showEditModal(profile) {
                 style="padding:8px 10px;border:1px solid var(--glass-border);border-radius:8px;font-size:20px;text-align:center;background:var(--bg);color:var(--text);outline:none;width:100%;box-sizing:border-box;">
             </div>
           </div>
+
+          <!-- Banner Image URL -->
+          <div style="margin-top:10px;">
+            <label class="field-label" style="margin-bottom:4px;">🖼️ Banner Image URL</label>
+            <input type="url" id="edit-banner-image-url" value="${bannerImageURL}"
+              placeholder="https://example.com/image.png"
+              style="width:100%;padding:9px 12px;border:1px solid var(--glass-border);border-radius:8px;font-size:13px;background:var(--bg);color:var(--text);outline:none;box-sizing:border-box;">
+            <div style="font-size:11px;color:var(--muted);margin-top:4px;">
+              ${canUseGif
+                ? '✨ <strong>Admin perk:</strong> GIF URLs are supported for your banner.'
+                : '🖼️ Paste a direct image link (jpg, png, webp). GIFs are for admins/mods only.'}
+            </div>
+          </div>
+
           <!-- Preview -->
-          <div id="theme-preview" style="margin-top:10px;height:40px;border-radius:8px;background:${bannerColor};display:flex;align-items:center;justify-content:center;font-size:22px;transition:background 0.2s;">${bannerEmoji}</div>
+          <div id="theme-preview" style="margin-top:10px;height:40px;border-radius:8px;background:${bannerColor};display:flex;align-items:center;justify-content:center;font-size:22px;transition:background 0.2s;overflow:hidden;position:relative;">
+            ${bannerImageURL ? `<img id="banner-preview-img" src="${bannerImageURL}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;">` : '<img id="banner-preview-img" style="display:none;position:absolute;inset:0;width:100%;height:100%;object-fit:cover;">'}
+            <span id="banner-preview-emoji">${bannerEmoji}</span>
+          </div>
           <div style="margin-top:10px;">
             <label class="field-label" style="margin-bottom:6px;">Banner Effect</label>
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
@@ -621,13 +644,25 @@ function showEditModal(profile) {
   // Live theme preview
   const updatePreview = () => {
     const preview = document.getElementById('theme-preview');
-    if (preview) {
-      preview.style.background = document.getElementById('edit-banner-color').value;
-      preview.textContent = document.getElementById('edit-banner-emoji').value || '🎮';
+    const previewImg = document.getElementById('banner-preview-img');
+    const previewEmoji = document.getElementById('banner-preview-emoji');
+    if (preview) preview.style.background = document.getElementById('edit-banner-color').value;
+    if (previewEmoji) previewEmoji.textContent = document.getElementById('edit-banner-emoji').value || '🎮';
+    const urlVal = document.getElementById('edit-banner-image-url')?.value.trim();
+    if (previewImg) {
+      if (urlVal) {
+        previewImg.src = urlVal;
+        previewImg.style.display = 'block';
+        if (previewEmoji) previewEmoji.style.opacity = '0';
+      } else {
+        previewImg.style.display = 'none';
+        if (previewEmoji) previewEmoji.style.opacity = '1';
+      }
     }
   };
   document.getElementById('edit-banner-color').addEventListener('input', updatePreview);
   document.getElementById('edit-banner-emoji').addEventListener('input', updatePreview);
+  document.getElementById('edit-banner-image-url')?.addEventListener('input', updatePreview);
 
   // Effect buttons
   overlay.querySelectorAll('.effect-btn').forEach(btn => {
@@ -676,15 +711,24 @@ function showEditModal(profile) {
     const bannerEmoji = document.getElementById('edit-banner-emoji').value.trim() || '🎮';
     const effect = document.getElementById('edit-effect').value;
     const cardStyle = document.getElementById('edit-card-style').value;
+    const bannerImageURL = (document.getElementById('edit-banner-image-url')?.value || '').trim();
     const btn = document.getElementById('edit-save');
     const errEl = document.getElementById('edit-error');
 
     if (!displayName) { errEl.textContent = 'Display name cannot be empty.'; errEl.style.display = 'block'; return; }
+
+    // GIF restriction — only elevated users (owner, admin badge, moderator role)
+    if (bannerImageURL && /\.gif($|\?)/i.test(bannerImageURL) && !window._fluxIsOwner) {
+      errEl.textContent = '🎞️ GIF banners are only available for admins and moderators.';
+      errEl.style.display = 'block';
+      return;
+    }
+
     btn.textContent = 'Saving...'; btn.disabled = true;
 
     await updateProfile(profile.uid, {
       displayName, bio, isPrivate,
-      theme: { bannerColor, accentColor, bannerEmoji, effect, cardStyle }
+      theme: { bannerColor, accentColor, bannerEmoji, effect, cardStyle, bannerImageURL }
     });
     overlay.remove();
     location.reload();
