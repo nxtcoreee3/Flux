@@ -3,16 +3,64 @@
    favorites (cloud+local), dark mode, toasts, recently played, new badge, stats button
 */
 
-const isOfficial = (window.location.hostname === 'nxtcoreee3.github.io' && 
-  (window.location.pathname === '/Flux' || window.location.pathname.startsWith('/Flux/') ||
-   window.location.pathname === '/Flux-Nightly' || window.location.pathname.startsWith('/Flux-Nightly/'))) ||
-  ((window.location.hostname === 'nxtcoreee3.online' || window.location.hostname === 'www.nxtcoreee3.online') &&
-   (window.location.pathname === '/Flux' || window.location.pathname.startsWith('/Flux/')));
+const isNewOfficial = (window.location.hostname === 'nxtcoreee3.online' || window.location.hostname === 'www.nxtcoreee3.online') &&
+  (window.location.pathname === '/Flux' || window.location.pathname.startsWith('/Flux/'));
 const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname === '';
+const NEW_SITE_URL = 'https://nxtcoreee3.online/Flux';
+const MIGRATION_DISMISS_KEY = 'flux_migration_dismissed';
 
-if (!isOfficial && !isLocal) {
-  alert("You have to be redirected to the official site since this one can be dangerous");
-  window.location.href = "https://nxtcoreee3.github.io/Flux";
+function showDomainMigrationNotice() {
+  try {
+    if (sessionStorage.getItem(MIGRATION_DISMISS_KEY) === '1') return;
+  } catch {}
+
+  const init = () => {
+    if (document.getElementById('domain-migration-overlay')) return;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'domain-migration-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:99999999;display:flex;align-items:center;justify-content:center;padding:20px;font-family:inherit;';
+
+    overlay.innerHTML = `
+      <div style="background:var(--panel,#fff);color:var(--text,#111827);max-width:420px;width:100%;border-radius:16px;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,0.3);text-align:center;">
+        <div style="font-size:32px;margin-bottom:8px;">🔔</div>
+        <h2 style="margin:0 0 10px;font-size:20px;font-family:'Bebas Neue',sans-serif;letter-spacing:0.5px;">We've changed domains</h2>
+        <p style="margin:0 0 18px;color:var(--muted,#6b7280);font-size:14px;line-height:1.5;">
+          Flux has moved to a new official site. This site may stop working in the near future.
+          For the most reliable experience, switch to:
+          <br><strong style="color:var(--accent,#3a7dff);">nxtcoreee3.online/Flux</strong>
+        </p>
+        <div style="display:flex;gap:10px;flex-direction:column;">
+          <button id="domain-migration-go" style="background:var(--accent,#3a7dff);color:#fff;border:0;padding:12px 16px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;">
+            Go to nxtcoreee3.online/Flux
+          </button>
+          <button id="domain-migration-stay" style="background:transparent;color:var(--muted,#6b7280);border:1px solid var(--muted,#6b7280);padding:12px 16px;border-radius:10px;font-weight:600;font-size:14px;cursor:pointer;">
+            Stay on this site
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    document.getElementById('domain-migration-go').addEventListener('click', () => {
+      window.location.href = NEW_SITE_URL;
+    });
+    document.getElementById('domain-migration-stay').addEventListener('click', () => {
+      try { sessionStorage.setItem(MIGRATION_DISMISS_KEY, '1'); } catch {}
+      overlay.remove();
+    });
+  };
+
+  if (document.body) {
+    init();
+  } else {
+    document.addEventListener('DOMContentLoaded', init, { once: true });
+  }
+}
+
+if (!isNewOfficial && !isLocal) {
+  showDomainMigrationNotice();
 }
 
 import { initAuthUI, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, fetchAllGameStats, setCurrentlyPlaying, clearCurrentlyPlaying, rateGame, getUserRating, reportGame, checkFirestoreHealth, fetchGameDetail, getAiGameDescription, getGameReviews, submitReview, addReviewComment, likeReview, deleteReview, fetchGamePricing, getUnlockedGames, unlockGame, SPIN_SEGMENTS, getLastSpin, spinWheel, giftPointsToUser, redeemCode, createRewardCode, getRewardCodes, deactivateRewardCode, initIncidentBanner, setServiceStatus, autoCheckServiceHealth, setIncidentBanner, checkNoAds, purchaseNoAds, NO_ADS_COST, setGameLockdown, initUpdateNotification } from './firebase-auth.js';
