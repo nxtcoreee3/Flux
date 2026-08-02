@@ -2951,7 +2951,7 @@ export async function initAuthUI(onUserChange) {
       const profilePlaceholder = document.getElementById('profile-avatar-placeholder');
       const modBtn = document.getElementById('mod-panel-btn');
 
-      // Show mod panel button only for admin
+      // Show mod panel button for owner immediately (fast path); roles checked after profile loads
       if (modBtn) modBtn.style.display = user.uid === ADMIN_UID ? 'flex' : 'none';
 
       if (!user.isAnonymous) {
@@ -2992,6 +2992,14 @@ export async function initAuthUI(onUserChange) {
             updateDoc(doc(db, 'profiles', user.uid), { avatarURL: user.photoURL }).catch(() => {});
           }
           setTimeout(() => { if (typeof window.startFluxTutorial === 'function') window.startFluxTutorial({ isNew: false }); }, 1200);
+
+          // Grant mod panel access to users with admin/owner badge or moderator role
+          const hasElevatedBadge = (profile.badges || []).some(b => b === 'admin' || b === 'owner');
+          const hasModRole = (profile.roles || []).some(r => (r.id || r) === 'moderator');
+          const hasAccess = user.uid === ADMIN_UID || hasElevatedBadge || hasModRole;
+          if (modBtn) modBtn.style.display = hasAccess ? 'flex' : 'none';
+          // Also update _fluxIsOwner so mod-locked game views work for elevated users
+          if (hasAccess) window._fluxIsOwner = true;
         }
         // Init notifications for signed-in users
         initNotifications();
