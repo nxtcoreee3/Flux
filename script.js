@@ -63,6 +63,22 @@ if (!isNewOfficial && !isLocal) {
   showDomainMigrationNotice();
 }
 
+if (isNewOfficial) {
+  const WELCOME_SHOWN_KEY = 'flux_welcome_shown';
+  const showWelcomeToast = () => {
+    try {
+      if (sessionStorage.getItem(WELCOME_SHOWN_KEY) === '1') return;
+      sessionStorage.setItem(WELCOME_SHOWN_KEY, '1');
+    } catch {}
+    showToast('Welcome to the domain! 🎉', 'success');
+  };
+  if (document.body) {
+    showWelcomeToast();
+  } else {
+    document.addEventListener('DOMContentLoaded', showWelcomeToast, { once: true });
+  }
+}
+
 import { initAuthUI, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, fetchAllGameStats, setCurrentlyPlaying, clearCurrentlyPlaying, rateGame, getUserRating, reportGame, checkFirestoreHealth, fetchGameDetail, getAiGameDescription, getGameReviews, submitReview, addReviewComment, likeReview, deleteReview, fetchGamePricing, getUnlockedGames, unlockGame, SPIN_SEGMENTS, getLastSpin, spinWheel, giftPointsToUser, redeemCode, createRewardCode, getRewardCodes, deactivateRewardCode, initIncidentBanner, setServiceStatus, autoCheckServiceHealth, setIncidentBanner, checkNoAds, purchaseNoAds, NO_ADS_COST, setGameLockdown, initUpdateNotification } from './firebase-auth.js';
 
 const GAMES = [
