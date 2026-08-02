@@ -27,15 +27,11 @@ If you enjoy Flux, you can support the project:
 
 ⸻
 
-# Star History
+# Domains
 
-<a href="https://www.star-history.com/?repos=nxtcoreee3%2FFlux&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=nxtcoreee3/Flux&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=nxtcoreee3/Flux&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=nxtcoreee3/Flux&type=date&legend=top-left" />
- </picture>
-</a>
+Main Domain: [nxtcoreee3.online/Flux](https://nxtcoreee3.online/Flux)
+Second Domain: [nxtcoreee3.github.io/Flux/](https://nxtcoreee3.github.io/Flux)
+Vercel Domain: [flux-xi-bice.vercel.app](https://flux-xi-bice.vercel.app/)
 
 ⸻
 
