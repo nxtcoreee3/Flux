@@ -7,13 +7,8 @@ const isNewOfficial = (window.location.hostname === 'nxtcoreee3.online' || windo
   (window.location.pathname === '/Flux' || window.location.pathname.startsWith('/Flux/'));
 const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname === '';
 const NEW_SITE_URL = 'https://nxtcoreee3.online/Flux';
-const MIGRATION_DISMISS_KEY = 'flux_migration_dismissed';
 
 function showDomainMigrationNotice() {
-  try {
-    if (sessionStorage.getItem(MIGRATION_DISMISS_KEY) === '1') return;
-  } catch {}
-
   const init = () => {
     if (document.getElementById('domain-migration-overlay')) return;
 
@@ -47,7 +42,6 @@ function showDomainMigrationNotice() {
       window.location.href = NEW_SITE_URL;
     });
     document.getElementById('domain-migration-stay').addEventListener('click', () => {
-      try { sessionStorage.setItem(MIGRATION_DISMISS_KEY, '1'); } catch {}
       overlay.remove();
     });
   };
@@ -64,13 +58,24 @@ if (!isNewOfficial && !isLocal) {
 }
 
 if (isNewOfficial) {
-  const WELCOME_SHOWN_KEY = 'flux_welcome_shown';
+  const WELCOME_FIRST_VISIT_KEY = 'flux_welcome_first_visit';
+  const WELCOME_WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
   const showWelcomeToast = () => {
+    let firstVisit;
     try {
-      if (sessionStorage.getItem(WELCOME_SHOWN_KEY) === '1') return;
-      sessionStorage.setItem(WELCOME_SHOWN_KEY, '1');
-    } catch {}
-    showToast('Welcome to the domain! 🎉', 'success');
+      firstVisit = parseInt(localStorage.getItem(WELCOME_FIRST_VISIT_KEY), 10);
+      if (!firstVisit) {
+        firstVisit = Date.now();
+        localStorage.setItem(WELCOME_FIRST_VISIT_KEY, String(firstVisit));
+      }
+    } catch {
+      firstVisit = Date.now();
+    }
+
+    if (Date.now() - firstVisit <= WELCOME_WINDOW_MS) {
+      showToast('Welcome to the domain! 🎉', 'success');
+    }
   };
   if (document.body) {
     showWelcomeToast();
