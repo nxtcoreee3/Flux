@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <script>
+    // Dynamic <base> so relative asset paths (style.css, script.js, assets/...)
+    // resolve correctly whether the site is hosted at its own root (Vercel)
+    // or reverse-proxied under a subpath like /Flux (with or without a
+    // trailing slash). Must run before any other resource tag in <head>.
+    (function () {
+      var path = window.location.pathname;
+      var base;
+      var subpathMatch = path.match(/^(\/Flux)(\/|$)/i);
+      if (subpathMatch) {
+        base = subpathMatch[1] + '/';
+      } else {
+        base = path.substring(0, path.lastIndexOf('/') + 1) || '/';
+      }
+      document.write('<base href="' + base + '">');
+    })();
+  </script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Privacy Policy — Flux</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="assets/thumbnail.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Flux">
+</head>
+<body>
+  <div id="global-page-loader" style="position:fixed;inset:0;background:#ffffff;z-index:9999999;display:flex;justify-content:center;align-items:center;transition:opacity 0.4s ease;pointer-events:none;">
+    <img src="assets/loading.gif" style="width:250px;height:auto;" alt="Loading...">
+  </div>
+  <script>
+    // Fast Boot: hide the white loader quickly (best effort)
+    (function(){
+      const hide = () => {
+        try { if (localStorage.getItem('flux_fast_boot') !== '1') return; } catch(e){ return; }
+        const el = document.getElementById('global-page-loader');
+        if (!el) return;
+        el.style.opacity = '0';
+        setTimeout(() => { try { el.remove(); } catch(e){} }, 420);
+      };
+      setTimeout(hide, 80);
+      requestAnimationFrame(hide);
+      window.addEventListener('pageshow', hide, { once: true });
+    })();
+  </script>
+
+  <header class="topbar">
+    <div class="brand">
+      <a href="index.html" class="logo"><img src="assets/logo.png" alt="Flux" style="height:32px;vertical-align:middle;margin-right:6px;"> FLUX</a>
+    </div>
+    <nav class="nav">
+      <button class="nav-toggle" aria-controls="main-nav" aria-expanded="false">☰</button>
+      <ul id="main-nav" class="nav-list">
+        <li data-nav-item="home"><a href="index.html">Home</a></li>
+        <li data-nav-item="games"><a href="games.html">Games</a></li>
+        <li data-nav-item="websites"><a href="websites.html">Websites</a></li>
+        <li data-nav-item="social"><a href="social.html">Social</a></li>
+        <li data-nav-item="info"><a href="info.html" class="active">Info</a></li>
+        <li data-nav-item="credits"><a href="credits.html">Credits</a></li>
+        <li data-nav-item="donate"><a href="donate.html" class="accent">Donate</a></li>
+      </ul>
+    </nav>
+    <div class="right-actions">
+      <a class="icon-btn" href="https://github.com/nxtcoreee3/flux" target="_blank" rel="noopener">⭐ Star</a>
+    </div>
+  </header>
+
+  <main style="max-width:720px;margin:0 auto;padding:32px 16px;">
+
+    <!-- Accept banner (shown when redirected from policy gate) -->
+    <div id="policy-accept-banner" style="display:none;background:var(--accent,#3a7dff);color:white;border-radius:16px;padding:20px 24px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+      <div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;margin-bottom:4px;">Please accept our Privacy Policy</div>
+        <div style="font-size:13px;opacity:0.9;">Read the policy below, then click Accept to continue using Flux.</div>
+      </div>
+      <button id="policy-accept-btn" style="padding:10px 24px;background:white;color:var(--accent,#3a7dff);border:none;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;white-space:nowrap;flex-shrink:0;">✅ I Accept</button>
+    </div>
+
+    <section class="section glass" style="margin-bottom:20px;">
+
+<a href="info.html" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);text-decoration:none;margin-bottom:14px;">← Back to Info</a>
+
+<h2 style="font-family:'Bebas Neue',sans-serif;font-size:36px;margin:0 0 4px;">Privacy Policy</h2>
+<p style="color:var(--muted);font-size:13px;margin:0 0 24px;">Last updated: April 2026 · Applies to Flux and all its features</p>
+
+<h3>1. Who We Are</h3>
+<p>Flux is an independent browser-based platform operated by <strong>nxtcoreee3</strong> and hosted via GitHub Pages. Flux provides access to browser games and social features. By using Flux, you agree to the terms outlined in this Privacy Policy.</p>
+
+<h3>2. Information We Collect</h3>
+<p>When using Flux, we may collect and store the following information:</p>
+<ul style="padding-left:20px;">
+<li>Account information (username, display name, bio)</li>
+<li>Profile image (if provided via third-party login)</li>
+<li>Social data (followers, following, interactions)</li>
+<li>Chat messages and social activity</li>
+<li>Game-related activity (favorites, recently played)</li>
+<li>Notifications and system interactions</li>
+</ul>
+
+<h3>3. Authentication & Third-Party Services</h3>
+<p>Flux uses Firebase Authentication (Google) for account management. This may include collection of your email address, IP address, device information, and authentication tokens. This data is handled by Google in accordance with their own privacy policies.</p>
+
+<h3>4. Cookies & Local Storage</h3>
+<p>Flux uses browser cookies and local storage to ensure core functionality, including:</p>
+<ul style="padding-left:20px;">
+<li>Maintaining login sessions</li>
+<li>Saving user preferences</li>
+<li>Storing recently played games</li>
+<li>Saving certain game progress locally</li>
+<li>Remembering accepted policies and settings</li>
+</ul>
+<p><strong>Important:</strong> Game progress may be stored locally in your browser. Clearing cookies, switching devices, or browser restrictions may result in loss of this data. Flux is not responsible for any loss of locally stored data.</p>
+
+<h3>5. Use of Data</h3>
+<p>Your data is used solely to operate and improve the platform, including:</p>
+<ul style="padding-left:20px;">
+<li>Providing social features and user profiles</li>
+<li>Displaying and moderating chat systems</li>
+<li>Tracking general usage and activity</li>
+<li>Ensuring platform safety and integrity</li>
+</ul>
+<p>Flux does not sell user data or use it for targeted advertising.</p>
+
+<h3>6. Chat, Social Features & Logging</h3>
+<p>All chats and social interactions on Flux, regardless of platform, location, or participants, may be logged and stored. This includes global chats and private messages.</p>
+<p>Private conversations are intended to be visible only to participants; however, administrators may access or review such content when necessary for moderation, safety, or enforcement purposes.</p>
+
+<h3>7. Moderation & Administrative Access</h3>
+<p>Flux is actively moderated. Administrators have the ability to access, review, modify, or delete content where necessary. This includes:</p>
+<ul style="padding-left:20px;">
+<li>User profiles and account data</li>
+<li>Chat messages and conversations</li>
+<li>Game reviews, reports, and submissions</li>
+</ul>
+<p>Administrators may take action against accounts that violate platform rules, including content removal or account restrictions.</p>
+
+<h3>8. User Responsibility</h3>
+<p>Users are solely responsible for any content they create, upload, or share on Flux. This includes, but is not limited to:</p>
+<ul style="padding-left:20px;">
+<li>Chat messages</li>
+<li>Profile information</li>
+<li>Reviews and submissions</li>
+</ul>
+<p>Flux does not accept responsibility for user-generated content. We reserve the right to remove any content or account at our discretion.</p>
+
+<h3>9. Games, Hosting & Third-Party Content</h3>
+<p>Flux acts as a directory and access point for browser-based games. Flux does <strong>not own</strong> the majority of games available on the platform.</p>
+<p>Games may be:</p>
+<ul style="padding-left:20px;">
+<li>Hosted by nxtcoreee3</li>
+<li>Hosted by third-party developers</li>
+</ul>
+<p>Where applicable, game ownership or hosting details may be indicated within the game’s description.</p>
+
+<p><strong>Important:</strong> Flux is not responsible for third-party content, including but not limited to:</p>
+<ul style="padding-left:20px;">
+<li>Game functionality or availability</li>
+<li>Content within games</li>
+<li>Security of third-party sites</li>
+</ul>
+
+<h3>10. Security & Malware Disclaimer</h3>
+<p>Flux makes reasonable efforts to ensure that linked content is safe. However, as games may be hosted externally, we cannot guarantee the security of third-party content.</p>
+<p>Flux and nxtcoreee3 are <strong>not responsible</strong> for any damage, data loss, or security issues, including malware, that may arise from accessing third-party games or external links.</p>
+<p>Users access external content at their own risk.</p>
+
+<h3>11. Game Data & Statistics</h3>
+<p>Game statistics such as play counts, reviews, and activity may be partially user-generated and are not guaranteed to be fully accurate.</p>
+
+<h3>12. Data Retention</h3>
+<p>User data is stored for as long as the account remains active. Users may request account and data deletion.</p>
+
+<h3>13. Children's Privacy</h3>
+<p>Flux is not intended for users under the age of 13. We do not knowingly collect personal data from children.</p>
+
+<h3>14. Your Rights (GDPR)</h3>
+<p>Users in applicable regions have the right to:</p>
+<ul style="padding-left:20px;">
+<li>Access their data</li>
+<li>Correct their data</li>
+<li>Request deletion</li>
+<li>Restrict or object to processing</li>
+</ul>
+
+<h3>15. Advertising</h3>
+<p>Flux may display advertisements. These ads:</p>
+<ul style="padding-left:20px;">
+<li>Are manually added by the platform owner</li>
+<li>Are not personalized or targeted</li>
+<li>Do not use tracking based on personal data</li>
+</ul>
+
+<h3>16. Changes to This Policy</h3>
+<p>This Privacy Policy may be updated at any time. Continued use of Flux after changes constitutes acceptance of the updated policy.</p>
+
+</section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <a href="index.html" class="logo-small">FLUX</a>
+        <p>Built by <a href="https://github.com/nxtcoreee3" target="_blank" rel="noopener">nxtcoreee3</a></p>
+      </div>
+    </div>
+    <small class="copyright">Flux © <span id="year3"></span></small>
+  </footer>
+
+  <script type="module" src="script.js"></script>
+  <script>
+    // Handle accept banner when redirected from policy gate
+    document.addEventListener('DOMContentLoaded', () => {
+      const year = document.getElementById('year3');
+      if (year) year.textContent = new Date().getFullYear();
+
+      const params = new URLSearchParams(location.search);
+      if (params.get('accept') === '1') {
+        const banner = document.getElementById('policy-accept-banner');
+        if (banner) banner.style.display = 'flex';
+        // Scroll to top
+        window.scrollTo(0, 0);
+      }
+
+      document.getElementById('policy-accept-btn')?.addEventListener('click', () => {
+        localStorage.setItem('flux_policy_accepted', '1');
+        localStorage.setItem('flux_cookie_consent', 'accepted');
+        window.location.href = 'index.html';
+      });
+    });
+  </script>
+
+<script>
+  window.addEventListener('load', () => {
+    setTimeout(() => { const loader = document.getElementById('global-page-loader'); if(loader) { loader.style.opacity = '0'; setTimeout(() => loader.remove(), 400); } }, 400);
+  });
+</script>
+</body>
+</html>

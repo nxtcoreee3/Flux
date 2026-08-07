@@ -1586,7 +1586,7 @@ export function initProfileSetup(onComplete) {
           <div style="display:flex;align-items:flex-start;gap:10px;padding:12px;background:#f9fafb;border-radius:10px;border:1px solid rgba(0,0,0,0.07);">
             <input type="checkbox" id="psetup-privacy-agree" style="margin-top:2px;width:16px;height:16px;cursor:pointer;flex-shrink:0;">
             <label for="psetup-privacy-agree" style="font-size:12px;color:#6b7280;cursor:pointer;line-height:1.5;">
-              I have read and agree to the <a href="info.html" target="_blank" style="color:var(--accent, #3a7dff);text-decoration:underline;">Privacy Policy</a>. I understand that Flux collects my username, display name, bio, favourited games, recently played games, and follower data. Firebase may also collect usage analytics and authentication data.
+              I have read and agree to the <a href="privacypolicy.html" target="_blank" style="color:var(--accent, #3a7dff);text-decoration:underline;">Privacy Policy</a>. I understand that Flux collects my username, display name, bio, favourited games, recently played games, and follower data. Firebase may also collect usage analytics and authentication data.
             </label>
           </div>
 
@@ -4474,7 +4474,7 @@ export function initCookieConsent() {
         Flux uses cookies and local storage to keep you signed in and remember your preferences. We also use <strong>Firebase</strong> (by Google) for authentication, database storage, and analytics — which may collect usage data such as IP addresses, device info, and session activity.
       </p>
       <p style="font-size:13px;color:#6b7280;line-height:1.6;margin:0 0 20px;">
-        By using Flux you agree to this. You can read our full <a href="info.html" style="color:#3a7dff;text-decoration:underline;">Privacy Policy</a> for details. This site <strong>requires cookies to function</strong> — if you decline you will not be able to use the site.
+        By using Flux you agree to this. You can read our full <a href="privacypolicy.html" style="color:#3a7dff;text-decoration:underline;">Privacy Policy</a> for details. This site <strong>requires cookies to function</strong> — if you decline you will not be able to use the site.
       </p>
       <div style="display:flex;gap:10px;flex-wrap:wrap;">
         <button id="cookie-accept" style="flex:1;min-width:140px;padding:12px;background:#3a7dff;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">✅ Accept & Continue</button>
@@ -4508,7 +4508,7 @@ export function initCookieConsent() {
 }
 
 function showPolicyGate() {
-  if (window.location.pathname.includes('info.html')) return;
+  if (window.location.pathname.includes('privacypolicy.html')) return;
   if (document.getElementById('policy-gate-overlay')) return;
 
   const overlay = document.createElement('div');
@@ -4526,7 +4526,7 @@ function showPolicyGate() {
       <p style="font-size:13px;color:#ef4444;line-height:1.6;margin:0 0 24px;">
         If you do not accept, your account will need to be deleted — but you're always welcome to create a new one.
       </p>
-      <a href="info.html?accept=1&return=${returnUrl}"
+      <a href="privacypolicy.html?accept=1&return=${returnUrl}"
         style="display:block;padding:13px;background:#3a7dff;color:white;border-radius:10px;font-weight:700;font-size:15px;text-decoration:none;margin-bottom:10px;">
         📖 Read & Accept Privacy Policy
       </a>

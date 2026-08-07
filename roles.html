@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <script>
+    // Dynamic <base> so relative asset paths (style.css, script.js, assets/...)
+    // resolve correctly whether the site is hosted at its own root (Vercel)
+    // or reverse-proxied under a subpath like /Flux (with or without a
+    // trailing slash). Must run before any other resource tag in <head>.
+    (function () {
+      var path = window.location.pathname;
+      var base;
+      var subpathMatch = path.match(/^(\/Flux)(\/|$)/i);
+      if (subpathMatch) {
+        base = subpathMatch[1] + '/';
+      } else {
+        base = path.substring(0, path.lastIndexOf('/') + 1) || '/';
+      }
+      document.write('<base href="' + base + '">');
+    })();
+  </script>
+  <script>
+    // Apply dark/beta instantly before first paint to prevent flash
+    (function() {
+      try {
+        if (localStorage.getItem('flux_dark') === '1' ||
+            (localStorage.getItem('flux_dark') === null && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        }
+        if (localStorage.getItem('flux_beta') === '1') {
+          document.documentElement.classList.add('beta');
+        }
+      } catch(e) {}
+    })();
+  </script>
+
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Roles — Flux</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="assets/thumbnail.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Flux">
+  <style>
+    @media (max-width: 768px) {
+      #main-nav { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; flex-wrap: nowrap !important; }
+      #main-nav::-webkit-scrollbar { display: none; }
+    }
+    .role-card {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 16px;
+      border-radius: 16px;
+      background: rgba(0,0,0,0.03);
+      border: 1px solid var(--glass-border, rgba(0,0,0,0.06));
+      cursor: pointer;
+      transition: transform 0.12s ease, background 0.12s ease;
+    }
+    .role-card:hover { transform: translateY(-2px); background: rgba(58,125,255,0.06); }
+    .role-card img { width: 44px; height: 44px; border-radius: 10px; flex-shrink: 0; }
+    .role-card .role-name { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+    .role-card .role-desc { font-size: 12px; color: var(--muted); line-height: 1.35; }
+    .role-card .role-tag {
+      margin-left: auto; flex-shrink: 0; font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.4px; padding: 3px 8px; border-radius: 20px; color: #fff; white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+  <div id="global-page-loader" style="position:fixed;inset:0;background:#ffffff;z-index:9999999;display:flex;justify-content:center;align-items:center;transition:opacity 0.4s ease;pointer-events:none;">
+    <img src="assets/loading.gif" style="width:250px;height:auto;" alt="Loading...">
+  </div>
+  <script>
+    (function(){
+      const hide = () => {
+        try { if (localStorage.getItem('flux_fast_boot') !== '1') return; } catch(e){ return; }
+        const el = document.getElementById('global-page-loader');
+        if (!el) return;
+        el.style.opacity = '0';
+        setTimeout(() => { try { el.remove(); } catch(e){} }, 420);
+      };
+      setTimeout(hide, 80);
+      requestAnimationFrame(hide);
+      window.addEventListener('pageshow', hide, { once: true });
+    })();
+  </script>
+
+  <header class="topbar">
+    <div class="brand">
+      <a href="index.html" class="logo"><img src="assets/logo.png" alt="Flux" style="height:32px;vertical-align:middle;margin-right:6px;"> FLUX</a>
+    </div>
+    <nav class="nav">
+      <button class="nav-toggle" aria-controls="main-nav" aria-expanded="false">☰</button>
+      <ul id="main-nav" class="nav-list">
+        <li data-nav-item="home"><a href="index.html">Home</a></li>
+        <li data-nav-item="games"><a href="games.html">Games</a></li>
+        <li data-nav-item="websites"><a href="websites.html">Websites</a></li>
+        <li data-nav-item="social"><a href="social.html">Social</a></li>
+        <li data-nav-item="messages"><a href="messages.html">Messages</a></li>
+        <li data-nav-item="info"><a href="info.html" class="active">Info</a></li>
+        <li data-nav-item="credits"><a href="credits.html">Credits</a></li>
+        <li data-nav-item="donate"><a href="donate.html" class="accent">Donate</a></li>
+      </ul>
+    </nav>
+    <div class="right-actions">
+      <a class="icon-btn" href="https://github.com/nxtcoreee3/flux" target="_blank" rel="noopener">⭐ Star</a>
+    </div>
+  </header>
+
+  <main style="max-width:720px;margin:0 auto;padding:32px 16px;">
+    <section class="section glass" style="margin-bottom:20px;">
+      <a href="info.html" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);text-decoration:none;margin-bottom:14px;">← Back to Info</a>
+
+      <h2 style="font-family:'Bebas Neue',sans-serif;font-size:36px;margin:0 0 4px;">Roles</h2>
+      <p style="color:var(--muted);font-size:13px;margin:0 0 8px;">What each icon beside a username means.</p>
+      <p style="color:var(--muted);font-size:12px;margin:0 0 24px;">Hover (or tap) any icon for details. Only the 3 highest-priority icons a person has show beside their name in chat — their full set always shows on their profile.</p>
+
+      <div style="margin-bottom:10px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);">Automatic statuses</div>
+      <div id="roles-auto" style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px;"></div>
+
+      <div style="margin-bottom:10px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);">Assignable roles</div>
+      <div id="roles-assignable" style="display:flex;flex-direction:column;gap:10px;"></div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <a href="index.html" class="logo-small">FLUX</a>
+        <p>Built by <a href="https://github.com/nxtcoreee3" target="_blank" rel="noopener">nxtcoreee3</a></p>
+      </div>
+    </div>
+    <small class="copyright">Flux © <span id="year3"></span></small>
+  </footer>
+
+  <script type="module" src="script.js"></script>
+  <script type="module">
+    import { ROLE_ICON_META, initRoleIconTooltips } from './firebase-auth.js';
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const year = document.getElementById('year3');
+      if (year) year.textContent = new Date().getFullYear();
+
+      const auto = document.getElementById('roles-auto');
+      const assignable = document.getElementById('roles-assignable');
+
+      const entries = Object.entries(ROLE_ICON_META).sort((a, b) => b[1].priority - a[1].priority);
+      entries.forEach(([id, meta]) => {
+        const card = document.createElement('div');
+        card.className = 'role-card flux-role-icon'; // reuses the site-wide tooltip handler
+        card.dataset.roleId = id;
+        card.dataset.roleLabel = meta.label;
+        card.dataset.roleDesc = meta.desc;
+        card.innerHTML = `
+          <img src="${meta.icon}" alt="${meta.label}">
+          <div>
+            <div class="role-name">${meta.label}</div>
+            <div class="role-desc">${meta.desc}</div>
+          </div>
+          <span class="role-tag" style="background:${meta.kind === 'computed' ? '#6b7280' : '#3a7dff'};">
+            ${meta.kind === 'computed' ? 'Automatic' : 'Assigned'}
+          </span>
+        `;
+        (meta.kind === 'computed' ? auto : assignable).appendChild(card);
+      });
+
+      initRoleIconTooltips();
+    });
+  </script>
+
+  <script>
+    window.addEventListener('load', () => {
+      setTimeout(() => { const loader = document.getElementById('global-page-loader'); if(loader) { loader.style.opacity = '0'; setTimeout(() => loader.remove(), 400); } }, 400);
+    });
+  </script>
+</body>
+</html>
