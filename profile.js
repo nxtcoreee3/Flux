@@ -2,7 +2,7 @@
 
 import {
   getProfile, getProfileByUsername, updateProfile,
-  followUser, unfollowUser, banUser, unbanUser,
+  followUser, unfollowUser, banUser, unbanUser, redirectUser, clearUserRedirect,
   renderBadges, assignRole, removeRole, PREDEFINED_ROLES,
   setUserRank, getUserRank, getContrastColor,
   initAuthUI, initServerStatus, initCookieConsent,
@@ -203,6 +203,20 @@ function renderProfile(profile, { isOwn, isAdmin, isFollowing, canSeeContent, cu
               <button id="ban-btn" style="padding:8px 16px;background:#ef4444;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;">🚫 Ban User</button>
             </div>`
         }
+
+        <!-- Redirect section -->
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid rgba(0,0,0,0.08);">
+          <div style="font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Redirect</div>
+          ${profile.redirectUrl
+            ? `<div style="font-size:12px;color:var(--muted);margin-bottom:8px;word-break:break-all;">Currently redirecting to: <strong>${profile.redirectUrl}</strong></div>
+               <button id="unredirect-btn" style="padding:8px 16px;background:#22c55e;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;">✅ Remove Redirect</button>`
+            : `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                <input id="redirect-url" type="text" value="https://nxtcoreee3.github.io/WebRespring/" placeholder="https://example.com" style="flex:1;min-width:220px;padding:8px 10px;border:1px solid rgba(59,130,246,0.3);border-radius:8px;font-size:13px;background:transparent;color:var(--text);outline:none;">
+                <button id="redirect-btn" style="padding:8px 16px;background:#3b82f6;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;">↪️ Redirect User</button>
+              </div>
+              <div id="redirect-msg" style="font-size:11px;margin-top:6px;display:none;"></div>`
+          }
+        </div>
       </div>`;
   }
 
@@ -407,6 +421,28 @@ function bindEvents(profile, { isOwn, isAdmin, isFollowing, currentUser }) {
   });
   document.getElementById('unban-btn')?.addEventListener('click', async () => {
     await unbanUser(profile.uid);
+    location.reload();
+  });
+
+  // Redirect / un-redirect
+  document.getElementById('redirect-btn')?.addEventListener('click', async () => {
+    const urlInput = document.getElementById('redirect-url');
+    const msgEl = document.getElementById('redirect-msg');
+    const url = urlInput.value.trim();
+    if (!url) { alert('Please enter a URL to redirect this user to.'); return; }
+    const btn = document.getElementById('redirect-btn');
+    btn.disabled = true;
+    const result = await redirectUser(profile.uid, url);
+    if (msgEl) {
+      msgEl.style.display = 'block';
+      msgEl.style.color = result.ok ? '#22c55e' : '#ef4444';
+      msgEl.textContent = result.ok ? `✓ ${profile.username} will be redirected on their next page load.` : result.error;
+    }
+    if (result.ok) setTimeout(() => location.reload(), 1000);
+    else btn.disabled = false;
+  });
+  document.getElementById('unredirect-btn')?.addEventListener('click', async () => {
+    await clearUserRedirect(profile.uid);
     location.reload();
   });
 

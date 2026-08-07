@@ -1285,6 +1285,33 @@ export async function unbanUser(targetUid) {
   await updateDoc(doc(db, 'profiles', targetUid), { isBanned: false, banReason: '', bannedAt: null });
 }
 
+/* ===================== ADMIN REDIRECT ===================== */
+// Lets an admin force a specific user's client to navigate away to another
+// URL the next time their auth state is evaluated (page load / auth change).
+export async function redirectUser(targetUid, url) {
+  const user = auth.currentUser;
+  if (!user || user.uid !== OWNER_UID) return { ok: false, error: 'Not authorized' };
+  let clean;
+  try {
+    clean = new URL(url).toString();
+  } catch (e) {
+    return { ok: false, error: 'Enter a valid URL (include https://)' };
+  }
+  await updateDoc(doc(db, 'profiles', targetUid), {
+    redirectUrl: clean,
+    redirectSetAt: new Date().toISOString(),
+    redirectSetBy: user.uid
+  });
+  return { ok: true };
+}
+
+export async function clearUserRedirect(targetUid) {
+  const user = auth.currentUser;
+  if (!user || user.uid !== OWNER_UID) return { ok: false, error: 'Not authorized' };
+  await updateDoc(doc(db, 'profiles', targetUid), { redirectUrl: '', redirectSetAt: null, redirectSetBy: null });
+  return { ok: true };
+}
+
 /* ===================== ROLE SYSTEM ===================== */
 export const PREDEFINED_ROLES = [
   { id: 'moderator', label: 'Moderator', emoji: '🛡️', color: '#8b5cf6' },
@@ -2957,6 +2984,13 @@ export async function initAuthUI(onUserChange) {
       if (!user.isAnonymous) {
         // Check for profile and trigger setup if missing
         const profile = await getProfile(user.uid);
+
+        // ── REDIRECT CHECK ── admin has flagged this user to be sent elsewhere.
+        // Skipped for the owner so an admin previewing a profile never redirects themselves.
+        if (profile && profile.redirectUrl && user.uid !== ADMIN_UID) {
+          window.location.href = profile.redirectUrl;
+          return; // stop normal auth flow, navigation is taking over
+        }
 
         // ── BAN CHECK ── show overlay and block everything if banned
         if (profile && profile.isBanned) {
