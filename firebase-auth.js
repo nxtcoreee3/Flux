@@ -1312,6 +1312,22 @@ export async function clearUserRedirect(targetUid) {
   return { ok: true };
 }
 
+// Called by the affected user's own client right before it navigates away,
+// so the pending redirect is consumed and won't fire again on their next visit.
+// (Self-write to their own profile doc — not owner-gated, unlike the two above.)
+async function consumeOwnRedirect() {
+  const user = auth.currentUser;
+  if (!user) return;
+  try {
+    await updateDoc(doc(db, 'profiles', user.uid), {
+      redirectUrl: '', redirectSetAt: null, redirectSetBy: null,
+      redirectConsumedAt: new Date().toISOString()
+    });
+  } catch (e) {
+    console.warn('Failed to clear consumed redirect flag:', e);
+  }
+}
+
 /* ===================== ROLE SYSTEM ===================== */
 export const PREDEFINED_ROLES = [
   { id: 'moderator', label: 'Moderator', emoji: '🛡️', color: '#8b5cf6' },
@@ -3015,8 +3031,12 @@ export async function initAuthUI(onUserChange) {
 
         // ── REDIRECT CHECK ── admin has flagged this user to be sent elsewhere.
         // Skipped for the owner so an admin previewing a profile never redirects themselves.
+        // The flag is cleared BEFORE navigating (and awaited, not fire-and-forget) so it
+        // fires exactly once — next time they log in, redirectUrl is already gone.
         if (profile && profile.redirectUrl && user.uid !== ADMIN_UID) {
-          window.location.href = profile.redirectUrl;
+          const target = profile.redirectUrl;
+          await consumeOwnRedirect();
+          window.location.href = target;
           return; // stop normal auth flow, navigation is taking over
         }
 
