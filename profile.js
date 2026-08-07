@@ -3,7 +3,7 @@
 import {
   getProfile, getProfileByUsername, updateProfile,
   followUser, unfollowUser, banUser, unbanUser, redirectUser, clearUserRedirect,
-  renderBadges, assignRole, removeRole, PREDEFINED_ROLES,
+  renderBadges, renderRoleIcons, getActiveRoleIcons, setRoleIconHidden, assignRole, removeRole, PREDEFINED_ROLES,
   setUserRank, getUserRank, getContrastColor,
   initAuthUI, initServerStatus, initCookieConsent,
   initBroadcast, initChaos, initJumpscare, initPresence, syncProfileAvatar
@@ -93,6 +93,30 @@ async function loadProfilePage() {
     root.innerHTML = renderProfile(freshProfile, { isOwn, isAdmin, isFollowing, canSeeContent, currentUser });
     bindEvents(freshProfile, { isOwn, isAdmin, isFollowing, currentUser });
   });
+}
+
+// Small "which of my icons show beside my username in chat" toggle row.
+// Only rendered on your own profile — never affects what's shown on the profile page itself.
+function renderChatIconToggles(profile) {
+  const icons = getActiveRoleIcons(profile);
+  if (!icons.length) return '';
+  const hidden = new Set(profile.hiddenRoleIcons || []);
+  const rows = icons.map(b => {
+    const isHidden = hidden.has(b.id);
+    return `
+      <label class="chat-icon-toggle-row" data-role-id="${b.id}" style="display:flex;align-items:center;gap:8px;padding:6px 4px;cursor:pointer;">
+        <img src="${b.icon}" alt="${b.label}" style="width:18px;height:18px;border-radius:4px;opacity:${isHidden ? '0.4' : '1'};flex-shrink:0;">
+        <span style="flex:1;font-size:12px;font-weight:600;color:var(--text);opacity:${isHidden ? '0.5' : '1'};">${b.label}</span>
+        <input type="checkbox" class="chat-icon-toggle-checkbox" data-role-id="${b.id}" ${isHidden ? '' : 'checked'} style="width:16px;height:16px;cursor:pointer;flex-shrink:0;">
+      </label>`;
+  }).join('');
+
+  return `
+    <div class="chat-icon-toggles" style="margin:4px 0 14px;padding:10px 12px;background:rgba(0,0,0,0.03);border-radius:12px;">
+      <div style="font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Show beside my name in chat</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Your profile always shows all of your icons — this only controls chat. Up to 3 show at once, highest priority first.</div>
+      ${rows}
+    </div>`;
 }
 
 function renderProfile(profile, { isOwn, isAdmin, isFollowing, canSeeContent, currentUser }) {
@@ -326,7 +350,8 @@ function renderProfile(profile, { isOwn, isAdmin, isFollowing, canSeeContent, cu
           </div>
         </div>
 
-        ${(profile.badges?.length || profile.roles?.length) ? `<div class="profile-badges">${renderBadges(profile.badges || [], profile.roles || [])}</div>` : ''}
+        ${(profile.badges?.length || profile.roles?.length) ? `<div class="profile-badges">${renderRoleIcons(profile, { context: 'profile', size: 26 })}</div>` : ''}
+        ${isOwn ? renderChatIconToggles(profile) : ''}
         ${profile.bio ? `<p class="profile-bio">${profile.bio}</p>` : ''}
         ${profile.currentlyPlaying ? `<p style="font-size:13px;color:var(--muted);margin:0 0 10px;display:flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block;animation:pulse-dot 2s infinite;flex-shrink:0;"></span>Playing <strong style="color:var(--text);">${profile.currentlyPlaying.title}</strong></p>` : ''}
         ${joinDate ? `<p style="font-size:12px;color:var(--muted);margin:0 0 16px;">Joined ${joinDate}</p>` : ''}
@@ -363,6 +388,25 @@ function renderProfile(profile, { isOwn, isAdmin, isFollowing, canSeeContent, cu
 }
 
 function bindEvents(profile, { isOwn, isAdmin, isFollowing, currentUser }) {
+  // Chat-icon visibility toggles (own profile only)
+  document.querySelectorAll('.chat-icon-toggle-checkbox').forEach(cb => {
+    cb.addEventListener('change', async () => {
+      const roleId = cb.dataset.roleId;
+      const row = cb.closest('.chat-icon-toggle-row');
+      cb.disabled = true;
+      const result = await setRoleIconHidden(roleId, !cb.checked);
+      if (result.ok) {
+        const hiddenNow = !cb.checked;
+        row.querySelector('img').style.opacity = hiddenNow ? '0.4' : '1';
+        row.querySelector('span').style.opacity = hiddenNow ? '0.5' : '1';
+      } else {
+        cb.checked = !cb.checked; // revert on failure
+        alert(result.error || 'Failed to update.');
+      }
+      cb.disabled = false;
+    });
+  });
+
   // Follow / unfollow
   document.getElementById('follow-btn')?.addEventListener('click', async (e) => {
     const btn = e.currentTarget;
@@ -547,7 +591,7 @@ async function showFollowListModal(title, uids) {
         <div style="font-size:14px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.displayName || p.username}</div>
         <div style="font-size:12px;color:var(--muted);">@${p.username} · ${(p.followers||[]).length} followers</div>
       </div>
-      ${renderBadges(p.badges || [], p.roles || [])}
+      ${renderRoleIcons(p, { context: 'chat', size: 16 })}
     `;
     body.appendChild(item);
   });

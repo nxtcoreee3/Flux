@@ -1,7 +1,7 @@
 /* social.js — Flux Social & Chat */
 
 import {
-  getProfile, searchProfiles, renderBadges,
+  getProfile, searchProfiles, renderBadges, renderRoleIcons,
   initAuthUI, initServerStatus, initBroadcast,
   initChaos, initJumpscare, initPresence, initCookieConsent,
   initDarkMode, initChatLock, fetchLeaderboard, reportUser, updateProfile
@@ -336,7 +336,7 @@ function renderMessageSync(msg, currentUser) {
     ? `<img class="chat-msg-avatar" src="${msg.avatarURL}" style="width:28px;height:28px;border-radius:8px;object-fit:cover;margin-${isOwn?'left':'right'}:8px;flex-shrink:0;">`
     : `<div class="chat-msg-avatar-placeholder" style="width:28px;height:28px;border-radius:8px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:12px;margin-${isOwn?'left':'right'}:8px;flex-shrink:0;">${(msg.displayName || msg.username || '?')[0].toUpperCase()}</div>`;
 
-  const badgesHTML = renderBadges(msg.badges || [], msg.roles || []);
+  const badgesHTML = renderRoleIcons({ badges: msg.badges || [], roles: msg.roles || [] }, { context: 'chat', size: 15 });
 
   const div = document.createElement('div');
   div.className = 'chat-msg';
@@ -396,7 +396,7 @@ async function patchMessageBadges(el, uid) {
     if (!liveProfile) return;
     const badgesEl = el.querySelector('.msg-badges');
     if (badgesEl) {
-      badgesEl.innerHTML = renderBadges(liveProfile.badges || [], liveProfile.roles || []);
+      badgesEl.innerHTML = renderRoleIcons(liveProfile, { context: 'chat', size: 15 });
     }
     const playingEl = el.querySelector('.msg-playing');
     if (playingEl && liveProfile.currentlyPlaying) {
@@ -599,7 +599,7 @@ async function runSearch(term) {
         <span class="search-result-name">${profile.displayName || profile.username}</span>
         <span class="search-result-username">@${profile.username}</span>
       </div>
-      <div>${renderBadges(profile.badges || [], profile.roles || [])}</div>
+      <div>${renderRoleIcons(profile, { context: 'chat', size: 15 })}</div>
     `;
     container.appendChild(item);
   });
@@ -623,7 +623,7 @@ function showMyProfileCard(profile) {
       <div>
         <div style="font-size:14px;font-weight:700;color:var(--text);">${profile.displayName || profile.username}</div>
         <div style="font-size:12px;color:var(--muted);">@${profile.username}</div>
-        <div style="margin-top:4px;">${renderBadges(profile.badges || [], profile.roles || [])}</div>
+        <div style="margin-top:4px;">${renderRoleIcons(profile, { context: 'chat', size: 15 })}</div>
       </div>
     </a>
     <div style="display:flex;gap:16px;margin-top:14px;padding-top:12px;border-top:1px solid var(--glass-border);">

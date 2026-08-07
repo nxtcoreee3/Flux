@@ -1330,13 +1330,135 @@ async function consumeOwnRedirect() {
 
 /* ===================== ROLE SYSTEM ===================== */
 export const PREDEFINED_ROLES = [
-  { id: 'moderator', label: 'Moderator', emoji: '🛡️', color: '#8b5cf6' },
-  { id: 'vip',       label: 'VIP',       emoji: '⭐', color: '#f59e0b' },
-  { id: 'verified',  label: 'Verified',  emoji: '✓',  color: '#22c55e' },
-  { id: 'helper',    label: 'Helper',    emoji: '🤝', color: '#06b6d4' },
-  { id: 'booster',   label: 'Booster',   emoji: '🚀', color: '#ec4899' },
-  { id: 'og',        label: 'OG',        emoji: '🏆', color: '#d97706' },
+  { id: 'moderator', label: 'Moderator',   emoji: '🛡️', color: '#8b5cf6' },
+  { id: 'vip',       label: 'VIP',         emoji: '⭐', color: '#f59e0b' },
+  { id: 'verified',  label: 'Verified',    emoji: '✓',  color: '#22c55e' },
+  { id: 'helper',    label: 'Contributor', emoji: '🤝', color: '#06b6d4' }, // renamed from "Helper" — id kept for back-compat with existing assignments
+  { id: 'booster',   label: 'Booster',     emoji: '🚀', color: '#ec4899' },
+  { id: 'og',        label: 'OG',          emoji: '🏆', color: '#d97706' },
 ];
+
+/* ── Role icon badges (image-based, shown on profiles + beside usernames) ──
+   Keys match either a PREDEFINED_ROLES id (assignable) or a computed status
+   derived from other profile fields (kind:'computed'). Higher priority wins
+   the "only 3 shown beside a username" cutoff in chat/compact contexts. */
+export const ROLE_ICON_META = {
+  owner:              { label: 'Owner',              icon: 'roleicons/Owner.png',              desc: 'Owns and runs Flux.',                             priority: 100, kind: 'computed'   },
+  admin:              { label: 'Admin',               icon: 'roleicons/Admin.png',              desc: 'Has full administrative access on Flux.',        priority: 95,  kind: 'computed'   },
+  banned:             { label: 'Banned Member',        icon: 'roleicons/Banned%20Member.png',             desc: 'This account has been banned from Flux.',        priority: 90,  kind: 'computed'   },
+  moderator:          { label: 'Moderator',            icon: 'roleicons/Moderator.png',          desc: 'Helps moderate Flux and enforce the rules.',      priority: 80,  kind: 'assignable' },
+  vip:                { label: 'VIP',                  icon: 'roleicons/VIP.png',                desc: 'A VIP member of Flux.',                           priority: 70,  kind: 'assignable' },
+  booster:            { label: 'Booster',               icon: 'roleicons/Booster.png',            desc: 'Supports Flux by boosting the community.',       priority: 60,  kind: 'assignable' },
+  helper:             { label: 'Contributor',            icon: 'roleicons/Contributor.png',        desc: 'Contributed to building Flux. (Formerly Helper)', priority: 55,  kind: 'assignable' },
+  verified:           { label: 'Verified Member',        icon: 'roleicons/Verified%20Member.png',           desc: 'A verified member of Flux.',                      priority: 50,  kind: 'assignable' },
+  currently_playing:  { label: 'Currently Playing',      icon: 'roleicons/Currently%20Playing.png',  desc: 'Currently playing a game on Flux.',               priority: 40,  kind: 'computed'   },
+  new_member:         { label: 'New Member',             icon: 'roleicons/New%20Member.png',         desc: 'Recently joined Flux.',                            priority: 10,  kind: 'computed'   },
+};
+
+// Builds the full, de-duplicated, priority-sorted list of role icons a
+// profile currently qualifies for (computed statuses + assigned roles).
+export function getActiveRoleIcons(profile) {
+  if (!profile) return [];
+  const out = [];
+  const badges = profile.badges || [];
+
+  if (badges.includes('owner')) out.push({ id: 'owner', ...ROLE_ICON_META.owner });
+  else if (badges.includes('admin')) out.push({ id: 'admin', ...ROLE_ICON_META.admin });
+
+  if (profile.isBanned) out.push({ id: 'banned', ...ROLE_ICON_META.banned });
+
+  (profile.roles || []).forEach(r => {
+    const meta = ROLE_ICON_META[r.id];
+    if (meta) out.push({ id: r.id, ...meta });
+  });
+
+  if (profile.currentlyPlaying) out.push({ id: 'currently_playing', ...ROLE_ICON_META.currently_playing });
+
+  if (profile.joinedAt) {
+    const ageMs = Date.now() - new Date(profile.joinedAt).getTime();
+    if (ageMs >= 0 && ageMs < 7 * 24 * 60 * 60 * 1000) out.push({ id: 'new_member', ...ROLE_ICON_META.new_member });
+  }
+
+  const seen = new Set();
+  return out
+    .filter(b => (seen.has(b.id) ? false : (seen.add(b.id), true)))
+    .sort((a, b) => b.priority - a.priority);
+}
+
+/* ── Tooltip on hover (desktop) / tap (mobile) — event-delegated so it
+   works for icons rendered anywhere, including ones added after load. ── */
+let _roleTooltipEl = null;
+function _ensureRoleTooltipEl() {
+  if (_roleTooltipEl) return _roleTooltipEl;
+  const el = document.createElement('div');
+  el.id = 'flux-role-tooltip';
+  el.style.cssText = 'position:fixed;z-index:99999;background:#111827;color:#fff;font-size:12px;padding:6px 10px;border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,0.28);pointer-events:none;opacity:0;transition:opacity .12s ease;max-width:220px;line-height:1.35;';
+  document.body.appendChild(el);
+  _roleTooltipEl = el;
+  return el;
+}
+function _showRoleTooltip(target, label, desc) {
+  const el = _ensureRoleTooltipEl();
+  el.innerHTML = `<div style="font-weight:800;margin-bottom:2px;">${label}</div><div style="font-weight:500;opacity:0.85;">${desc}</div>`;
+  const r = target.getBoundingClientRect();
+  el.style.left = Math.max(8, Math.min(window.innerWidth - 228, r.left + r.width / 2 - 90)) + 'px';
+  el.style.top = Math.max(8, r.top - 52) + 'px';
+  el.style.opacity = '1';
+}
+function _hideRoleTooltip() { if (_roleTooltipEl) _roleTooltipEl.style.opacity = '0'; }
+
+export function initRoleIconTooltips() {
+  if (typeof document === 'undefined' || window._fluxRoleTooltipsInit) return;
+  window._fluxRoleTooltipsInit = true;
+  document.addEventListener('mouseover', (e) => {
+    const t = e.target.closest?.('.flux-role-icon');
+    if (t) _showRoleTooltip(t, t.dataset.roleLabel, t.dataset.roleDesc);
+  });
+  document.addEventListener('mouseout', (e) => {
+    if (e.target.closest?.('.flux-role-icon')) _hideRoleTooltip();
+  });
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest?.('.flux-role-icon');
+    if (t) {
+      e.preventDefault();
+      e.stopPropagation();
+      _showRoleTooltip(t, t.dataset.roleLabel, t.dataset.roleDesc);
+      setTimeout(() => document.addEventListener('click', _hideRoleTooltip, { once: true }), 0);
+    }
+  });
+}
+if (typeof document !== 'undefined') initRoleIconTooltips();
+
+// Renders role icons for a profile-like object.
+// opts.context: 'profile' (full list, no cap — used on the profile page itself)
+//            or 'chat'    (respects the viewer's own hiddenRoleIcons prefs and caps at 3)
+export function renderRoleIcons(profile, opts = {}) {
+  const { context = 'profile', size = 18 } = opts;
+  let icons = getActiveRoleIcons(profile);
+  if (context === 'chat') {
+    const hidden = new Set(profile.hiddenRoleIcons || []);
+    icons = icons.filter(b => !hidden.has(b.id)).slice(0, 3); // already priority-sorted
+  }
+  if (!icons.length) return '';
+  return `<span class="flux-role-icons" style="display:inline-flex;gap:3px;vertical-align:middle;">` +
+    icons.map(b => `<img src="${b.icon}" data-role-id="${b.id}" data-role-label="${b.label}" data-role-desc="${(b.desc || '').replace(/"/g, '&quot;')}" alt="${b.label}" class="flux-role-icon" style="width:${size}px;height:${size}px;border-radius:5px;cursor:pointer;flex-shrink:0;" />`).join('') +
+    `</span>`;
+}
+
+// Lets the signed-in user toggle whether one of THEIR OWN active role icons
+// shows beside their username in chat/compact contexts. Never affects what
+// shows on their profile page — that always shows everything they have.
+export async function setRoleIconHidden(roleId, hidden) {
+  const user = auth.currentUser;
+  if (!user) return { ok: false, error: 'Not signed in' };
+  const ref = doc(db, 'profiles', user.uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return { ok: false, error: 'Profile not found' };
+  const current = new Set(snap.data().hiddenRoleIcons || []);
+  if (hidden) current.add(roleId); else current.delete(roleId);
+  await updateDoc(ref, { hiddenRoleIcons: [...current] });
+  return { ok: true };
+}
 
 export function renderBadges(badges = [], roles = []) {
   const badgeHTML = badges.map(b => {
