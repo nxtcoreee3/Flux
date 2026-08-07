@@ -44,7 +44,7 @@ Example: assets/drift-boss.png
 
 # ✍️ Description Rules
 
-Keep it short (1 sentence)
+Keep it short (1-2 sentence)
 
 Describe the main gameplay
 
