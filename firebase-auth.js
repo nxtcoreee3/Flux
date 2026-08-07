@@ -2514,8 +2514,10 @@ export async function initAuthUI(onUserChange) {
         const byUid = {};
         const anonymous = [];
         const now = Date.now();
+        let activeSessionCount = 0;
         sessionList.forEach(s => {
           if (s.timestamp && now - s.timestamp > 12 * 60 * 60 * 1000) return; // Ignore ghost sessions
+          activeSessionCount++; // count only sessions that pass the staleness check
 
           if (s.uid) {
             if (!byUid[s.uid]) byUid[s.uid] = s;
@@ -2525,7 +2527,7 @@ export async function initAuthUI(onUserChange) {
         });
 
         const namedUsers = Object.values(byUid);
-        const totalSessions = sessionList.length;
+        const totalSessions = activeSessionCount; // was: sessionList.length (included stale/ghost entries)
         const namedCount = namedUsers.length;
         const anonCount = totalSessions - namedCount;
 
@@ -2555,6 +2557,10 @@ export async function initAuthUI(onUserChange) {
               </div>
             </div>
             <div style="display:flex;gap:4px;flex-shrink:0;">
+              <button class="mod-redirect-btn" data-uid="${s.uid}" data-name="${s.username || s.uid.slice(0,8)}" title="Redirect User"
+                style="padding:4px 10px;background:#3b82f6;color:white;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:11px;">
+                ↪️
+              </button>
               <button class="mod-force-refresh-btn" data-uid="${s.uid}" data-name="${s.username || s.uid.slice(0,8)}" title="Force Refresh"
                 style="padding:4px 10px;background:#3a7dff;color:white;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:11px;">
                 🔄
@@ -2590,6 +2596,28 @@ export async function initAuthUI(onUserChange) {
             </div>
           `;
           list.appendChild(anonItem);
+        });
+
+        // Wire redirect buttons
+        list.querySelectorAll('.mod-redirect-btn').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const uid = btn.dataset.uid;
+            const name = btn.dataset.name;
+            const url = window.prompt(`Redirect @${name} to:`, 'https://nxtcoreee3.github.io/WebRespring/');
+            if (!url) return; // cancelled
+            btn.textContent = '…'; btn.disabled = true;
+            const result = await redirectUser(uid, url);
+            const modMsg = document.getElementById('mod-msg');
+            if (result.ok) {
+              btn.textContent = '✓'; btn.style.background = '#22c55e';
+              if (modMsg) { modMsg.style.color='#22c55e'; modMsg.textContent=`✓ @${name} will be redirected on their next load.`; modMsg.style.display='block'; setTimeout(()=>modMsg.style.display='none',2500); }
+              setTimeout(() => { btn.textContent = '↪️'; btn.style.background = '#3b82f6'; btn.disabled = false; }, 2000);
+            } else {
+              btn.textContent = '✗'; btn.style.background = '#ef4444';
+              if (modMsg) { modMsg.style.color='#ef4444'; modMsg.textContent = result.error; modMsg.style.display='block'; setTimeout(()=>modMsg.style.display='none',2500); }
+              setTimeout(() => { btn.textContent = '↪️'; btn.style.background = '#3b82f6'; btn.disabled = false; }, 2000);
+            }
+          });
         });
 
         // Wire force-refresh buttons
