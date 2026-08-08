@@ -21,6 +21,7 @@ import {
   setDoc,
   updateDoc,
   increment,
+  deleteField,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import {
   getDatabase,
@@ -2116,17 +2117,23 @@ export async function initAuthUI(onUserChange) {
       <!-- ── SERVICE STATUS ── -->
       <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🛡️ Service Status</div>
       <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px;">
-        <div style="font-size:11px;color:#9ca3af;margin-bottom:2px;">Flag a service issue (auto-triggers banner + updates status page)</div>
-        ${['firestore', 'googleAuth', 'website', 'games'].map(key => {
-          const labels = { firestore:'🔥 Database', googleAuth:'🔐 Auth', website:'🌐 Website', games:'🎮 Games' };
+        <div style="font-size:11px;color:#9ca3af;margin-bottom:2px;">Flag an issue (auto-triggers banner + updates status page). While flagged, automatic checks skip that item entirely and leave your flag alone — use Unflag to hand it back to auto-monitoring.</div>
+        ${[
+          { key: 'firestore', label: '🔥 Database' },
+          { key: 'googleAuth', label: '🔐 Auth' },
+          { key: 'website', label: '🌐 Website' },
+          { key: 'games', label: '🎮 Games' },
+          ...DOMAIN_META.map(d => ({ key: d.key, label: `${d.icon} ${d.label}` })),
+        ].map(({ key, label }) => {
           return `<div style="display:flex;align-items:center;gap:8px;">
-            <span style="font-size:13px;font-weight:600;color:#111827;flex:1;">${labels[key]}</span>
+            <span style="font-size:13px;font-weight:600;color:#111827;flex:1;">${label} <span class="mod-svc-flagged-badge" data-key="${key}" style="display:none;font-size:9px;font-weight:800;color:#3a7dff;text-transform:uppercase;letter-spacing:0.3px;">🔒 dev-flagged</span></span>
             <select class="mod-svc-status" data-key="${key}" style="padding:6px 10px;border:1px solid rgba(0,0,0,0.1);border-radius:8px;font-size:12px;color:#111827;background:#fff;outline:none;cursor:pointer;">
               <option value="operational">✅ Operational</option>
               <option value="degraded">⚠️ Degraded</option>
               <option value="outage">🔴 Outage</option>
             </select>
             <button class="mod-svc-flag-btn" data-key="${key}" style="padding:6px 12px;background:#3a7dff;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:11px;">Flag</button>
+            <button class="mod-svc-unflag-btn" data-key="${key}" style="padding:6px 12px;background:#6b7280;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:11px;">Unflag</button>
           </div>`;
         }).join('')}
         <div style="display:flex;gap:8px;margin-top:4px;">
@@ -2852,6 +2859,10 @@ export async function initAuthUI(onUserChange) {
           const key = sel.dataset.key;
           if (svcs[key]?.status) sel.value = svcs[key].status;
         });
+        document.querySelectorAll('.mod-svc-flagged-badge').forEach(badge => {
+          const key = badge.dataset.key;
+          badge.style.display = svcs[key]?.flaggedBy === 'dev' ? 'inline' : 'none';
+        });
       }
     } catch {}
 
@@ -2864,8 +2875,29 @@ export async function initAuthUI(onUserChange) {
         const result = await setServiceStatus(key, status, 'dev');
         btn.textContent = 'Flag'; btn.disabled = false;
         modMsg.style.color = result.ok ? '#22c55e' : '#ef4444';
-        modMsg.textContent = result.ok ? `✓ ${key} flagged as ${status}` : result.error;
+        modMsg.textContent = result.ok ? `✓ ${key} flagged as ${status} — automatic checks will skip it until you unflag` : result.error;
         modMsg.style.display = 'block'; setTimeout(() => modMsg.style.display='none', 3000);
+        if (result.ok) {
+          const badge = document.querySelector(`.mod-svc-flagged-badge[data-key="${key}"]`);
+          if (badge) badge.style.display = 'inline';
+        }
+      });
+    });
+
+    document.querySelectorAll('.mod-svc-unflag-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const key = btn.dataset.key;
+        const modMsg = document.getElementById('mod-msg');
+        btn.textContent = '...'; btn.disabled = true;
+        const result = await clearServiceFlag(key);
+        btn.textContent = 'Unflag'; btn.disabled = false;
+        modMsg.style.color = result.ok ? '#22c55e' : '#ef4444';
+        modMsg.textContent = result.ok ? `✓ ${key} handed back to automatic monitoring` : result.error;
+        modMsg.style.display = 'block'; setTimeout(() => modMsg.style.display='none', 3000);
+        if (result.ok) {
+          const badge = document.querySelector(`.mod-svc-flagged-badge[data-key="${key}"]`);
+          if (badge) badge.style.display = 'none';
+        }
       });
     });
 
@@ -3545,6 +3577,19 @@ export async function setServiceStatus(serviceKey, status, flaggedBy = 'dev') {
       const msg = `<strong>${svc?.name}</strong> is ${status === 'outage' ? 'experiencing an outage' : 'degraded'}. ${svc?.descriptions[status]?.split('.')[0]}.`;
       await setIncidentBanner(true, msg, type, flaggedBy);
     }
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+// Hands a service/domain back to automatic monitoring. While a service is
+// dev-flagged, autoCheckServiceHealth() skips probing it entirely and just
+// carries the dev-set status through unchanged (see shouldSkip below) — this
+// is the only way to lift that and let auto-checks resume for it.
+export async function clearServiceFlag(serviceKey) {
+  const user = auth.currentUser;
+  if (!user || user.uid !== OWNER_UID) return { ok: false, error: 'Admin only.' };
+  try {
+    await updateDoc(doc(db, 'stats', 'serviceHealth'), { [`services.${serviceKey}`]: deleteField() });
     return { ok: true };
   } catch (e) { return { ok: false, error: e.message }; }
 }
