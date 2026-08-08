@@ -159,18 +159,25 @@
       <div style="padding:32px;text-align:center;color:var(--muted);font-size:13px;"><div style="display:flex;justify-content:center;padding:20px;"><img src="assets/loading.gif" style="width:80px;height:auto;" alt="Loading..."></div></div>
     </div>
 
+    <!-- Domains -->
+    <div class="status-section-label">Domains</div>
+    <div class="status-card" id="domains-card">
+      <!-- Filled by JS -->
+      <div style="padding:32px;text-align:center;color:var(--muted);font-size:13px;"><div style="display:flex;justify-content:center;padding:20px;"><img src="assets/loading.gif" style="width:80px;height:auto;" alt="Loading..."></div></div>
+    </div>
+
     <!-- Active incidents -->
     <div class="status-section-label" id="incidents-label" style="display:none;">Active Incidents</div>
     <div class="status-card" id="incidents-card" style="display:none;"></div>
 
     <!-- Last checked -->
     <div style="text-align:center;margin-top:32px;">
-      <p style="font-size:12px;color:var(--muted);">Status checks run automatically. Data is sourced from Firebase Firestore and real-time health probes. <a href="https://status.firebase.google.com" target="_blank" rel="noopener" style="color:var(--accent);">Firebase status ↗</a></p>
+      <p style="font-size:12px;color:var(--muted);">Status checks run automatically every 5 seconds. Data is sourced from Firebase Firestore and real-time health probes. <a href="https://status.firebase.google.com" target="_blank" rel="noopener" style="color:var(--accent);">Firebase status ↗</a></p>
     </div>
   </main>
 
   <script type="module">
-    import { initAuthUI, initDarkMode, initPresence, initIncidentBanner, autoCheckServiceHealth } from './firebase-auth.js';
+    import { initAuthUI, initDarkMode, initPresence, initIncidentBanner, autoCheckServiceHealth, DOMAIN_META } from './firebase-auth.js';
     import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
     import { getFirestore, doc, getDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
@@ -215,7 +222,9 @@
     function renderServices(services) {
       const card = document.getElementById('services-card');
       const keys = ['firestore', 'googleAuth', 'website', 'games'];
-      const statuses = keys.map(k => services?.[k]?.status || 'checking');
+      const domainKeys = DOMAIN_META.map(d => d.key);
+      const allKeys = [...keys, ...domainKeys];
+      const statuses = allKeys.map(k => services?.[k]?.status || 'checking');
       const overallStatus = statuses.includes('outage') ? 'outage' : statuses.includes('degraded') ? 'degraded' : statuses.every(s => s === 'operational') ? 'operational' : 'checking';
 
       // Overall pill
@@ -233,39 +242,15 @@
       const updatedEl = document.getElementById('last-updated');
       updatedEl.textContent = services ? `Last updated ${timeAgo(Object.values(services).map(s => s.detectedAt).filter(Boolean).sort().pop())}` : '';
 
-      card.innerHTML = keys.map(key => {
-        const svc = services?.[key];
-        const status = svc?.status || 'checking';
-        const meta = SERVICE_META[key];
-        const flagBy = svc?.flaggedBy === 'ai'
-          ? '<span class="status-flag-pill">🤖 Flagged by AI</span>'
-          : svc?.flaggedBy === 'dev'
-          ? '<span class="status-flag-pill">👨‍💻 Flagged by Developer</span>'
-          : '';
-        const desc = svc?.message || (status === 'checking' ? 'Waiting for health check data...' : 'No additional information.');
-        const detectedTime = svc?.detectedAt ? `Detected ${timeAgo(svc.detectedAt)} · ${new Date(svc.detectedAt).toLocaleString('en-GB', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}` : '';
+      card.innerHTML = keys.map(key => renderRow(key, services?.[key], SERVICE_META[key])).join('');
 
-        return `
-          <div class="status-row">
-            <span class="status-row-icon">${meta.icon}</span>
-            <div class="status-dot ${status}"></div>
-            <div class="status-row-body">
-              <div class="status-row-header">
-                <span class="status-row-name">${meta.name}</span>
-                <span class="status-badge ${status}">${STATUS_LABEL[status]}</span>
-                ${flagBy}
-              </div>
-              <div class="status-row-desc">${desc}</div>
-              ${detectedTime ? `<div class="status-row-time">${detectedTime}</div>` : ''}
-            </div>
-          </div>
-        `;
-      }).join('');
+      const domainsCard = document.getElementById('domains-card');
+      domainsCard.innerHTML = DOMAIN_META.map(d => renderRow(d.key, services?.[d.key], { name: d.label, icon: d.icon })).join('');
 
       // Active incidents section
-      const incidents = keys
+      const incidents = allKeys
         .filter(k => services?.[k]?.status && services[k].status !== 'operational')
-        .map(k => ({ key: k, ...services[k], ...SERVICE_META[k] }));
+        .map(k => ({ key: k, ...services[k], ...(SERVICE_META[k] || DOMAIN_META.find(d => d.key === k) && { name: DOMAIN_META.find(d => d.key === k).label, icon: DOMAIN_META.find(d => d.key === k).icon }) }));
 
       const incLabel = document.getElementById('incidents-label');
       const incCard  = document.getElementById('incidents-card');
@@ -274,7 +259,7 @@
         incCard.style.display  = 'block';
         incCard.innerHTML = incidents.map(inc => {
           const flagBy = inc.flaggedBy === 'ai'
-            ? '<span class="status-flag-pill">🤖 Flagged by AI</span>'
+            ? '<span class="status-flag-pill">🤖 Flagged by flux.ai (Automatic)</span>'
             : '<span class="status-flag-pill">👨‍💻 Flagged by Developer</span>';
           const sLabel = inc.status === 'outage' ? 'Outage' : 'Degraded Performance';
           return `
@@ -294,6 +279,33 @@
       }
     }
 
+    function renderRow(key, svc, meta) {
+      const status = svc?.status || 'checking';
+      const flagBy = svc?.flaggedBy === 'ai'
+        ? '<span class="status-flag-pill">🤖 Flagged by flux.ai (Automatic)</span>'
+        : svc?.flaggedBy === 'dev'
+        ? '<span class="status-flag-pill">👨‍💻 Flagged by Developer</span>'
+        : '';
+      const desc = svc?.message || (status === 'checking' ? 'Waiting for health check data...' : 'No additional information.');
+      const detectedTime = svc?.detectedAt ? `Detected ${timeAgo(svc.detectedAt)} · ${new Date(svc.detectedAt).toLocaleString('en-GB', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}` : '';
+
+      return `
+        <div class="status-row">
+          <span class="status-row-icon">${meta.icon}</span>
+          <div class="status-dot ${status}"></div>
+          <div class="status-row-body">
+            <div class="status-row-header">
+              <span class="status-row-name">${meta.name}</span>
+              <span class="status-badge ${status}">${STATUS_LABEL[status]}</span>
+              ${flagBy}
+            </div>
+            <div class="status-row-desc">${desc}</div>
+            ${detectedTime ? `<div class="status-row-time">${detectedTime}</div>` : ''}
+          </div>
+        </div>
+      `;
+    }
+
     // Live updates via Firestore snapshot (catches admin-written updates)
     onSnapshot(doc(db, 'stats', 'serviceHealth'), snap => {
       if (snap.exists()) renderServices(snap.data().services);
@@ -309,10 +321,31 @@
     });
 
     // Run probes on load and render immediately — no Firestore dependency
-    (async () => {
-      const services = await autoCheckServiceHealth();
-      renderServices(services);
-    })();
+    let _checkInFlight = false;
+    async function runHealthCheck() {
+      if (_checkInFlight) return; // don't stack overlapping probes if one runs long
+      _checkInFlight = true;
+      try {
+        const services = await autoCheckServiceHealth();
+        renderServices(services);
+      } finally {
+        _checkInFlight = false;
+      }
+    }
+    runHealthCheck();
+
+    // Keep checking every 5 seconds while this tab is open and visible.
+    // Paused (not stopped) when the tab is backgrounded so we're not
+    // hammering every domain from every idle background tab someone has open.
+    let _healthInterval = setInterval(runHealthCheck, 5000);
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        clearInterval(_healthInterval);
+      } else {
+        runHealthCheck(); // catch up immediately on return
+        _healthInterval = setInterval(runHealthCheck, 5000);
+      }
+    });
   </script>
 
 <script>
