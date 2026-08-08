@@ -135,6 +135,11 @@
     <div class="right-actions" id="right-actions"></div>
   </header>
 
+  <!-- Small, out-of-the-way indicator for background checks — never covers or replaces the last known status -->
+  <div id="bg-check-indicator" style="position:fixed;bottom:18px;right:18px;z-index:500;display:none;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--glass-border);border-radius:20px;padding:6px 12px;font-size:11px;font-weight:600;color:var(--muted);box-shadow:0 4px 14px rgba(0,0,0,0.12);">
+    <span class="spinning" style="display:inline-block;">↻</span> Checking…
+  </div>
+
   <main class="status-page">
     <div class="status-hero">
       <span class="status-globe">🛰️</span>
@@ -207,6 +212,29 @@
 
     const STATUS_DOT_COLOR = { operational: '#22c55e', degraded: '#f59e0b', outage: '#ef4444', checking: '#9ca3af' };
     const STATUS_LABEL = { operational: '✅ Operational', degraded: '⚠️ Degraded', outage: '🔴 Outage', checking: '⏳ Checking' };
+    let _hasRenderedRealData = false;
+
+    // Rate limit: this browser can only trigger a fresh probe (page-load or
+    // manual refresh — doesn't matter which) once every 5 minutes. Anything
+    // else viewers see is the last cached result from Firestore, delivered
+    // live via onSnapshot below at no extra probe cost.
+    // Note: this is a per-browser limit via localStorage, not a true per-IP
+    // limit — a static site with no backend can't enforce that server-side.
+    const REFRESH_COOLDOWN_MS = 5 * 60 * 1000;
+    const LAST_REFRESH_KEY = 'flux_status_last_refresh';
+    function getRemainingCooldownMs() {
+      const last = parseInt(localStorage.getItem(LAST_REFRESH_KEY) || '0', 10);
+      return Math.max(0, REFRESH_COOLDOWN_MS - (Date.now() - last));
+    }
+    function markRefreshed() {
+      localStorage.setItem(LAST_REFRESH_KEY, String(Date.now()));
+    }
+    function formatCooldown(ms) {
+      const totalSec = Math.ceil(ms / 1000);
+      const m = Math.floor(totalSec / 60);
+      const s = totalSec % 60;
+      return `${m}:${String(s).padStart(2, '0')}`;
+    }
 
     function timeAgo(iso) {
       if (!iso) return '';
@@ -226,6 +254,13 @@
       const allKeys = [...keys, ...domainKeys];
       const statuses = allKeys.map(k => services?.[k]?.status || 'checking');
       const overallStatus = statuses.includes('outage') ? 'outage' : statuses.includes('degraded') ? 'degraded' : statuses.every(s => s === 'operational') ? 'operational' : 'checking';
+
+      // Once we've shown real data, never let a partial/incomplete update
+      // regress the page back to a generic "checking" state — keep showing
+      // the last known status instead. A tiny corner indicator (not this)
+      // is what signals a background check is running.
+      if (overallStatus === 'checking' && _hasRenderedRealData) return;
+      if (overallStatus !== 'checking') _hasRenderedRealData = true;
 
       // Overall pill
       const pill = document.getElementById('overall-pill');
@@ -306,46 +341,73 @@
       `;
     }
 
-    // Live updates via Firestore snapshot (catches admin-written updates)
+    // Live updates via Firestore snapshot — every visitor gets the latest
+    // cached result instantly and for free, no probe needed on their end.
     onSnapshot(doc(db, 'stats', 'serviceHealth'), snap => {
       if (snap.exists()) renderServices(snap.data().services);
     });
 
-    // Refresh button — render directly from probes
-    document.getElementById('refresh-btn').addEventListener('click', async () => {
-      const icon = document.getElementById('refresh-icon');
-      icon.classList.add('spinning');
-      const services = await autoCheckServiceHealth();
-      renderServices(services);
-      icon.classList.remove('spinning');
-    });
+    // Refresh button — rate limited to once every 5 minutes per browser,
+    // shared with the automatic on-load check (whichever happens first
+    // starts the cooldown for both).
+    const refreshBtn = document.getElementById('refresh-btn');
+    const refreshIcon = document.getElementById('refresh-icon');
+    let _cooldownTicker = null;
 
-    // Run probes on load and render immediately — no Firestore dependency
-    let _checkInFlight = false;
+    function updateRefreshButtonState() {
+      const remaining = getRemainingCooldownMs();
+      if (remaining > 0) {
+        refreshBtn.disabled = true;
+        refreshBtn.style.opacity = '0.55';
+        refreshBtn.style.cursor = 'not-allowed';
+        refreshBtn.title = `You can refresh again in ${formatCooldown(remaining)}`;
+        refreshBtn.lastChild.textContent = ` Refresh (${formatCooldown(remaining)})`;
+        if (!_cooldownTicker) {
+          _cooldownTicker = setInterval(() => {
+            if (getRemainingCooldownMs() <= 0) {
+              clearInterval(_cooldownTicker);
+              _cooldownTicker = null;
+            }
+            updateRefreshButtonState();
+          }, 1000);
+        }
+      } else {
+        refreshBtn.disabled = false;
+        refreshBtn.style.opacity = '';
+        refreshBtn.style.cursor = '';
+        refreshBtn.title = '';
+        refreshBtn.lastChild.textContent = ' Refresh';
+        if (_cooldownTicker) { clearInterval(_cooldownTicker); _cooldownTicker = null; }
+      }
+    }
+
     async function runHealthCheck() {
-      if (_checkInFlight) return; // don't stack overlapping probes if one runs long
-      _checkInFlight = true;
+      const badge = document.getElementById('bg-check-indicator');
+      if (badge) badge.style.display = 'flex';
       try {
         const services = await autoCheckServiceHealth();
         renderServices(services);
+        markRefreshed();
+        updateRefreshButtonState();
       } finally {
-        _checkInFlight = false;
+        if (badge) badge.style.display = 'none';
       }
     }
-    runHealthCheck();
 
-    // Keep checking every 5 seconds while this tab is open and visible.
-    // Paused (not stopped) when the tab is backgrounded so we're not
-    // hammering every domain from every idle background tab someone has open.
-    let _healthInterval = setInterval(runHealthCheck, 5000);
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) {
-        clearInterval(_healthInterval);
-      } else {
-        runHealthCheck(); // catch up immediately on return
-        _healthInterval = setInterval(runHealthCheck, 5000);
-      }
+    refreshBtn.addEventListener('click', async () => {
+      if (getRemainingCooldownMs() > 0) return; // shouldn't happen (button is disabled), but just in case
+      refreshIcon.classList.add('spinning');
+      await runHealthCheck();
+      refreshIcon.classList.remove('spinning');
     });
+
+    // One check on page load — but only if the cooldown has actually
+    // elapsed. Otherwise we just rely on onSnapshot above for the last
+    // known result, no new probe fired.
+    if (getRemainingCooldownMs() <= 0) {
+      runHealthCheck();
+    }
+    updateRefreshButtonState();
   </script>
 
 <script>
