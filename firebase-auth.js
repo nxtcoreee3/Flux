@@ -3415,7 +3415,7 @@ export function initIncidentBanner() {
         animation:banner-slide-in 0.3s cubic-bezier(0.34,1.56,0.64,1) both;
       `;
       const flagLabel = d.flaggedBy === 'ai'
-        ? '<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(255,255,255,0.15);padding:1px 7px;border-radius:20px;font-size:9px;font-weight:800;letter-spacing:0.5px;text-transform:uppercase;">🤖 Flagged by AI</span>'
+        ? '<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(255,255,255,0.15);padding:1px 7px;border-radius:20px;font-size:9px;font-weight:800;letter-spacing:0.5px;text-transform:uppercase;">🤖 Flagged by flux.ai (Automatic)</span>'
         : '<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(255,255,255,0.15);padding:1px 7px;border-radius:20px;font-size:9px;font-weight:800;letter-spacing:0.5px;text-transform:uppercase;">👨‍💻 Flagged by Developer</span>';
       const time = new Date(d.updatedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
       banner.innerHTML = `
@@ -3492,6 +3492,38 @@ const SERVICE_DESCRIPTIONS = {
   },
 };
 
+// The different domains Flux is mirrored on (see README). Each is probed
+// independently so an outage on one mirror doesn't get confused with the others.
+export const DOMAIN_META = [
+  { key: 'domain_main',   label: 'nxtcoreee3.online/Flux',    icon: '🌍', url: 'https://nxtcoreee3.online/Flux/' },
+  { key: 'domain_github', label: 'nxtcoreee3.github.io/Flux', icon: '🐙', url: 'https://nxtcoreee3.github.io/Flux/' },
+  { key: 'domain_vercel', label: 'flux-xi-bice.vercel.app',   icon: '▲',  url: 'https://flux-xi-bice.vercel.app/' },
+];
+for (const d of DOMAIN_META) {
+  SERVICE_DESCRIPTIONS[d.key] = {
+    name: d.label,
+    icon: d.icon,
+    descriptions: {
+      operational: `${d.label} is loading normally.`,
+      degraded: `${d.label} is responding, but slower than usual. This may be temporary CDN or DNS delay.`,
+      outage: `${d.label} is currently unreachable. This may be a DNS, hosting, or CDN issue specific to this mirror — try one of the other Flux domains in the meantime.`,
+    }
+  };
+}
+
+async function probeDomain(url, timeoutMs = 5000) {
+  const start = Date.now();
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    await fetch(url, { method: 'HEAD', signal: ctrl.signal, mode: 'no-cors' });
+    clearTimeout(timer);
+    return (Date.now() - start) > 3000 ? 'degraded' : 'operational';
+  } catch {
+    return 'outage';
+  }
+}
+
 export async function setServiceStatus(serviceKey, status, flaggedBy = 'dev') {
   const user = auth.currentUser;
   if (!user || user.uid !== OWNER_UID) return { ok: false, error: 'Admin only.' };
@@ -3526,7 +3558,7 @@ export async function autoCheckServiceHealth() {
   } catch {}
 
   const results = {};
-  const KEYS = ['firestore', 'googleAuth', 'website', 'games'];
+  const KEYS = ['firestore', 'googleAuth', 'website', 'games', ...DOMAIN_META.map(d => d.key)];
 
   // For each service: if a developer has flagged it, skip the probe entirely
   // and carry the existing status through unchanged
@@ -3583,6 +3615,16 @@ export async function autoCheckServiceHealth() {
       results.games = { status: 'operational', flaggedBy: 'ai' };
     } catch {
       results.games = { status: 'degraded', flaggedBy: 'ai' };
+    }
+  }
+
+  // 5. Domains — probe each Flux mirror independently
+  for (const d of DOMAIN_META) {
+    if (shouldSkip(d.key)) {
+      results[d.key] = existing[d.key];
+    } else {
+      const status = await probeDomain(d.url);
+      results[d.key] = { status, flaggedBy: 'ai' };
     }
   }
 
