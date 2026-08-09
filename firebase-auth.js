@@ -935,6 +935,7 @@ export async function saveCloudFavs(favs) {
 
 /* ===================== PROFILE SYSTEM ===================== */
 const OWNER_UID  = 'zEy6TO5ligf2um4rssIZs9C9X7f2';
+export const FLUX_OWNER_UID = OWNER_UID; // exported alias — lets pages outside this module (e.g. status.html) check admin status without duplicating the constant
 const OWNER_USERNAME = 'nxtcoreee3';
 
 export async function getProfile(uid) {
@@ -3543,17 +3544,29 @@ for (const d of DOMAIN_META) {
   };
 }
 
-async function probeDomain(url, timeoutMs = 5000) {
+async function probeDomain(url, timeoutMs = 6000) {
+  // A no-cors HEAD fetch can't be improved here — for a cross-origin request
+  // without CORS headers, the browser only exposes "did a response arrive at
+  // all", not its status code. That means a 404 (e.g. an unpublished GitHub
+  // Pages site, which still responds to requests) looks identical to a real
+  // 200 and gets reported as operational — which is exactly the bug.
+  //
+  // Loading a known static image asset instead sidesteps that: <img> load
+  // success/failure genuinely reflects the HTTP status of that request
+  // (a 404 fires onerror, not onload) without needing any CORS headers from
+  // the target domain at all.
   const start = Date.now();
-  try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-    await fetch(url, { method: 'HEAD', signal: ctrl.signal, mode: 'no-cors' });
-    clearTimeout(timer);
-    return (Date.now() - start) > 3000 ? 'degraded' : 'operational';
-  } catch {
-    return 'outage';
-  }
+  return new Promise((resolve) => {
+    const img = new Image();
+    let settled = false;
+    const finish = (result) => { if (!settled) { settled = true; resolve(result); } };
+    const timer = setTimeout(() => finish('outage'), timeoutMs);
+    img.onload = () => { clearTimeout(timer); finish((Date.now() - start) > 3500 ? 'degraded' : 'operational'); };
+    img.onerror = () => { clearTimeout(timer); finish('outage'); };
+    // Cache-bust so a browser/CDN-cached copy of the logo from before an
+    // unpublish doesn't produce a false "operational" read.
+    img.src = url.replace(/\/?$/, '/') + 'assets/logo.png?_probe=' + Date.now();
+  });
 }
 
 export async function setServiceStatus(serviceKey, status, flaggedBy = 'dev') {

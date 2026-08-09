@@ -182,7 +182,7 @@
   </main>
 
   <script type="module">
-    import { initAuthUI, initDarkMode, initPresence, initIncidentBanner, autoCheckServiceHealth, DOMAIN_META } from './firebase-auth.js';
+    import { initAuthUI, initDarkMode, initPresence, initIncidentBanner, autoCheckServiceHealth, DOMAIN_META, onAuthChange, FLUX_OWNER_UID } from './firebase-auth.js';
     import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
     import { getFirestore, doc, getDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
@@ -190,6 +190,15 @@
     initAuthUI(() => {});
     initPresence();
     initIncidentBanner();
+
+    // Devs/admin bypass the 5-minute refresh cooldown entirely — everyone
+    // else stays rate limited.
+    let _isDev = false;
+    onAuthChange(user => {
+      _isDev = !!user && user.uid === FLUX_OWNER_UID;
+      updateRefreshButtonState();
+      if (_isDev && getRemainingCooldownMs() > 0) runHealthCheck(); // dev signed in after page load — give them a fresh check right away
+    });
 
     const firebaseConfig = {
       apiKey: "AIzaSyCHm6nxHzrIGHmWb1W_xDAYwnSoed6oTi4",
@@ -213,6 +222,7 @@
     const STATUS_DOT_COLOR = { operational: '#22c55e', degraded: '#f59e0b', outage: '#ef4444', checking: '#9ca3af' };
     const STATUS_LABEL = { operational: '✅ Operational', degraded: '⚠️ Degraded', outage: '🔴 Outage', checking: '⏳ Checking' };
     let _hasRenderedRealData = false;
+    let _lastDetectedAt = null;
 
     // Rate limit: this browser can only trigger a fresh probe (page-load or
     // manual refresh — doesn't matter which) once every 5 minutes. Anything
@@ -223,6 +233,7 @@
     const REFRESH_COOLDOWN_MS = 5 * 60 * 1000;
     const LAST_REFRESH_KEY = 'flux_status_last_refresh';
     function getRemainingCooldownMs() {
+      if (_isDev) return 0; // devs bypass the cooldown entirely
       const last = parseInt(localStorage.getItem(LAST_REFRESH_KEY) || '0', 10);
       return Math.max(0, REFRESH_COOLDOWN_MS - (Date.now() - last));
     }
@@ -275,7 +286,9 @@
 
       // Updated time
       const updatedEl = document.getElementById('last-updated');
-      updatedEl.textContent = services ? `Last updated ${timeAgo(Object.values(services).map(s => s.detectedAt).filter(Boolean).sort().pop())}` : '';
+      const latestDetectedAt = services ? Object.values(services).map(s => s.detectedAt).filter(Boolean).sort().pop() : null;
+      if (latestDetectedAt) _lastDetectedAt = latestDetectedAt; // remembered so the ticker below can keep counting up between real checks
+      updatedEl.textContent = _lastDetectedAt ? `Last updated ${timeAgo(_lastDetectedAt)}` : '';
 
       card.innerHTML = keys.map(key => renderRow(key, services?.[key], SERVICE_META[key])).join('');
 
@@ -408,6 +421,14 @@
       runHealthCheck();
     }
     updateRefreshButtonState();
+
+    // Keeps "Last updated Xm ago" counting up in real time even though
+    // actual checks only happen every 5 minutes — otherwise it visibly
+    // freezes at whatever it said the moment the last real check finished.
+    setInterval(() => {
+      const updatedEl = document.getElementById('last-updated');
+      if (updatedEl && _lastDetectedAt) updatedEl.textContent = `Last updated ${timeAgo(_lastDetectedAt)}`;
+    }, 15000);
   </script>
 
 <script>
