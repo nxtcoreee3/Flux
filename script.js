@@ -365,7 +365,8 @@ const GAMES = [
     title: 'Bloxd.io',
     thumb: 'assets/bloxdio.png',
     url: 'https://bloxd.io/',
-    desc: 'Build, battle, and explore in multiplayer block worlds. (Hosted by bloxd.io)'
+    addedAt: '2026-08-25T00:00:00+02:00',
+   desc: 'Build, battle, and explore in multiplayer block worlds. (Hosted by bloxd.io)'
   }
 ];
 
