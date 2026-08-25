@@ -56,24 +56,12 @@
     .player-footer a:hover { text-decoration:underline; }
     .youtube-tools { padding:18px; }
     .youtube-tools h2 { margin:0;font-family:'Bebas Neue',sans-serif;font-size:30px;line-height:1;color:var(--text); }
-    .youtube-tools > p { margin:6px 0 14px;color:var(--muted);font-size:12px;line-height:1.5; }
-    .youtube-search-form,.youtube-paste-form { display:grid;grid-template-columns:1fr auto;gap:8px; }
-    .youtube-search-form input,.youtube-paste-form input { min-width:0;border:1px solid var(--glass-border);border-radius:9px;background:var(--input-bg);padding:10px 11px;color:var(--text);font:inherit;font-size:12px; }
-    .youtube-search-form input:focus,.youtube-paste-form input:focus { outline:2px solid color-mix(in srgb,var(--accent) 40%,transparent);border-color:var(--accent); }
-    .youtube-search-form button,.youtube-paste-form button { border:0;border-radius:9px;background:var(--accent);padding:0 13px;color:#fff;font:inherit;font-size:12px;font-weight:700;cursor:pointer; }
-    .youtube-search-form button:hover,.youtube-paste-form button:hover { opacity:.9; }
-    .youtube-search-status { min-height:18px;margin:10px 0 7px;color:var(--muted);font-size:12px;line-height:1.4; }
-    .youtube-results { display:grid;max-height:400px;gap:8px;overflow:auto;padding-right:2px; }
-    .youtube-result { display:grid;grid-template-columns:104px minmax(0,1fr);gap:9px;border:1px solid var(--glass-border);border-radius:9px;background:rgba(0,0,0,.02);padding:7px; }
-    html.dark .youtube-result,html.beta .youtube-result { background:rgba(255,255,255,.025); }
-    .youtube-result img { width:104px;height:59px;border-radius:5px;object-fit:cover;background:#0c0e13; }
-    .youtube-result h3 { overflow:hidden;margin:0;color:var(--text);font-size:12px;line-height:1.35;text-overflow:ellipsis;white-space:nowrap; }
-    .youtube-result p { overflow:hidden;margin:3px 0 7px;color:var(--muted);font-size:11px;text-overflow:ellipsis;white-space:nowrap; }
-    .youtube-result-actions { display:flex;gap:8px;flex-wrap:wrap; }
-    .youtube-result-actions button,.youtube-result-actions a { border:0;background:none;padding:0;color:var(--accent);font:inherit;font-size:11px;font-weight:700;text-decoration:none;cursor:pointer; }
-    .youtube-result-actions a { color:var(--muted); }
-    .youtube-manual { margin-top:17px;border-top:1px solid var(--glass-border);padding-top:15px; }
-    .youtube-manual label { display:block;margin-bottom:7px;color:var(--muted);font-size:11px;font-weight:700; }
+    .youtube-tools > p { margin:6px 0 18px;color:var(--muted);font-size:12px;line-height:1.5; }
+    .youtube-paste-form { display:grid;grid-template-columns:1fr auto;gap:8px; }
+    .youtube-paste-form input { min-width:0;border:1px solid var(--glass-border);border-radius:9px;background:var(--input-bg);padding:10px 11px;color:var(--text);font:inherit;font-size:12px; }
+    .youtube-paste-form input:focus { outline:2px solid color-mix(in srgb,var(--accent) 40%,transparent);border-color:var(--accent); }
+    .youtube-paste-form button { border:0;border-radius:9px;background:var(--accent);padding:0 13px;color:#fff;font:inherit;font-size:12px;font-weight:700;cursor:pointer; }
+    .youtube-paste-form button:hover { opacity:.9; }
     .youtube-note { margin:8px 0 0;color:var(--muted);font-size:11px;line-height:1.45; }
     .website-warning { position:fixed;z-index:10000002;inset:0;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(5,7,12,.76);backdrop-filter:blur(7px); }
     .website-warning.open { display:flex; }
@@ -86,8 +74,8 @@
     .website-warning-actions button { border-radius:8px;padding:10px 12px;font:inherit;font-size:12px;font-weight:700;cursor:pointer; }
     #website-warning-cancel { border:1px solid var(--glass-border);background:transparent;color:var(--text); }
     #website-warning-open { border:0;background:var(--accent);color:#fff; }
-    @media (max-width:780px) { .website-modal { padding:0;align-items:flex-end; } .website-modal-panel { max-height:94vh;border-radius:18px 18px 0 0; } .website-modal-body { grid-template-columns:1fr; } .website-player-column { border-right:0;border-bottom:1px solid var(--glass-border); } .youtube-stage,#youtube-player { min-height:220px; } .youtube-results { max-height:none; } }
-    @media (max-width:440px) { .youtube-search-form,.youtube-paste-form { grid-template-columns:1fr; } .youtube-search-form button,.youtube-paste-form button { min-height:39px; } }
+    @media (max-width:780px) { .website-modal { padding:0;align-items:flex-end; } .website-modal-panel { max-height:94vh;border-radius:18px 18px 0 0; } .website-modal-body { grid-template-columns:1fr; } .website-player-column { border-right:0;border-bottom:1px solid var(--glass-border); } .youtube-stage,#youtube-player { min-height:220px; } }
+    @media (max-width:440px) { .youtube-paste-form { grid-template-columns:1fr; } .youtube-paste-form button { min-height:39px; } }
   </style>
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9156385751718783" crossorigin="anonymous"></script>
 </head>
@@ -119,22 +107,21 @@
 
   <div class="website-modal" id="website-modal" role="dialog" aria-modal="true" aria-labelledby="website-modal-title">
     <div class="website-modal-panel">
-      <div class="website-modal-header"><div class="website-modal-title"><img src="https://i.ytimg.com/vi/M7lc1UVf-VE/hqdefault.jpg" alt=""><span><strong id="website-modal-title">YouTube</strong><span>Search and play videos</span></span></div><button class="website-close" id="website-close" type="button">✕ Close</button></div>
+      <div class="website-modal-header"><div class="website-modal-title"><img src="assets/youtube.png" alt=""><span><strong id="website-modal-title">YouTube</strong><span>Search and play videos</span></span></div><button class="website-close" id="website-close" type="button">✕ Close</button></div>
       <div class="website-modal-body">
-        <div class="website-player-column"><div class="youtube-stage"><div id="youtube-player" aria-label="YouTube player"></div><div class="player-state" id="player-state"><div><strong>No video selected</strong>Search for a video or paste a YouTube URL.</div></div></div><div class="player-footer"><span id="player-status">Player idle</span><a id="current-video-link" href="https://developers.google.com/youtube/iframe_api_reference" target="_blank" rel="noopener">Player API reference ↗</a></div></div>
-        <aside class="youtube-tools"><h2>Search</h2><p>Find a video, then play it here or copy its YouTube link.</p><form class="youtube-search-form" id="youtube-search-form"><input id="youtube-search-input" type="search" placeholder="Search YouTube" autocomplete="off" aria-label="Search YouTube"><button type="submit">Search</button></form><div class="youtube-search-status" id="youtube-search-status">Set a YouTube Data API key in <code>youtube-config.js</code> to enable search.</div><div class="youtube-results" id="youtube-results" aria-live="polite"></div><div class="youtube-manual"><label for="youtube-url">Or paste a YouTube URL or video ID</label><form class="youtube-paste-form" id="youtube-paste-form"><input id="youtube-url" type="text" placeholder="https://youtu.be/..." autocomplete="off" spellcheck="false"><button type="submit">Play</button></form><p class="youtube-note">If a video cannot be embedded, use its YouTube link instead.</p></div></aside>
+        <div class="website-player-column"><div class="youtube-stage"><div id="youtube-player" aria-label="YouTube player"></div><div class="player-state" id="player-state"><div><strong>No video selected</strong>Paste a YouTube URL or video ID to play it here.</div></div></div><div class="player-footer"><span id="player-status">Player idle</span><a id="current-video-link" href="https://developers.google.com/youtube/iframe_api_reference" target="_blank" rel="noopener">Player API reference ↗</a></div></div>
+        <aside class="youtube-tools"><h2>Play a video</h2><p>Paste a YouTube link or a video ID. You can open the loaded video on YouTube from the player footer.</p><label for="youtube-url" style="display:block;margin-bottom:7px;color:var(--muted);font-size:11px;font-weight:700;">YouTube URL or video ID</label><form class="youtube-paste-form" id="youtube-paste-form"><input id="youtube-url" type="text" placeholder="https://youtu.be/..." autocomplete="off" spellcheck="false"><button type="submit">Play</button></form><p class="youtube-note">If a video cannot be embedded, use its YouTube link instead.</p></aside>
       </div>
     </div>
   </div>
 
   <footer class="site-footer"><div class="footer-inner"><div class="footer-brand"><a href="index.html" class="logo-small">FLUX</a><p>Curated links • Built by <a href="https://github.com/nxtcoreee3" target="_blank" rel="noopener">nxtcoreee3</a></p></div><div class="footer-links"><a href="index.html">Home</a><a href="info.html">Info</a></div></div><small class="copyright">Flux © <span id="year2"></span></small></footer>
 
-  <script src="youtube-config.js"></script>
   <script type="module" src="script.js"></script>
   <script>
     // Websites catalog: same grid/card pattern as Games, scoped to website apps.
     (function () {
-      const WEBSITES = [{ id:'youtube', title:'YouTube', thumb:'https://i.ytimg.com/vi/M7lc1UVf-VE/hqdefault.jpg', desc:'Search and play YouTube videos', tag:'Video app' }];
+      const WEBSITES = [{ id:'youtube', title:'YouTube', thumb:'assets/youtube.png', desc:'Search and play YouTube videos', tag:'Video app' }];
       const RECENT_KEY = 'flux_recent_websites';
       const searchInput = document.getElementById('websites-search');
       const sortSelect = document.getElementById('websites-sort');
@@ -149,13 +136,8 @@
       const playerState = document.getElementById('player-state');
       const playerStatus = document.getElementById('player-status');
       const playerLink = document.getElementById('current-video-link');
-      const searchForm = document.getElementById('youtube-search-form');
-      const searchField = document.getElementById('youtube-search-input');
-      const searchStatus = document.getElementById('youtube-search-status');
-      const results = document.getElementById('youtube-results');
       const pasteForm = document.getElementById('youtube-paste-form');
       const videoInput = document.getElementById('youtube-url');
-      const API_KEY = String(window.FLUX_YOUTUBE_API_KEY || '').trim();
       let player;
       let playerApiPromise;
       let pendingWebsite;
@@ -186,11 +168,7 @@
       function extractVideoId(value) { const raw = value.trim(); if (/^[A-Za-z0-9_-]{11}$/.test(raw)) return raw; try { const url = new URL(raw); const host = url.hostname.replace(/^www\./,'').replace(/^m\./,''); const id = host === 'youtu.be' ? url.pathname.slice(1).split('/')[0] : (url.searchParams.get('v') || (url.pathname.match(/\/(?:embed|shorts|live)\/([A-Za-z0-9_-]{11})/) || [])[1]); return id && /^[A-Za-z0-9_-]{11}$/.test(id) ? id : null; } catch (e) { return null; } }
       function loadPlayerApi() { if (window.YT && window.YT.Player) return Promise.resolve(); if (playerApiPromise) return playerApiPromise; playerApiPromise = new Promise(function (resolve,reject) { const oldReady = window.onYouTubeIframeAPIReady; window.onYouTubeIframeAPIReady = function () { if (typeof oldReady === 'function') oldReady(); resolve(); }; const script = document.createElement('script'); script.src = 'https://www.youtube.com/iframe_api'; script.async = true; script.onerror = function () { reject(new Error('YouTube player API failed to load.')); }; document.head.appendChild(script); }); return playerApiPromise; }
       function loadVideo(videoId) { setPlayerState('Loading video','Connecting to YouTube.'); playerStatus.textContent = 'Loading'; playerLink.href = videoUrl(videoId); playerLink.textContent = 'Open video on YouTube ↗'; if (player && typeof player.cueVideoById === 'function') { player.cueVideoById(videoId); clearPlayerState(); playerStatus.textContent = 'Ready'; return; } loadPlayerApi().then(function () { player = new window.YT.Player('youtube-player',{ width:'100%',height:'100%',videoId:videoId,playerVars:{autoplay:0,controls:1,playsinline:1,rel:0,modestbranding:1,origin:window.location.origin},events:{onReady:function(){clearPlayerState();playerStatus.textContent='Ready';},onError:function(){setPlayerState('Cannot play this video','It may block embedded playback. Open it on YouTube instead.');playerStatus.textContent='Unavailable';}}}); }).catch(function(){setPlayerState('Player unavailable','The YouTube player API could not load. Try again later.');playerStatus.textContent='Unavailable';}); }
-      function copyUrl(url, button) { const done = function(){ const text = button.textContent; button.textContent = 'Copied'; setTimeout(function(){button.textContent = text;},1300); }; if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done).catch(function(){window.prompt('Copy this URL',url);}); else window.prompt('Copy this URL',url); }
-      function renderResults(items) { results.innerHTML = ''; items.forEach(function(item){ const id = item.id && item.id.videoId; if (!id) return; const snippet = item.snippet || {}; const url = videoUrl(id); const article = document.createElement('article'); article.className = 'youtube-result'; const image = document.createElement('img'); image.src = ((snippet.thumbnails || {}).medium || (snippet.thumbnails || {}).default || {}).url || ''; image.alt = ''; const info = document.createElement('div'); const title = document.createElement('h3'); title.textContent = snippet.title || 'Untitled video'; const channel = document.createElement('p'); channel.textContent = snippet.channelTitle || 'YouTube'; const actions = document.createElement('div'); actions.className = 'youtube-result-actions'; const play = document.createElement('button'); play.type = 'button'; play.textContent = 'Play'; play.addEventListener('click',function(){videoInput.value = url;loadVideo(id);}); const copy = document.createElement('button'); copy.type = 'button'; copy.textContent = 'Copy URL'; copy.addEventListener('click',function(){copyUrl(url,copy);}); const open = document.createElement('a'); open.href = url; open.target = '_blank'; open.rel = 'noopener'; open.textContent = 'Open ↗'; actions.append(play,copy,open); info.append(title,channel,actions); article.append(image,info); results.appendChild(article); }); }
-      async function searchYoutube(query) { if (!API_KEY) { searchStatus.textContent = 'Add a restricted YouTube Data API key to youtube-config.js, then reload this page.'; return; } searchStatus.textContent = 'Searching…'; results.innerHTML = ''; const url = new URL('https://www.googleapis.com/youtube/v3/search'); url.search = new URLSearchParams({part:'snippet',type:'video',q:query,maxResults:'12',safeSearch:'moderate',videoEmbeddable:'true',key:API_KEY}).toString(); try { const response = await fetch(url.toString()); const data = await response.json(); if (!response.ok) throw new Error((data.error && data.error.message) || 'Search request failed.'); const items = data.items || []; renderResults(items); searchStatus.textContent = items.length ? items.length + ' results. Each has a direct YouTube URL.' : 'No videos found.'; } catch (error) { searchStatus.textContent = error.message || 'Search is unavailable.'; } }
-
-      searchInput.addEventListener('input',debounce(applyFilters,150)); sortSelect.addEventListener('change',applyFilters); warningCancel.addEventListener('click',function(){warning.classList.remove('open');}); warningOpen.addEventListener('click',openWebsite); closeButton.addEventListener('click',closeWebsite); modal.addEventListener('click',function(event){if(event.target === modal) closeWebsite();}); searchForm.addEventListener('submit',function(event){event.preventDefault();const query=searchField.value.trim();if(!query){searchStatus.textContent='Enter a search term.';searchField.focus();return;}searchYoutube(query);}); pasteForm.addEventListener('submit',function(event){event.preventDefault();const id=extractVideoId(videoInput.value);if(!id){setPlayerState('Invalid video link','Paste a YouTube URL or an 11-character video ID.');return;}loadVideo(id);}); document.addEventListener('keydown',function(event){if(event.key === 'Escape'){if(warning.classList.contains('open')) warning.classList.remove('open');else if(modal.classList.contains('open')) closeWebsite();}});
+      searchInput.addEventListener('input',debounce(applyFilters,150)); sortSelect.addEventListener('change',applyFilters); warningCancel.addEventListener('click',function(){warning.classList.remove('open');}); warningOpen.addEventListener('click',openWebsite); closeButton.addEventListener('click',closeWebsite); modal.addEventListener('click',function(event){if(event.target === modal) closeWebsite();}); pasteForm.addEventListener('submit',function(event){event.preventDefault();const id=extractVideoId(videoInput.value);if(!id){setPlayerState('Invalid video link','Paste a YouTube URL or an 11-character video ID.');return;}loadVideo(id);}); document.addEventListener('keydown',function(event){if(event.key === 'Escape'){if(warning.classList.contains('open')) warning.classList.remove('open');else if(modal.classList.contains('open')) closeWebsite();}});
       renderWebsites(WEBSITES); renderRecent();
     })();
   </script>
