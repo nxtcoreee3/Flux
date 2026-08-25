@@ -354,6 +354,108 @@
     }
   </style>
   <style>
+    /* Messages UI direction: compact Flux control room — clear activity states, soft surfaces, and an accent-led reading path. */
+    #messages-root {
+      max-width: 1120px;
+      height: calc(100svh - 132px);
+      min-height: 500px;
+      margin: 28px auto;
+      gap: 12px;
+    }
+    .convo-sidebar, #chat-panel {
+      border: 1px solid var(--glass-border);
+      border-radius: 18px;
+      box-shadow: 0 16px 42px rgba(15, 23, 36, 0.06);
+    }
+    .convo-sidebar {
+      width: 332px;
+      background: color-mix(in srgb, var(--panel) 94%, var(--accent) 6%);
+    }
+    .convo-sidebar-header {
+      padding: 18px;
+      background: linear-gradient(135deg, color-mix(in srgb, var(--panel) 92%, var(--accent) 8%), var(--panel));
+    }
+    .convo-sidebar-title { font-size: 28px; letter-spacing: 0.02em; }
+    .tab-btn { transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background 160ms ease, color 160ms ease, box-shadow 160ms ease; }
+    .tab-btn:hover:not(.tab-active) { color: var(--text) !important; background: color-mix(in srgb, var(--panel) 68%, var(--accent) 10%) !important; }
+    .tab-active { background: var(--accent) !important; color: #fff !important; box-shadow: 0 5px 14px color-mix(in srgb, var(--accent) 25%, transparent); }
+    .sidebar-action-btn {
+      min-height: 38px;
+      transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1), color 160ms ease, border-color 160ms ease, background 160ms ease;
+    }
+    #new-dm-btn { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .sidebar-action-btn:hover { background: color-mix(in srgb, var(--accent) 11%, var(--panel)); border-color: var(--accent); color: var(--accent); transform: translateY(-1px); }
+    #new-dm-btn:hover { background: color-mix(in srgb, var(--accent) 88%, #000 12%); color: #fff; }
+    .sidebar-action-btn:active, .msg-send-btn:active { transform: scale(0.97); }
+    #convo-list { padding: 10px; }
+    .convo-item {
+      position: relative;
+      gap: 12px;
+      padding: 12px;
+      margin-bottom: 3px;
+      border: 1px solid transparent;
+      border-radius: 14px;
+      transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+    }
+    .convo-item:hover { background: color-mix(in srgb, var(--panel) 86%, var(--accent) 7%); border-color: color-mix(in srgb, var(--glass-border) 74%, var(--accent) 26%); transform: translateX(2px); }
+    .convo-item.active { background: color-mix(in srgb, var(--accent) 12%, var(--panel)); border-color: color-mix(in srgb, var(--accent) 45%, var(--glass-border)); box-shadow: inset 3px 0 0 var(--accent); }
+    #chat-panel {
+      position: relative;
+      border-left: 1px solid var(--glass-border);
+      background: radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 30%), var(--panel);
+    }
+    .chat-header-bar { min-height: 72px; padding: 14px 18px; border-bottom-color: color-mix(in srgb, var(--glass-border) 82%, var(--accent) 18%); background: color-mix(in srgb, var(--panel) 90%, var(--accent) 4%); }
+    .back-btn {
+      width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center;
+      border: 1px solid var(--glass-border); border-radius: 10px; background: var(--bg); color: var(--text);
+      transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1), border-color 160ms ease, color 160ms ease;
+    }
+    .back-btn:hover { border-color: var(--accent); color: var(--accent); transform: translateX(-2px); }
+    .messages-list { padding: 22px clamp(16px, 3vw, 32px); gap: 10px; background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--bg) 25%, transparent)); }
+    .message-row { max-width: min(76%, 580px); }
+    .message-bubble { padding: 11px 15px; border-radius: 16px; box-shadow: 0 3px 11px rgba(15, 23, 36, 0.05); }
+    .bubble-own { background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 88%, #fff 12%), var(--accent)); border-bottom-right-radius: 5px; }
+    .bubble-other { background: color-mix(in srgb, var(--bg) 86%, var(--panel)); border-color: color-mix(in srgb, var(--glass-border) 92%, var(--accent) 8%); border-bottom-left-radius: 5px; }
+    .message-input-bar { padding: 14px 18px; border-top-color: color-mix(in srgb, var(--glass-border) 82%, var(--accent) 18%); background: color-mix(in srgb, var(--panel) 92%, var(--accent) 4%); }
+    .gif-btn { width: 36px; height: 36px; border-radius: 10px !important; color: var(--muted); transition: background 160ms ease, color 160ms ease, transform 160ms cubic-bezier(0.23, 1, 0.32, 1); }
+    .gif-btn:hover { background: var(--bg) !important; color: var(--accent); transform: translateY(-1px); }
+    .msg-input { min-height: 42px; padding: 10px 15px; border-radius: 12px; }
+    .msg-input::placeholder { color: var(--muted); opacity: 0.78; }
+    .msg-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); }
+    .msg-send-btn { width: 42px; height: 42px; border-radius: 12px; box-shadow: 0 6px 14px color-mix(in srgb, var(--accent) 22%, transparent); transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1), filter 160ms ease; }
+    .msg-send-btn:hover { opacity: 1; filter: brightness(1.08); transform: translateY(-1px); }
+    .chat-empty, .messages-auth-empty { display: flex; align-items: center; justify-content: center; min-height: 100%; padding: clamp(32px, 8vw, 72px) 26px; text-align: center; }
+    .chat-empty-card, .messages-auth-empty-card { max-width: 390px; }
+    .chat-empty-symbol, .messages-auth-empty-symbol {
+      width: 64px; height: 64px; display: grid; place-items: center; margin: 0 auto 16px;
+      border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--glass-border)); border-radius: 18px;
+      background: color-mix(in srgb, var(--accent) 11%, var(--panel)); color: var(--accent); font-size: 28px;
+      box-shadow: 0 12px 25px color-mix(in srgb, var(--accent) 12%, transparent);
+    }
+    .chat-empty h2, .messages-auth-empty h2 { font-family: 'Bebas Neue', sans-serif; color: var(--text); font-size: clamp(30px, 4vw, 38px); letter-spacing: 0.025em; margin: 0 0 8px; }
+    .chat-empty p, .messages-auth-empty p { max-width: 360px; margin: 0; color: var(--muted); font-size: 14px; line-height: 1.6; }
+    .messages-auth-empty { min-height: calc(100svh - 235px); }
+    .messages-auth-empty .home-link { display: inline-flex; margin-top: 22px; padding: 10px 18px; border-radius: 10px; background: var(--accent); color: #fff; font-size: 14px; font-weight: 700; text-decoration: none; box-shadow: 0 8px 20px color-mix(in srgb, var(--accent) 24%, transparent); transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1), filter 160ms ease; }
+    .messages-auth-empty .home-link:hover { filter: brightness(1.07); transform: translateY(-1px); }
+    @media (max-width: 768px) {
+      #messages-root { height: calc(100svh - 112px); min-height: 440px; margin: 0; gap: 0; }
+      .convo-sidebar, #chat-panel { border-radius: 0; box-shadow: none; }
+      .convo-sidebar { height: 248px; min-height: 248px; }
+      .convo-sidebar-header { padding: 14px; }
+      .convo-sidebar-title { font-size: 25px; }
+      #messages-root.conversation-open .convo-sidebar { display: none; }
+      #messages-root.conversation-open #chat-panel { display: flex; }
+      .chat-header-bar { min-height: 64px; padding: 12px 14px; }
+      .messages-list { padding: 16px; }
+      .message-row { max-width: 84%; }
+      .message-input-bar { padding: 11px 12px; gap: 7px; }
+      .messages-auth-empty { min-height: calc(100svh - 190px); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .convo-item, .tab-btn, .sidebar-action-btn, .back-btn, .gif-btn, .msg-send-btn, .messages-auth-empty .home-link { transition: none; }
+    }
+  </style>
+  <style>
     @media (max-width: 768px) {
       #main-nav { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; flex-wrap: nowrap !important; }
       #main-nav::-webkit-scrollbar { display: none; }
@@ -427,9 +529,12 @@
 
     <!-- Chat panel -->
     <div id="chat-panel">
-      <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:14px;flex-direction:column;gap:12px;">
-        <span style="font-size:40px;">💬</span>
-        <span>Select a conversation or start a new one</span>
+      <div class="chat-empty">
+        <div class="chat-empty-card">
+          <div class="chat-empty-symbol">💬</div>
+          <h2>Your conversations</h2>
+          <p>Select a conversation from the inbox, or start a direct message to connect with someone on Flux.</p>
+        </div>
       </div>
     </div>
   </div>

@@ -151,12 +151,12 @@ function showSignInPrompt() {
   document.getElementById('messages-root').style.display = 'none';
   const req = document.getElementById('messages-auth-required');
   if (req) req.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:center;padding:80px 40px;text-align:center;">
-      <div>
-        <div style="font-size:48px;margin-bottom:16px;">💬</div>
-        <h2 style="font-family:'Bebas Neue',sans-serif;font-size:32px;color:var(--text);margin:0 0 8px;">Sign in to message</h2>
-        <p style="color:var(--muted);font-size:14px;margin:0 0 20px;">You need a Flux profile to send and receive messages.</p>
-        <a href="index.html" style="padding:10px 24px;background:var(--accent);color:white;border-radius:10px;font-weight:700;text-decoration:none;font-size:14px;">Go to Home</a>
+    <div class="messages-auth-empty">
+      <div class="messages-auth-empty-card">
+        <div class="messages-auth-empty-symbol">💬</div>
+        <h2>Sign in to message</h2>
+        <p>You need a Flux profile to send and receive messages.</p>
+        <a href="index.html" class="home-link">Go to Home</a>
       </div>
     </div>
   `;
@@ -648,6 +648,7 @@ function loadConversationMessages(convoId, name, isGroup) {
 
   const panel = document.getElementById('chat-panel');
   if (!panel) return;
+  document.getElementById('messages-root')?.classList.add('conversation-open');
 
   const loadId = convoId;
 
@@ -681,7 +682,8 @@ function loadConversationMessages(convoId, name, isGroup) {
     _activeIsGroup = false;
     _activeMemberProfiles = new Map();
     hideMentionMenu();
-    panel.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:14px;flex-direction:column;gap:12px;"><span style="font-size:40px;">💬</span><span>Select a conversation</span></div>';
+    document.getElementById('messages-root')?.classList.remove('conversation-open');
+    panel.innerHTML = '<div class="chat-empty"><div class="chat-empty-card"><div class="chat-empty-symbol">💬</div><h2>Your conversations</h2><p>Select a conversation from the inbox, or start a direct message to connect with someone on Flux.</p></div></div>';
     document.querySelectorAll('.convo-item').forEach(el => el.classList.remove('active'));
   });
 
