@@ -214,6 +214,13 @@ const GAMES = [
     desc: 'Play a browser-based Minecraft-style game with survival, building, and multiplayer. (Hosted by EaglercraftX)'
   },
   {
+    id: 'bloxd-io',
+    title: 'Bloxd.io',
+    thumb: 'assets/bloxdio.png',
+    url: 'https://bloxd.io/',
+    desc: 'Build, battle, and explore in multiplayer block worlds. (Hosted at bloxd.io)'
+  },
+  {
     id: 'elastic-man',
     title: 'Elastic Man',
     thumb: 'assets/elastic-man.png',
