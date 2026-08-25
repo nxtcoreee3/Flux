@@ -218,6 +218,7 @@ const GAMES = [
     title: 'Bloxd.io',
     thumb: 'assets/bloxdio.png',
     url: 'https://bloxd.io/',
+    addedAt: '2026-08-25T00:00:00+02:00',
     desc: 'Build, battle, and explore in multiplayer block worlds. (Hosted at bloxd.io)'
   },
   {
@@ -1082,7 +1083,7 @@ function bootFlux() {
         ]);
         _allGameStats = stats || {};
         if (hotGame) _hotGameId = hotGame.id;
-        GAMES.forEach(g => { _newGameCache[g.id] = _allGameStats[g.id]?.firstSeen || null; });
+        GAMES.forEach(g => { _newGameCache[g.id] = g.addedAt || _allGameStats[g.id]?.firstSeen || null; });
         Object.assign(_gamePricing, pricing || {});
         window._fluxGamePricing = _gamePricing;
         _unlockedGames = unlocked || [];
@@ -2092,6 +2093,7 @@ async function openGameDetail(game) {
   const finalPrice = activeDiscount > 0 ? Math.round(pricing.price * (1 - activeDiscount / 100)) : (pricing.price || 0);
   const isLocked = finalPrice > 0 && !_unlockedGames.includes(game.id);
   const stats = _allGameStats[game.id] || {};
+  const addedAt = game.addedAt || stats.firstSeen;
   const avgRating = stats.ratingCount ? (stats.ratingTotal / stats.ratingCount).toFixed(1) : null;
   const isModLocked = stats.locked === true;
   const isOwnerView = window._fluxIsOwner === true;
@@ -2109,7 +2111,7 @@ async function openGameDetail(game) {
           ${avgRating ? `<div style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg,#f9fafb);border-radius:10px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));"><span>⭐</span><div><div style="font-size:16px;font-weight:700;color:#f59e0b;">${avgRating}</div><div style="font-size:10px;color:var(--muted,#6b7280);">${stats.ratingCount} ratings</div></div></div>` : ''}
           ${stats.plays ? `<div style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg,#f9fafb);border-radius:10px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));"><span>🎮</span><div><div style="font-size:16px;font-weight:700;color:var(--text,#111);">${stats.plays.toLocaleString()}</div><div style="font-size:10px;color:var(--muted,#6b7280);">total plays</div></div></div>` : ''}
           <div style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg,#f9fafb);border-radius:10px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));"><span>💎</span><div><div style="font-size:16px;font-weight:700;color:var(--text,#111);">${finalPrice > 0 ? finalPrice + ' pts' : 'Free'}</div><div style="font-size:10px;color:var(--muted,#6b7280);">${isLocked ? 'to unlock' : '✓ unlocked'}</div></div></div>
-          ${stats.firstSeen ? `<div style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg,#f9fafb);border-radius:10px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));"><span>📅</span><div><div style="font-size:12px;font-weight:700;color:var(--text,#111);">${new Date(stats.firstSeen).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</div><div style="font-size:10px;color:var(--muted,#6b7280);">added</div></div></div>` : ''}
+          ${addedAt ? `<div style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg,#f9fafb);border-radius:10px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));"><span>📅</span><div><div style="font-size:12px;font-weight:700;color:var(--text,#111);">${new Date(addedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</div><div style="font-size:10px;color:var(--muted,#6b7280);">added</div></div></div>` : ''}
         </div>
         <div>
           <div style="font-size:11px;font-weight:700;color:var(--muted,#6b7280);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">About this game</div>
