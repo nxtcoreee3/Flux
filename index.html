@@ -48,6 +48,12 @@
     .hot-badge { position:absolute;top:8px;left:8px;background:linear-gradient(135deg,#ef4444,#f59e0b);color:white;font-size:10px;font-weight:800;padding:3px 8px;border-radius:20px;letter-spacing:0.5px;z-index:2;box-shadow:0 2px 8px rgba(239,68,68,0.4);display:inline-block;width:fit-content; }
     .new-badge { position:absolute;top:8px;left:8px;background:linear-gradient(135deg,#22c55e,#16a34a);color:white;font-size:10px;font-weight:800;padding:3px 8px;border-radius:20px;letter-spacing:0.5px;z-index:2;box-shadow:0 2px 8px rgba(34,197,94,0.4);display:inline-block;width:fit-content; }
     .compat-badge { display:inline-flex;align-items:center;background:rgba(58,125,255,0.1);color:var(--accent);font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;border:1px solid rgba(58,125,255,0.2);cursor:help;position:relative;z-index:10; }
+    /* Flux hero: individual title letters respond to pointer hover and touch. */
+    .hero-light-title { cursor:default; touch-action:manipulation; }
+    .hero-letter { display:inline-block; color:inherit; transition:color 150ms cubic-bezier(.23,1,.32,1),text-shadow 150ms cubic-bezier(.23,1,.32,1),transform 150ms cubic-bezier(.23,1,.32,1); will-change:transform,color; }
+    .hero-letter.is-space { width:.26em; }
+    .hero-letter.is-lit { color:var(--accent); text-shadow:0 0 8px color-mix(in srgb,var(--accent) 65%,transparent),0 0 22px color-mix(in srgb,var(--accent) 38%,transparent); transform:translateY(-2px) scale(1.06); }
+    @media (prefers-reduced-motion: reduce) { .hero-letter { transition:none; } .hero-letter.is-lit { transform:none; } }
   </style>
   <style>
     @media (max-width: 768px) {
@@ -104,7 +110,7 @@
   <main>
     <section class="hero glass">
       <div class="hero-inner">
-        <h1>Play great web games instantly</h1>
+        <h1 id="hero-light-title" class="hero-light-title" aria-label="Play great web games instantly">Play great web games instantly</h1>
         <p>Curated game portal — quick to launch, clean UI, works well on any device.</p>
         <div class="hero-actions">
           <a href="games.html" class="btn-large">Browse Games</a>
@@ -199,5 +205,35 @@
   </div>
 
   <script type="module" src="script.js"></script>
+  <script>
+    // Home hero: split the visible phrase into decorative letters while retaining one accessible heading label.
+    (function () {
+      const headline = document.getElementById('hero-light-title');
+      if (!headline) return;
+      const phrase = headline.textContent.trim();
+      const fragment = document.createDocumentFragment();
+      Array.from(phrase).forEach(function (character) {
+        const letter = document.createElement('span');
+        letter.className = character === ' ' ? 'hero-letter is-space' : 'hero-letter';
+        letter.setAttribute('aria-hidden', 'true');
+        letter.textContent = character === ' ' ? '\u00a0' : character;
+        if (character !== ' ') {
+          let touchTimer;
+          const light = function () { letter.classList.add('is-lit'); };
+          const dim = function () { letter.classList.remove('is-lit'); };
+          letter.addEventListener('pointerenter', function (event) { if (event.pointerType !== 'touch') light(); });
+          letter.addEventListener('pointerleave', function (event) { if (event.pointerType !== 'touch') dim(); });
+          letter.addEventListener('pointerdown', function (event) {
+            if (event.pointerType !== 'touch') return;
+            light(); clearTimeout(touchTimer);
+            touchTimer = setTimeout(dim, 520);
+          });
+        }
+        fragment.appendChild(letter);
+      });
+      headline.textContent = '';
+      headline.appendChild(fragment);
+    })();
+  </script>
 </body>
 </html>
