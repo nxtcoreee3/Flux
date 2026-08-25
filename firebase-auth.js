@@ -49,6 +49,25 @@ export const rtdb = getDatabase(app);
 const googleProvider = new GoogleAuthProvider();
 const githubProvider = new GithubAuthProvider();
 
+// User-controlled local notification preferences. Administrator broadcasts intentionally bypass these controls.
+const NOTIFICATION_PREFERENCES_KEY = 'flux_notification_preferences';
+const DEFAULT_NOTIFICATION_PREFERENCES = { messages: true, status: true };
+
+export function getNotificationPreferences() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(NOTIFICATION_PREFERENCES_KEY) || '{}');
+    return { ...DEFAULT_NOTIFICATION_PREFERENCES, ...(saved && typeof saved === 'object' ? saved : {}) };
+  } catch { return { ...DEFAULT_NOTIFICATION_PREFERENCES }; }
+}
+
+export function setNotificationPreference(type, enabled) {
+  if (!Object.prototype.hasOwnProperty.call(DEFAULT_NOTIFICATION_PREFERENCES, type)) return;
+  const next = { ...getNotificationPreferences(), [type]: Boolean(enabled) };
+  try { localStorage.setItem(NOTIFICATION_PREFERENCES_KEY, JSON.stringify(next)); } catch {}
+  if (type === 'status' && !next.status) document.getElementById('flux-incident-banner')?.remove();
+  window.dispatchEvent(new CustomEvent('flux-notification-preferences-changed', { detail: next }));
+}
+
 /* ===================== FIRESTORE HEALTH CHECK ===================== */
 export async function checkFirestoreHealth() {
   try {
@@ -3505,7 +3524,7 @@ export async function initAuthUI(onUserChange) {
         }
 
         // Show toast only when count increases and we're not on messages page
-        if (total > _prevTotal && latest && !window.location.pathname.includes('messages.html')) {
+        if (total > _prevTotal && latest && !window.location.pathname.includes('messages.html') && getNotificationPreferences().messages) {
           try {
             const senderProfile = await getProfile(latest.senderUid);
             const senderName = senderProfile?.displayName || senderProfile?.username || 'Someone';
@@ -3597,6 +3616,9 @@ export function initIncidentBanner() {
       const existing = document.getElementById('flux-incident-banner');
       if (!snap.exists() || !snap.data().active) { existing ? dismissBanner(existing) : null; return; }
       const d = snap.data();
+
+      // This controls incident/status notifications only. It does not suppress admin broadcasts or server access controls.
+      if (!getNotificationPreferences().status) { existing?.remove(); return; }
 
       // Only show once per session per unique message
       const seenKey = `${_sessionKey}_${d.updatedAt}`;

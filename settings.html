@@ -221,6 +221,51 @@
       </div>
     </div>
 
+    <!-- NOTIFICATIONS -->
+    <div class="settings-section">
+      <div class="settings-section-label">Notifications</div>
+      <div class="settings-card">
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:rgba(58,125,255,0.1);">💬</div>
+            <div class="settings-row-text">
+              <div class="settings-row-label">Message notifications</div>
+              <div class="settings-row-desc">Show pop-ups for new direct messages. Unread counts stay visible.</div>
+            </div>
+          </div>
+          <label class="toggle-wrap">
+            <input type="checkbox" id="message-notifications-toggle">
+            <span class="toggle-track"></span>
+            <span class="toggle-thumb"></span>
+          </label>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:rgba(245,158,11,0.13);">⚠️</div>
+            <div class="settings-row-text">
+              <div class="settings-row-label">Status notifications</div>
+              <div class="settings-row-desc">Show service incident and availability alerts.</div>
+            </div>
+          </div>
+          <label class="toggle-wrap">
+            <input type="checkbox" id="status-notifications-toggle">
+            <span class="toggle-track"></span>
+            <span class="toggle-thumb"></span>
+          </label>
+        </div>
+        <div class="settings-row" style="background:rgba(58,125,255,0.035);">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:rgba(58,125,255,0.1);">📣</div>
+            <div class="settings-row-text">
+              <div class="settings-row-label">Admin broadcasts</div>
+              <div class="settings-row-desc">Always shown and cannot be muted here.</div>
+            </div>
+          </div>
+          <span style="font-size:11px;font-weight:700;color:var(--accent);">Always on</span>
+        </div>
+      </div>
+    </div>
+
     <!-- TUTORIAL & HELP -->
     <div class="settings-section">
       <div class="settings-section-label">Help</div>
@@ -357,7 +402,7 @@
   </main>
 
   <script type="module">
-    import { initAuthUI, initDarkMode, initPresence, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, logOut } from './firebase-auth.js';
+    import { initAuthUI, initDarkMode, initPresence, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, logOut, getNotificationPreferences, setNotificationPreference } from './firebase-auth.js';
 
     initDarkMode();
     initCookieConsent();
@@ -417,6 +462,15 @@
       requestAnimationFrame(() => t.style.opacity = '1');
       setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 200); }, 2500);
     });
+
+    // Notification preferences are local to this browser. Admin broadcasts are deliberately not configurable.
+    const notificationPrefs = getNotificationPreferences();
+    const messageNotificationsToggle = document.getElementById('message-notifications-toggle');
+    const statusNotificationsToggle = document.getElementById('status-notifications-toggle');
+    messageNotificationsToggle.checked = notificationPrefs.messages;
+    statusNotificationsToggle.checked = notificationPrefs.status;
+    messageNotificationsToggle.addEventListener('change', () => setNotificationPreference('messages', messageNotificationsToggle.checked));
+    statusNotificationsToggle.addEventListener('change', () => setNotificationPreference('status', statusNotificationsToggle.checked));
 
     // Tutorial
     document.getElementById('tutorial-settings-btn').addEventListener('click', () => {
