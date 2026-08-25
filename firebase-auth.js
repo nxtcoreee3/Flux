@@ -453,6 +453,16 @@ export async function fetchAllGameStats() {
   } catch { return {}; }
 }
 
+export async function fetchAllWebsiteStats() {
+  try {
+    const { collection: col, getDocs: gd } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const snap = await gd(col(db, 'websitestats'));
+    const result = {};
+    snap.docs.forEach(d => { result[d.id] = d.data(); });
+    return result;
+  } catch { return {}; }
+}
+
 export async function setGameCompatibility(gameId, gameTitle, compatibility) {
   const user = auth.currentUser;
   if (!user || user.uid !== OWNER_UID) return { ok: false, error: 'Owner only.' };
@@ -475,6 +485,46 @@ export async function setGameLockdown(gameId, gameTitle, { locked, reason = '', 
       lockedBy: locked ? user.uid : null,
     }, { merge: true });
     return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+export async function setWebsiteLockdown(websiteId, websiteTitle, { locked, reason = '', eta = '' }) {
+  const user = auth.currentUser;
+  if (!user || user.uid !== OWNER_UID) return { ok: false, error: 'Owner only.' };
+  try {
+    await setDoc(doc(db, 'websitestats', websiteId), {
+      title: websiteTitle,
+      locked,
+      lockReason: reason,
+      lockETA: eta,
+      lockedAt: locked ? new Date().toISOString() : null,
+      lockedBy: locked ? user.uid : null,
+    }, { merge: true });
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+export async function setBulkContentLockdown(contentType, items, { locked, reason = '', eta = '' }) {
+  const user = auth.currentUser;
+  if (!user || user.uid !== OWNER_UID) return { ok: false, error: 'Owner only.' };
+  if (!['game', 'website'].includes(contentType)) return { ok: false, error: 'Unknown content type.' };
+  if (!Array.isArray(items) || !items.length) return { ok: false, error: 'Select at least one item.' };
+  try {
+    const { writeBatch } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const collectionName = contentType === 'game' ? 'gamestats' : 'websitestats';
+    const batch = writeBatch(db);
+    items.forEach(item => {
+      batch.set(doc(db, collectionName, item.id), {
+        title: item.title,
+        locked,
+        lockReason: reason,
+        lockETA: eta,
+        lockedAt: locked ? new Date().toISOString() : null,
+        lockedBy: locked ? user.uid : null,
+      }, { merge: true });
+    });
+    await batch.commit();
+    return { ok: true, count: items.length };
   } catch (e) { return { ok: false, error: e.message }; }
 }
 
@@ -2261,6 +2311,47 @@ export async function initAuthUI(onUserChange) {
       </div>
 
       <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🌐 Website Management</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <select id="mod-website-select" style="padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;color:#111827;background:#fff;outline:none;cursor:pointer;">
+          <option value="">Select a website...</option>
+        </select>
+        <div style="font-size:10px;color:#ef4444;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-top:4px;">🔒 Website Lockdown</div>
+        <input id="mod-website-lock-reason" type="text" placeholder="Reason (e.g. Service is down, investigating...)" maxlength="120"
+          style="padding:9px 12px;border:1px solid rgba(239,68,68,0.3);border-radius:10px;font-size:13px;outline:none;box-sizing:border-box;">
+        <input id="mod-website-lock-eta" type="text" placeholder="ETA (optional)" maxlength="60"
+          style="padding:9px 12px;border:1px solid rgba(239,68,68,0.3);border-radius:10px;font-size:13px;outline:none;box-sizing:border-box;">
+        <div style="display:flex;gap:8px;">
+          <button id="mod-website-lock-btn" style="flex:1;padding:9px;background:#ef4444;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:13px;">🔒 Lock Website</button>
+          <button id="mod-website-unlock-btn" style="flex:1;padding:9px;background:#22c55e;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:13px;">🔓 Unlock Website</button>
+        </div>
+        <div id="mod-website-lock-status" style="font-size:12px;color:#6b7280;text-align:center;min-height:16px;"></div>
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
+      <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🧰 Bulk Availability Lock</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <select id="mod-bulk-type" style="padding:9px 12px;border:1px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;color:#111827;background:#fff;outline:none;cursor:pointer;">
+          <option value="game">Games</option>
+          <option value="website">Websites</option>
+        </select>
+        <div style="display:flex;gap:8px;">
+          <button id="mod-bulk-select-all" type="button" style="flex:1;padding:7px;background:#fff;color:#374151;border:1px solid #e5e7eb;border-radius:8px;font-weight:700;cursor:pointer;font-size:11px;">Select all</button>
+          <button id="mod-bulk-clear" type="button" style="flex:1;padding:7px;background:#fff;color:#374151;border:1px solid #e5e7eb;border-radius:8px;font-weight:700;cursor:pointer;font-size:11px;">Clear</button>
+        </div>
+        <div id="mod-bulk-list" style="max-height:170px;overflow:auto;padding:4px;border:1px solid rgba(0,0,0,0.08);border-radius:10px;background:#f9fafb;"></div>
+        <input id="mod-bulk-reason" type="text" placeholder="Reason for selected items" maxlength="120"
+          style="padding:9px 12px;border:1px solid rgba(239,68,68,0.3);border-radius:10px;font-size:13px;outline:none;box-sizing:border-box;">
+        <input id="mod-bulk-eta" type="text" placeholder="ETA (optional)" maxlength="60"
+          style="padding:9px 12px;border:1px solid rgba(239,68,68,0.3);border-radius:10px;font-size:13px;outline:none;box-sizing:border-box;">
+        <div style="display:flex;gap:8px;">
+          <button id="mod-bulk-lock-btn" style="flex:1;padding:9px;background:#ef4444;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:13px;">🔒 Lock selected</button>
+          <button id="mod-bulk-unlock-btn" style="flex:1;padding:9px;background:#22c55e;color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:13px;">🔓 Unlock selected</button>
+        </div>
+        <div id="mod-bulk-status" style="font-size:12px;color:#6b7280;text-align:center;min-height:16px;"></div>
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(0,0,0,0.07);margin:16px 0;">
       <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🎟️ Reward Codes</div>
       <div style="display:flex;flex-direction:column;gap:8px;">
         <input id="mod-code-input" type="text" placeholder="Code (e.g. FLUX2026)" maxlength="20"
@@ -2525,6 +2616,83 @@ export async function initAuthUI(onUserChange) {
     statusEl.textContent = result.ok ? `🔓 ${gameTitle} is now unlocked` : result.error;
   });
 
+  const ADMIN_WEBSITES = [
+    { id: 'youtube', title: 'YouTube' },
+    { id: 'twitch', title: 'Twitch' },
+    { id: 'spotify', title: 'Spotify' },
+    { id: 'tiktok', title: 'TikTok' },
+  ];
+  const getAdminWebsites = () => (Array.isArray(window._FLUX_WEBSITES) && window._FLUX_WEBSITES.length ? window._FLUX_WEBSITES : ADMIN_WEBSITES)
+    .map(site => ({ id: site.id, title: site.title }));
+  const getAdminGames = () => (window._FLUX_GAMES || []).map(game => ({ id: game.id, title: game.title }));
+  const bulkTypeSelect = document.getElementById('mod-bulk-type');
+  const bulkList = document.getElementById('mod-bulk-list');
+  const bulkStatus = document.getElementById('mod-bulk-status');
+
+  function renderBulkList() {
+    const items = bulkTypeSelect.value === 'website' ? getAdminWebsites() : getAdminGames();
+    bulkList.innerHTML = items.length ? items.map(item => `
+      <label style="display:flex;align-items:center;gap:8px;padding:6px 7px;border-radius:6px;cursor:pointer;font-size:12px;color:#374151;">
+        <input class="mod-bulk-item" type="checkbox" value="${item.id}" data-title="${item.title}"> ${item.title}
+      </label>`).join('') : '<div style="padding:10px;color:#9ca3af;font-size:12px;text-align:center;">No items available.</div>';
+  }
+  function selectedBulkItems() {
+    return Array.from(bulkList.querySelectorAll('.mod-bulk-item:checked')).map(input => ({ id: input.value, title: input.dataset.title }));
+  }
+  async function refreshWebsiteLockStatus() {
+    const select = document.getElementById('mod-website-select');
+    const status = document.getElementById('mod-website-lock-status');
+    if (!select.value) { status.textContent = ''; return; }
+    const snap = await getDoc(doc(db, 'websitestats', select.value));
+    const data = snap.exists() ? snap.data() : {};
+    status.style.color = data.locked ? '#ef4444' : '#22c55e';
+    status.textContent = data.locked
+      ? `🔒 Currently locked: "${data.lockReason || 'No reason provided'}"${data.lockETA ? ` · ETA: ${data.lockETA}` : ''}`
+      : data.locked === false ? '🔓 Currently unlocked' : '';
+  }
+
+  document.getElementById('mod-website-lock-btn').addEventListener('click', async () => {
+    const select = document.getElementById('mod-website-select');
+    const status = document.getElementById('mod-website-lock-status');
+    const reason = document.getElementById('mod-website-lock-reason').value.trim();
+    const eta = document.getElementById('mod-website-lock-eta').value.trim();
+    const title = select.options[select.selectedIndex]?.text || '';
+    if (!select.value) { status.style.color = '#ef4444'; status.textContent = 'Select a website first.'; return; }
+    if (!reason) { status.style.color = '#ef4444'; status.textContent = 'Enter a reason for locking.'; return; }
+    const result = await setWebsiteLockdown(select.value, title, { locked: true, reason, eta });
+    status.style.color = result.ok ? '#ef4444' : '#ef4444';
+    status.textContent = result.ok ? `🔒 ${title} is now locked` : result.error;
+    if (result.ok) { document.getElementById('mod-website-lock-reason').value = ''; document.getElementById('mod-website-lock-eta').value = ''; }
+  });
+  document.getElementById('mod-website-unlock-btn').addEventListener('click', async () => {
+    const select = document.getElementById('mod-website-select');
+    const status = document.getElementById('mod-website-lock-status');
+    const title = select.options[select.selectedIndex]?.text || '';
+    if (!select.value) { status.style.color = '#ef4444'; status.textContent = 'Select a website first.'; return; }
+    const result = await setWebsiteLockdown(select.value, title, { locked: false });
+    status.style.color = result.ok ? '#22c55e' : '#ef4444';
+    status.textContent = result.ok ? `🔓 ${title} is now unlocked` : result.error;
+  });
+  document.getElementById('mod-website-select').addEventListener('change', refreshWebsiteLockStatus);
+  bulkTypeSelect.addEventListener('change', renderBulkList);
+  document.getElementById('mod-bulk-select-all').addEventListener('click', () => bulkList.querySelectorAll('.mod-bulk-item').forEach(input => { input.checked = true; }));
+  document.getElementById('mod-bulk-clear').addEventListener('click', () => bulkList.querySelectorAll('.mod-bulk-item').forEach(input => { input.checked = false; }));
+  async function setBulkLock(locked) {
+    const type = bulkTypeSelect.value;
+    const items = selectedBulkItems();
+    const reason = document.getElementById('mod-bulk-reason').value.trim();
+    const eta = document.getElementById('mod-bulk-eta').value.trim();
+    if (!items.length) { bulkStatus.style.color = '#ef4444'; bulkStatus.textContent = 'Select one or more items.'; return; }
+    if (locked && !reason) { bulkStatus.style.color = '#ef4444'; bulkStatus.textContent = 'Enter a reason for locking.'; return; }
+    const result = await setBulkContentLockdown(type, items, { locked, reason, eta });
+    bulkStatus.style.color = result.ok ? (locked ? '#ef4444' : '#22c55e') : '#ef4444';
+    bulkStatus.textContent = result.ok ? `${locked ? '🔒 Locked' : '🔓 Unlocked'} ${result.count} ${type}${result.count === 1 ? '' : 's'}.` : result.error;
+    if (result.ok && locked) { document.getElementById('mod-bulk-reason').value = ''; document.getElementById('mod-bulk-eta').value = ''; }
+  }
+  document.getElementById('mod-bulk-lock-btn').addEventListener('click', () => setBulkLock(true));
+  document.getElementById('mod-bulk-unlock-btn').addEventListener('click', () => setBulkLock(false));
+  renderBulkList();
+
   // Admin abuse buttons — toggle on/off
   const _activeEffects = new Set();
   modModal.querySelectorAll('.abuse-btn').forEach(btn => {
@@ -2638,6 +2806,17 @@ export async function initAuthUI(onUserChange) {
         }
       });
     }
+
+    const websiteSelect = document.getElementById('mod-website-select');
+    if (websiteSelect) {
+      websiteSelect.innerHTML = '<option value="">Select a website...</option>';
+      getAdminWebsites().forEach(site => {
+        const opt = document.createElement('option');
+        opt.value = site.id; opt.textContent = site.title;
+        websiteSelect.appendChild(opt);
+      });
+    }
+    renderBulkList();
 
     // ── Online Users ──
     let _modPresenceUnsub = null;

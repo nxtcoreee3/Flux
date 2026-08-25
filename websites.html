@@ -117,7 +117,8 @@
   <footer class="site-footer"><div class="footer-inner"><div class="footer-brand"><a href="index.html" class="logo-small">FLUX</a><p>Curated links • Built by <a href="https://github.com/nxtcoreee3" target="_blank" rel="noopener">nxtcoreee3</a></p></div><div class="footer-links"><a href="index.html">Home</a><a href="info.html">Info</a></div></div><small class="copyright">Flux © <span id="year2"></span></small></footer>
 
   <script type="module" src="script.js"></script>
-  <script>
+  <script type="module">
+    import { fetchAllWebsiteStats } from './firebase-auth.js';
     // Website apps share the Games catalogue structure but use official embed endpoints for their individual content types.
     (function () {
       const WEBSITES = [
@@ -156,6 +157,7 @@
       const playerStatus = document.getElementById('player-status');
       const externalLink = document.getElementById('current-app-link');
       const SAVED_LINKS_KEY = 'flux_saved_website_links';
+      let websiteStats = {};
       let activeSite;
       let pendingSite;
       let youtubePlayer;
@@ -177,19 +179,34 @@
       function showState(title, detail) { playerState.hidden = false; playerState.innerHTML = '<div><strong>' + title + '</strong>' + detail + '</div>'; }
       function hideState() { playerState.hidden = true; }
       function resetEmbed() { youtubePlayer = null; embedHost.innerHTML = ''; }
+      function isWebsiteAdminLocked(site) { return websiteStats[site.id]?.locked === true; }
+      function isWebsiteBlocked(site) { return isWebsiteAdminLocked(site) && window._fluxIsOwner !== true; }
+      function showWebsiteLockInfo(site) {
+        const stats = websiteStats[site.id] || {};
+        const existing = document.getElementById('website-lock-info-modal');
+        if (existing) existing.remove();
+        const dialog = document.createElement('div');
+        dialog.id = 'website-lock-info-modal';
+        dialog.style.cssText = 'position:fixed;inset:0;z-index:10000003;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(5,7,12,.72);backdrop-filter:blur(7px);';
+        dialog.innerHTML = '<div style="width:min(100%,380px);border-radius:16px;background:var(--panel);border:1px solid rgba(239,68,68,.35);padding:24px;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,.42);"><div style="font-size:28px;margin-bottom:10px;">🔒</div><h2 style="margin:0;font-family:\'Bebas Neue\',sans-serif;font-size:30px;color:var(--text);">' + site.title + ' is unavailable</h2><p style="margin:12px 0;color:var(--muted);font-size:13px;line-height:1.55;">' + (stats.lockReason || 'This website is temporarily unavailable.') + '</p>' + (stats.lockETA ? '<p style="margin:0 0 16px;color:#22c55e;font-size:12px;font-weight:700;">Expected return: ' + stats.lockETA + '</p>' : '') + '<button type="button" style="border:0;border-radius:8px;background:var(--accent);color:#fff;padding:10px 16px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;">Got it</button></div>';
+        dialog.querySelector('button').addEventListener('click', () => dialog.remove());
+        dialog.addEventListener('click', event => { if (event.target === dialog) dialog.remove(); });
+        document.body.appendChild(dialog);
+      }
       function createWebsiteCard(site) {
         const card = document.createElement('article'); card.className = 'card'; card.dataset.id = site.id;
-        card.innerHTML = '<img class="thumb" alt="' + site.title + ' cover" loading="lazy"><div class="card-body" style="cursor:pointer" title="Open app"><h3 class="title">' + site.title + '</h3><div class="meta">' + site.desc + '</div><div style="display:flex;align-items:center;gap:6px;margin-top:4px"><span class="website-badge">◉ ' + site.tag + '</span></div></div><div class="card-foot"><span style="font-size:11px;color:var(--muted)">Website</span><button class="play-btn" type="button">Open</button></div>';
+        const locked = isWebsiteAdminLocked(site); const blocked = isWebsiteBlocked(site);
+        card.innerHTML = (blocked ? '<div style="position:absolute;inset:0;z-index:4;background:rgba(239,68,68,.12);border:2px solid rgba(239,68,68,.38);border-radius:inherit;pointer-events:none;"></div>' : '') + '<img class="thumb" alt="' + site.title + ' cover" loading="lazy" style="' + (blocked ? 'opacity:.45;filter:grayscale(.3);' : '') + '"><div class="card-body" style="cursor:pointer;' + (blocked ? 'opacity:.55;' : '') + '" title="' + (blocked ? 'View availability information' : 'Open app') + '"><h3 class="title">' + site.title + '</h3><div class="meta">' + site.desc + '</div><div style="display:flex;align-items:center;gap:6px;margin-top:4px"><span class="website-badge">◉ ' + site.tag + '</span>' + (blocked ? '<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(239,68,68,.1);color:#ef4444;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;border:1px solid rgba(239,68,68,.2);">🔒 Unavailable</span>' : locked ? '<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(239,68,68,.1);color:#ef4444;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;border:1px solid rgba(239,68,68,.2);">🔒 Locked (admin view)</span>' : '') + '</div></div><div class="card-foot"><span style="font-size:11px;color:var(--muted)">Website</span><button class="play-btn" type="button">' + (blocked ? 'Get info' : 'Open') + '</button></div>';
         setCover(card.querySelector('.thumb'), site);
-        card.querySelector('.card-body').addEventListener('click', function () { requestOpen(site); });
-        card.querySelector('.play-btn').addEventListener('click', function (event) { event.stopPropagation(); requestOpen(site); });
+        card.querySelector('.card-body').addEventListener('click', function () { blocked ? showWebsiteLockInfo(site) : requestOpen(site); });
+        card.querySelector('.play-btn').addEventListener('click', function (event) { event.stopPropagation(); blocked ? showWebsiteLockInfo(site) : requestOpen(site); });
         return card;
       }
       function renderWebsites(list) { grid.innerHTML = ''; if (!list.length) { grid.innerHTML = '<p class="website-empty">No websites found.</p>'; return; } list.forEach(function (site) { grid.appendChild(createWebsiteCard(site)); }); }
       function renderRecent() { const recentSites = loadRecent().map(function (id) { return WEBSITES.find(function (site) { return site.id === id; }); }).filter(Boolean); recentGrid.innerHTML = ''; if (!recentSites.length) { recentSection.style.display = 'none'; return; } recentSites.forEach(function (site) { recentGrid.appendChild(createWebsiteCard(site)); }); recentSection.style.display = ''; }
       function applyFilters() { const query = searchInput.value.toLowerCase().trim(); let list = WEBSITES.slice(); if (query) list = list.filter(function (site) { return site.title.toLowerCase().includes(query) || site.desc.toLowerCase().includes(query); }); if (sortSelect.value === 'alpha') list.sort(function (a,b) { return a.title.localeCompare(b.title); }); else if (sortSelect.value === 'recent') list = list.reverse(); renderWebsites(list); }
       function debounce(fn, wait) { let timer; return function () { clearTimeout(timer); timer = setTimeout(fn, wait); }; }
-      function requestOpen(site) { pendingSite = site; warning.classList.add('open'); warningOpen.focus(); }
+      function requestOpen(site) { if (isWebsiteBlocked(site)) { showWebsiteLockInfo(site); return; } pendingSite = site; warning.classList.add('open'); warningOpen.focus(); }
       function openSite() {
         warning.classList.remove('open'); if (!pendingSite) return; activeSite = pendingSite; addRecent(activeSite.id); renderRecent();
         setCover(modalCover, activeSite); modalTitle.textContent = activeSite.title; modalSubtitle.textContent = activeSite.subtitle; toolsTitle.textContent = activeSite.heading; toolsCopy.textContent = activeSite.helper; urlLabel.textContent = activeSite.label; urlInput.placeholder = activeSite.placeholder; loadButton.textContent = activeSite.action; note.textContent = activeSite.note; urlInput.value = ''; savedLinkName.value = ''; savedLinkUrl.value = ''; externalLink.href = activeSite.id === 'youtube' ? 'https://www.youtube.com/' : activeSite.id === 'twitch' ? 'https://www.twitch.tv/' : activeSite.id === 'spotify' ? 'https://open.spotify.com/' : 'https://www.tiktok.com/'; externalLink.textContent = 'Open official site ↗'; playerStatus.textContent = 'Player idle'; resetEmbed(); showState('No content loaded', activeSite.helper); renderSavedLinks(); modal.classList.add('open'); document.body.style.overflow = 'hidden'; urlInput.focus();
@@ -204,7 +221,9 @@
       function loadTikTok(value) { let url; try { url = new URL(value); } catch (e) { showState('Invalid TikTok link','Paste a full public TikTok video URL.'); return; } const match = url.pathname.match(/\/(?:video|player\/v1)\/(\d+)/); if (!/tiktok\.com$/i.test(url.hostname.replace(/^www\./,'')) || !match) { showState('Invalid TikTok link','Paste a full TikTok post URL such as tiktok.com/@user/video/ID.'); return; } const videoId = match[1]; const source = new URL('https://www.tiktok.com/player/v1/' + videoId); source.search = new URLSearchParams({controls:'1',description:'1',music_info:'1'}).toString(); makeIframe(source.toString(), 'TikTok player'); externalLink.href = 'https://www.tiktok.com/@_/video/' + videoId; externalLink.textContent = 'Open on TikTok ↗'; }
       function loadActiveUrl() { const value = urlInput.value.trim(); if (!value) { showState('Link required', activeSite.helper); urlInput.focus(); return; } if (activeSite.id === 'youtube') { const id = extractYouTubeId(value); if (!id) { showState('Invalid YouTube link','Paste a YouTube URL or 11-character video ID.'); return; } loadYouTube(id); } else if (activeSite.id === 'twitch') loadTwitch(value); else if (activeSite.id === 'spotify') loadSpotify(value); else if (activeSite.id === 'tiktok') loadTikTok(value); }
       searchInput.addEventListener('input', debounce(applyFilters, 150)); sortSelect.addEventListener('change', applyFilters); warningCancel.addEventListener('click', function () { warning.classList.remove('open'); }); warningOpen.addEventListener('click', openSite); closeButton.addEventListener('click', closeSite); modal.addEventListener('click', function (event) { if (event.target === modal) closeSite(); }); urlForm.addEventListener('submit', function (event) { event.preventDefault(); loadActiveUrl(); }); savedLinkForm.addEventListener('submit', function (event) { event.preventDefault(); saveCurrentLink(); }); document.addEventListener('keydown', function (event) { if (event.key === 'Escape') { if (warning.classList.contains('open')) warning.classList.remove('open'); else if (modal.classList.contains('open')) closeSite(); } });
+      window._FLUX_WEBSITES = WEBSITES;
       renderWebsites(WEBSITES); renderRecent();
+      fetchAllWebsiteStats().then(stats => { websiteStats = stats || {}; renderWebsites(WEBSITES); renderRecent(); });
     })();
   </script>
   <script>window.addEventListener('load',function(){setTimeout(function(){const loader=document.getElementById('global-page-loader');if(loader){loader.style.opacity='0';setTimeout(function(){loader.remove();},400);}},400);});</script>
