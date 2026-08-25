@@ -214,14 +214,6 @@ const GAMES = [
     desc: 'Play a browser-based Minecraft-style game with survival, building, and multiplayer. (Hosted by EaglercraftX)'
   },
   {
-    id: 'bloxd-io',
-    title: 'Bloxd.io',
-    thumb: 'assets/bloxdio.png',
-    url: 'https://bloxd.io/',
-    addedAt: '2026-08-25T00:00:00+02:00',
-    desc: 'Build, battle, and explore in multiplayer block worlds. (Hosted at bloxd.io)'
-  },
-  {
     id: 'elastic-man',
     title: 'Elastic Man',
     thumb: 'assets/elastic-man.png',
@@ -367,7 +359,14 @@ const GAMES = [
   thumb: 'assets/hill-climb-racing-lite.png',
   url: 'https://nxtcoreee3.github.io/Hill-Climb-Racing-Lite/',
   desc: 'Drive through hills, upgrade your vehicle, and go as far as possible without flipping.'
-}
+},
+{
+    id: 'bloxd-io',
+    title: 'Bloxd.io',
+    thumb: 'assets/bloxdio.png',
+    url: 'https://bloxd.io/',
+    desc: 'Build, battle, and explore in multiplayer block worlds. (Hosted by bloxd.io)'
+  }
 ];
 
 // expose game count globally for stats button
