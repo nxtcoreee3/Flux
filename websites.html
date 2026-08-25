@@ -4,18 +4,14 @@
   <script>
     (function () {
       var path = window.location.pathname;
-      var base;
       var subpathMatch = path.match(/^(\/Flux)(\/|$)/i);
-      if (subpathMatch) {
-        base = subpathMatch[1] + '/';
-      } else {
-        base = path.substring(0, path.lastIndexOf('/') + 1) || '/';
-      }
+      var base = subpathMatch ? subpathMatch[1] + '/' : (path.substring(0, path.lastIndexOf('/') + 1) || '/');
       document.write('<base href="' + base + '">');
     })();
   </script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#11131a" />
   <title>Websites — Flux</title>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
@@ -25,179 +21,188 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Flux">
   <style>
-    /* Flux Websites: retain the existing dark glass system, adding an explicit service-status gate and a contained video utility. */
-    @media (max-width: 768px) {
-      #main-nav { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; flex-wrap: nowrap !important; }
-      #main-nav::-webkit-scrollbar { display: none; }
-    }
-    .websites-page { max-width: 1200px; margin: 28px auto 56px; padding: 0 20px; }
-    .websites-head { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 18px; }
-    .websites-kicker { margin: 0 0 8px; color: var(--accent); font-size: 12px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; }
-    .websites-head h1 { margin: 0; font-family: 'Bebas Neue', sans-serif; font-size: clamp(42px, 7vw, 72px); line-height: .88; letter-spacing: 1px; }
-    .websites-status { max-width: 355px; margin: 0; border-left: 3px solid #f2a33a; padding-left: 14px; color: var(--muted); font-size: 14px; line-height: 1.55; }
-    .website-player-card { overflow: hidden; padding: 0; }
-    .website-player-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--glass-border); padding: 18px 20px; }
-    .website-service { display: flex; align-items: center; gap: 12px; }
-    .youtube-dot { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 10px; background: #e03630; color: #fff; font-size: 16px; }
-    .website-service h2 { margin: 0; font-size: 18px; }
-    .website-service p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
-    .api-link { color: var(--accent); font-size: 13px; font-weight: 700; text-decoration: none; }
-    .api-link:hover { text-decoration: underline; }
-    .youtube-stage { position: relative; min-height: 270px; background: #090b11; }
-    #youtube-player { width: 100%; min-height: 270px; aspect-ratio: 16 / 9; }
-    .player-state { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 28px; background: #090b11; color: #e9ecf1; text-align: center; font-size: 14px; line-height: 1.55; }
+    /* Websites: compact app directory first, then one focused app workspace. */
+    .web-apps-page { max-width: 1160px; margin: 34px auto 64px; padding: 0 20px; color: #f3f4f6; }
+    .apps-header { display: flex; align-items: end; justify-content: space-between; gap: 22px; border-bottom: 1px solid rgba(255,255,255,.1); padding-bottom: 20px; }
+    .apps-header h1, .youtube-workspace h2, .app-warning h2 { margin: 0; background: none !important; color: #fff !important; font-family: 'Bebas Neue', sans-serif; font-size: clamp(42px, 6vw, 64px); font-weight: 400; letter-spacing: .8px; line-height: .9; -webkit-text-fill-color: #fff !important; }
+    .apps-header p { max-width: 420px; margin: 0; color: #9fa8b8; font-size: 14px; line-height: 1.55; }
+    .app-directory { margin-top: 24px; }
+    .directory-label { margin: 0 0 11px; color: #80899a; font-size: 11px; font-weight: 700; letter-spacing: 1.25px; text-transform: uppercase; }
+    .app-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(236px, 1fr)); gap: 12px; }
+    .app-tile { display: flex; min-height: 132px; flex-direction: column; align-items: flex-start; justify-content: space-between; border: 1px solid rgba(255,255,255,.12); border-radius: 12px; background: rgba(255,255,255,.035); padding: 16px; color: #f7f7f9; text-align: left; transition: border-color .16s ease, background .16s ease, transform .16s ease; }
+    .app-tile:hover { border-color: rgba(242,163,58,.8); background: rgba(242,163,58,.06); transform: translateY(-2px); }
+    .app-tile:focus-visible, .utility-button:focus-visible, .search-form input:focus-visible, .paste-form input:focus-visible { outline: 2px solid #f2a33a; outline-offset: 3px; }
+    .app-tile-top { display: flex; width: 100%; align-items: center; justify-content: space-between; }
+    .app-icon { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 9px; background: #e03630; color: #fff; font-size: 14px; }
+    .app-tile small { color: #9fa8b8; font-size: 11px; }
+    .app-tile strong { display: block; margin-top: 18px; font-size: 16px; }
+    .app-tile span { display: block; margin-top: 4px; color: #aeb5c1; font-size: 12px; }
+    .empty-app { display: flex; min-height: 132px; flex-direction: column; justify-content: center; border: 1px dashed rgba(255,255,255,.16); border-radius: 12px; padding: 16px; color: #777f8e; }
+    .empty-app strong { color: #b3bac6; font-size: 14px; }
+    .empty-app span { margin-top: 5px; font-size: 12px; }
+    .youtube-workspace { margin-top: 26px; border: 1px solid rgba(255,255,255,.12); border-radius: 14px; background: #151820; box-shadow: 0 14px 46px rgba(0,0,0,.22); overflow: hidden; }
+    .youtube-workspace[hidden] { display: none; }
+    .workspace-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid rgba(255,255,255,.1); padding: 15px 18px; }
+    .workspace-app { display: flex; align-items: center; gap: 11px; }
+    .workspace-app .app-icon { flex: 0 0 auto; }
+    .workspace-app strong { display: block; font-size: 15px; }
+    .workspace-app span { display: block; margin-top: 2px; color: #8f98a8; font-size: 11px; }
+    .utility-button { border: 1px solid rgba(255,255,255,.15); border-radius: 8px; background: transparent; padding: 8px 11px; color: #dce0e8; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+    .utility-button:hover { border-color: #f2a33a; color: #f6b25c; }
+    .workspace-content { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(300px, .85fr); gap: 0; }
+    .player-column { border-right: 1px solid rgba(255,255,255,.1); }
+    .youtube-stage { position: relative; min-height: 290px; background: #090b10; }
+    #youtube-player { width: 100%; min-height: 290px; aspect-ratio: 16 / 9; }
+    .player-state { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; color: #b8c0cc; text-align: center; font-size: 13px; line-height: 1.55; }
     .player-state[hidden] { display: none; }
-    .player-state strong { display: block; margin-bottom: 6px; color: #fff; }
-    .youtube-controls { display: grid; grid-template-columns: 1fr auto; gap: 10px; border-top: 1px solid var(--glass-border); padding: 16px 20px 20px; }
-    .youtube-controls label { grid-column: 1 / -1; color: var(--muted); font-size: 12px; }
-    .youtube-controls input { min-width: 0; border: 1px solid var(--glass-border); border-radius: 10px; background: var(--input-bg); padding: 11px 12px; color: var(--text); font: inherit; }
-    .youtube-controls button { border: 0; border-radius: 10px; background: var(--accent); padding: 0 16px; color: #fff; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
-    .youtube-controls button:hover { filter: brightness(1.08); }
-    .youtube-help { margin: 0; padding: 0 20px 20px; color: var(--muted); font-size: 12px; line-height: 1.55; }
-    .websites-warning { position: fixed; z-index: 10000001; inset: 0; display: grid; place-items: center; overflow-y: auto; padding: 20px; background: rgba(4, 6, 11, .82); backdrop-filter: blur(12px); }
-    .websites-warning[hidden] { display: none; }
-    .warning-card { width: min(100%, 620px); border: 1px solid rgba(242, 163, 58, .38); border-radius: 18px; background: linear-gradient(145deg, rgba(27, 30, 43, .98), rgba(14, 16, 24, .98)); box-shadow: 0 24px 80px rgba(0,0,0,.5); padding: 28px; }
-    .warning-chip { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 20px; color: #f2a33a; font-size: 11px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; }
-    .warning-chip::before { width: 8px; height: 8px; border-radius: 50%; background: #f2a33a; box-shadow: 0 0 18px rgba(242,163,58,.7); content: ''; }
-    .warning-card h2 { margin: 0; background: none !important; color: #fff !important; font-family: 'Bebas Neue', sans-serif; font-size: clamp(36px, 7vw, 56px); line-height: .94; letter-spacing: .8px; -webkit-text-fill-color: #fff !important; }
-    .warning-card p { margin: 18px 0 0; color: #c9ced8; font-size: 15px; line-height: 1.7; }
-    .warning-note { border-left: 2px solid #e36c5a; padding-left: 12px; color: #9ea7b6 !important; font-size: 13px !important; }
-    .warning-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
-    .warning-actions a, .warning-actions button { border-radius: 10px; padding: 11px 15px; font: inherit; font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; }
-    .warning-actions a { border: 1px solid var(--glass-border); color: var(--text); }
-    .warning-actions button { border: 0; background: #f2a33a; color: #171b27; }
-    .warning-actions button:hover { filter: brightness(1.08); }
-    @media (max-width: 700px) {
-      .websites-page { padding: 0 14px; }
-      .websites-head { align-items: flex-start; flex-direction: column; }
-      .youtube-controls { grid-template-columns: 1fr; }
-      .youtube-controls button { min-height: 42px; }
+    .player-state strong { display: block; margin-bottom: 5px; color: #fff; }
+    .player-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid rgba(255,255,255,.1); padding: 12px 15px; color: #8f98a8; font-size: 11px; }
+    .player-meta a { color: #f2a33a; text-decoration: none; }
+    .player-meta a:hover { text-decoration: underline; }
+    .search-column { padding: 18px; }
+    .search-column h2 { font-size: 32px; }
+    .search-column > p { margin: 6px 0 15px; color: #9fa8b8; font-size: 12px; line-height: 1.55; }
+    .search-form, .paste-form { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+    .search-form input, .paste-form input { min-width: 0; border: 1px solid rgba(255,255,255,.14); border-radius: 8px; background: #0f1117; padding: 10px 11px; color: #fff; font: inherit; font-size: 12px; }
+    .search-form button, .paste-form button { border: 0; border-radius: 8px; background: #f2a33a; padding: 0 13px; color: #171a20; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+    .search-form button:hover, .paste-form button:hover { filter: brightness(1.08); }
+    .search-state { min-height: 20px; margin: 11px 0 8px; color: #8f98a8; font-size: 12px; line-height: 1.4; }
+    .search-results { display: grid; max-height: 466px; gap: 8px; overflow: auto; padding-right: 2px; }
+    .search-result { display: grid; grid-template-columns: 108px minmax(0,1fr); gap: 10px; border: 1px solid rgba(255,255,255,.09); border-radius: 9px; background: rgba(255,255,255,.025); padding: 7px; }
+    .search-result img { width: 108px; height: 61px; border-radius: 5px; object-fit: cover; background: #0b0d12; }
+    .search-result-info { min-width: 0; }
+    .search-result h3 { overflow: hidden; margin: 0; color: #e7eaf0; font-size: 12px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+    .search-result p { overflow: hidden; margin: 3px 0 7px; color: #858fa0; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+    .result-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+    .result-actions button, .result-actions a { border: 0; background: transparent; padding: 0; color: #f2a33a; font: inherit; font-size: 11px; font-weight: 700; text-decoration: none; cursor: pointer; }
+    .result-actions a { color: #aeb6c4; }
+    .manual-load { margin-top: 18px; border-top: 1px solid rgba(255,255,255,.1); padding-top: 15px; }
+    .manual-load label { display: block; margin-bottom: 7px; color: #9fa8b8; font-size: 11px; font-weight: 700; }
+    .manual-note { margin: 8px 0 0; color: #727c8c; font-size: 11px; line-height: 1.45; }
+    .app-warning { position: fixed; z-index: 10000001; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(3,4,8,.78); backdrop-filter: blur(8px); }
+    .app-warning[hidden] { display: none; }
+    .warning-card { width: min(100%, 540px); border: 1px solid rgba(242,163,58,.4); border-radius: 14px; background: #191c25; box-shadow: 0 18px 60px rgba(0,0,0,.52); padding: 24px; }
+    .warning-label { display: flex; align-items: center; gap: 8px; margin: 0 0 16px; color: #f2a33a; font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+    .warning-label::before { width: 7px; height: 7px; border-radius: 50%; background: #f2a33a; content: ''; }
+    .app-warning h2 { font-size: clamp(36px, 6vw, 51px); }
+    .app-warning p { margin: 15px 0 0; color: #c4cad5; font-size: 14px; line-height: 1.65; }
+    .warning-note { border-left: 2px solid #e36c5a; padding-left: 11px; color: #9da6b5 !important; font-size: 12px !important; }
+    .warning-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 22px; }
+    .warning-actions button { border-radius: 8px; padding: 10px 12px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+    #cancel-warning { border: 1px solid rgba(255,255,255,.16); background: transparent; color: #e1e4ea; }
+    #enter-youtube { border: 0; background: #f2a33a; color: #171a20; }
+    @media (max-width: 780px) {
+      .web-apps-page { margin-top: 20px; padding: 0 14px; }
+      .apps-header { align-items: flex-start; flex-direction: column; }
+      .workspace-content { grid-template-columns: 1fr; }
+      .player-column { border-right: 0; border-bottom: 1px solid rgba(255,255,255,.1); }
       .youtube-stage, #youtube-player { min-height: 220px; }
-      .warning-card { padding: 23px; }
+      .search-results { max-height: none; }
     }
+    @media (max-width: 450px) { .search-form, .paste-form { grid-template-columns: 1fr; } .search-form button, .paste-form button { min-height: 40px; } }
   </style>
 </head>
 <body>
-  <div id="global-page-loader" style="position:fixed;inset:0;background:#ffffff;z-index:9999999;display:flex;justify-content:center;align-items:center;transition:opacity 0.4s ease;pointer-events:none;">
+  <div id="global-page-loader" style="position:fixed;inset:0;background:#ffffff;z-index:9999999;display:flex;justify-content:center;align-items:center;transition:opacity .4s ease;pointer-events:none;">
     <img src="assets/loading.gif" style="width:250px;height:auto;" alt="Loading...">
   </div>
-  <script>
-    // Fast Boot: hide the white loader quickly (best effort)
-    (function(){
-      const hide = () => {
-        try { if (localStorage.getItem('flux_fast_boot') !== '1') return; } catch(e){ return; }
-        const el = document.getElementById('global-page-loader');
-        if (!el) return;
-        el.style.opacity = '0';
-        setTimeout(() => { try { el.remove(); } catch(e){} }, 420);
-      };
-      setTimeout(hide, 80);
-      requestAnimationFrame(hide);
-      window.addEventListener('pageshow', hide, { once: true });
-    })();
-  </script>
 
   <header class="topbar">
-    <div class="brand">
-      <a href="index.html" class="logo"><img src="assets/logo.png" alt="Flux" style="height:32px;vertical-align:middle;margin-right:6px;"> FLUX</a>
-    </div>
+    <div class="brand"><a href="index.html" class="logo"><img src="assets/logo.png" alt="Flux" style="height:32px;vertical-align:middle;margin-right:6px;"> FLUX</a></div>
     <nav class="nav">
       <button class="nav-toggle" aria-controls="main-nav" aria-expanded="false">☰</button>
       <ul id="main-nav" class="nav-list">
-        <li data-nav-item="home"><a href="index.html">Home</a></li>
-        <li data-nav-item="games"><a href="games.html">Games</a></li>
-        <li data-nav-item="websites"><a href="websites.html" class="active">Websites</a></li>
-        <li data-nav-item="social"><a href="social.html">Social</a></li>
-        <li data-nav-item="messages"><a href="messages.html">Messages</a></li>
-        <li data-nav-item="info"><a href="info.html">Info</a></li>
-        <li data-nav-item="credits"><a href="credits.html">Credits</a></li>
-        <li data-nav-item="donate"><a href="donate.html" class="accent">Donate</a></li>
+        <li data-nav-item="home"><a href="index.html">Home</a></li><li data-nav-item="games"><a href="games.html">Games</a></li><li data-nav-item="websites"><a href="websites.html" class="active">Websites</a></li><li data-nav-item="social"><a href="social.html">Social</a></li><li data-nav-item="messages"><a href="messages.html">Messages</a></li><li data-nav-item="info"><a href="info.html">Info</a></li><li data-nav-item="credits"><a href="credits.html">Credits</a></li><li data-nav-item="donate"><a href="donate.html" class="accent">Donate</a></li>
       </ul>
     </nav>
-    <div class="right-actions">
-      <a class="icon-btn" href="https://github.com/nxtcoreee3/flux" target="_blank" rel="noopener">⭐ Star</a>
-    </div>
+    <div class="right-actions"><a class="icon-btn" href="https://github.com/nxtcoreee3/flux" target="_blank" rel="noopener">⭐ Star</a></div>
   </header>
 
-  <main class="websites-page" id="websites-content" aria-hidden="true">
-    <div class="websites-head">
-      <div>
-        <p class="websites-kicker">Websites / lower-priority channel</p>
-        <h1>Websites, with status in view.</h1>
-      </div>
-      <p class="websites-status">Games are Flux’s priority route. This channel remains available, but support and updates can take longer to arrive.</p>
-    </div>
+  <main class="web-apps-page">
+    <header class="apps-header">
+      <div><h1>Apps</h1></div>
+      <p>Small web tools live here. Open an app when you need it; more will be added over time.</p>
+    </header>
 
-    <section class="glass website-player-card" aria-labelledby="youtube-heading">
-      <div class="website-player-top">
-        <div class="website-service">
-          <span class="youtube-dot" aria-hidden="true">▶</span>
-          <div>
-            <h2 id="youtube-heading">YouTube</h2>
-            <p>Official IFrame Player API</p>
+    <section class="app-directory" aria-labelledby="app-directory-title">
+      <p class="directory-label" id="app-directory-title">Available now</p>
+      <div class="app-grid">
+        <button class="app-tile" id="open-youtube" type="button" aria-controls="youtube-workspace" aria-expanded="false">
+          <span class="app-tile-top"><span class="app-icon" aria-hidden="true">▶</span><small>Web app</small></span>
+          <span><strong>YouTube</strong><span>Search and play videos</span></span>
+        </button>
+        <div class="empty-app" aria-label="More apps coming soon"><strong>More apps soon</strong><span>New tools will appear in this list.</span></div>
+      </div>
+    </section>
+
+    <section class="youtube-workspace" id="youtube-workspace" hidden aria-labelledby="youtube-title">
+      <div class="workspace-bar">
+        <div class="workspace-app"><span class="app-icon" aria-hidden="true">▶</span><span><strong id="youtube-title">YouTube</strong><span>Video search and player</span></span></div>
+        <button class="utility-button" id="close-youtube" type="button">← Apps</button>
+      </div>
+      <div class="workspace-content">
+        <div class="player-column">
+          <div class="youtube-stage">
+            <div id="youtube-player" aria-label="YouTube video player"></div>
+            <div class="player-state" id="player-state"><div><strong>No video selected</strong>Search for a video or paste a YouTube URL.</div></div>
           </div>
+          <div class="player-meta"><span id="player-status">Player idle</span><a id="current-video-link" href="https://developers.google.com/youtube/iframe_api_reference" target="_blank" rel="noopener">Player API reference ↗</a></div>
         </div>
-        <a class="api-link" href="https://developers.google.com/youtube/iframe_api_reference" target="_blank" rel="noopener">API reference ↗</a>
+        <aside class="search-column">
+          <h2>Search</h2>
+          <p>Find videos, then play one here or copy its direct YouTube URL.</p>
+          <form class="search-form" id="search-form"><input id="search-query" type="search" placeholder="Search YouTube" autocomplete="off" aria-label="Search YouTube"><button type="submit">Search</button></form>
+          <div class="search-state" id="search-state">Set your YouTube Data API key in <code>youtube-config.js</code> to enable search.</div>
+          <div class="search-results" id="search-results" aria-live="polite"></div>
+          <div class="manual-load">
+            <label for="youtube-url">Or paste a YouTube URL or video ID</label>
+            <form class="paste-form" id="paste-form"><input id="youtube-url" type="text" placeholder="https://youtu.be/..." autocomplete="off" spellcheck="false"><button type="submit">Play</button></form>
+            <p class="manual-note">Some videos cannot be embedded. Use the URL link to open those on YouTube.</p>
+          </div>
+        </aside>
       </div>
-      <div class="youtube-stage">
-        <div id="youtube-player" aria-label="YouTube video player"></div>
-        <div class="player-state" id="player-state">
-          <div><strong>Player standby</strong>Enter Websites to initialise the YouTube player.</div>
-        </div>
-      </div>
-      <form class="youtube-controls" id="youtube-form">
-        <label for="youtube-url">YouTube video URL or 11-character video ID</label>
-        <input id="youtube-url" name="youtube-url" type="text" value="M7lc1UVf-VE" autocomplete="off" spellcheck="false" placeholder="https://youtu.be/...">
-        <button type="submit">Load video</button>
-      </form>
-      <p class="youtube-help" id="youtube-help">Embedded videos may be unavailable when a creator disables embedding, YouTube is unavailable, or the Websites channel is interrupted.</p>
     </section>
   </main>
 
-  <section class="websites-warning" id="websites-warning" role="alertdialog" aria-modal="true" aria-labelledby="websites-warning-title" aria-describedby="websites-warning-copy">
+  <section class="app-warning" id="app-warning" hidden role="dialog" aria-modal="true" aria-labelledby="warning-title" aria-describedby="warning-copy">
     <div class="warning-card">
-      <span class="warning-chip">Websites / limited support</span>
-      <h2 id="websites-warning-title">This channel may be unstable.</h2>
-      <p id="websites-warning-copy">Websites may not work or may crash at any given moment. We do our best to resolve issues, but Websites are lower priority than Games, so updates can take longer to ship.</p>
-      <p class="warning-note">Continue only if you are comfortable with interrupted access or player errors.</p>
-      <div class="warning-actions">
-        <a href="games.html">Return to Games</a>
-        <button type="button" id="enter-websites">I understand · Enter Websites</button>
-      </div>
+      <p class="warning-label">Website app note</p>
+      <h2 id="warning-title">YouTube may not always work.</h2>
+      <p id="warning-copy">Website apps can fail or stop working at any time. We fix issues when we can, but Games are the priority, so Websites updates may take longer.</p>
+      <p class="warning-note">Search results can be opened on YouTube if a video does not allow embedded playback.</p>
+      <div class="warning-actions"><button id="cancel-warning" type="button">Cancel</button><button id="enter-youtube" type="button">Open YouTube</button></div>
     </div>
   </section>
 
-  <footer class="site-footer">
-    <div class="footer-inner">
-      <div class="footer-brand">
-        <a href="index.html" class="logo-small">FLUX</a>
-      </div>
-    </div>
-    <small class="copyright">Flux © <span id="year"></span></small>
-  </footer>
+  <footer class="site-footer"><div class="footer-inner"><div class="footer-brand"><a href="index.html" class="logo-small">FLUX</a></div></div><small class="copyright">Flux © <span id="year"></span></small></footer>
 
+  <script src="youtube-config.js"></script>
   <script type="module" src="script.js"></script>
-
   <script>
-    // Websites channel gate + official YouTube IFrame Player API integration.
+    // Compact app launcher + YouTube IFrame Player API and Data API search.
     (function () {
-      const DEFAULT_VIDEO_ID = 'M7lc1UVf-VE';
-      const warning = document.getElementById('websites-warning');
-      const content = document.getElementById('websites-content');
-      const enterButton = document.getElementById('enter-websites');
-      const form = document.getElementById('youtube-form');
-      const input = document.getElementById('youtube-url');
-      const state = document.getElementById('player-state');
-      const help = document.getElementById('youtube-help');
+      const launcher = document.getElementById('open-youtube');
+      const workspace = document.getElementById('youtube-workspace');
+      const closeButton = document.getElementById('close-youtube');
+      const warning = document.getElementById('app-warning');
+      const cancelWarning = document.getElementById('cancel-warning');
+      const enterYoutube = document.getElementById('enter-youtube');
+      const playerState = document.getElementById('player-state');
+      const playerStatus = document.getElementById('player-status');
+      const playerLink = document.getElementById('current-video-link');
+      const searchForm = document.getElementById('search-form');
+      const searchQuery = document.getElementById('search-query');
+      const searchState = document.getElementById('search-state');
+      const searchResults = document.getElementById('search-results');
+      const pasteForm = document.getElementById('paste-form');
+      const videoInput = document.getElementById('youtube-url');
+      const API_KEY = String(window.FLUX_YOUTUBE_API_KEY || '').trim();
       let player;
-      let apiPromise;
+      let playerApiPromise;
 
-      function showState(title, detail) {
-        state.hidden = false;
-        state.innerHTML = '<div><strong>' + title + '</strong>' + detail + '</div>';
-      }
-
-      function hideState() { state.hidden = true; }
+      function setPlayerState(title, detail) { playerState.hidden = false; playerState.innerHTML = '<div><strong>' + title + '</strong>' + detail + '</div>'; }
+      function clearPlayerState() { playerState.hidden = true; }
+      function videoUrl(id) { return 'https://www.youtube.com/watch?v=' + encodeURIComponent(id); }
 
       function extractVideoId(value) {
         const raw = value.trim();
@@ -205,87 +210,87 @@
         try {
           const url = new URL(raw);
           const host = url.hostname.replace(/^www\./, '').replace(/^m\./, '');
-          const match = host === 'youtu.be'
-            ? url.pathname.slice(1).split('/')[0]
-            : url.searchParams.get('v') || (url.pathname.match(/\/(?:embed|shorts|live)\/([A-Za-z0-9_-]{11})/) || [])[1];
-          return match && /^[A-Za-z0-9_-]{11}$/.test(match) ? match : null;
-        } catch (error) {
-          return null;
-        }
+          const id = host === 'youtu.be' ? url.pathname.slice(1).split('/')[0] : (url.searchParams.get('v') || (url.pathname.match(/\/(?:embed|shorts|live)\/([A-Za-z0-9_-]{11})/) || [])[1]);
+          return id && /^[A-Za-z0-9_-]{11}$/.test(id) ? id : null;
+        } catch (error) { return null; }
       }
 
-      function loadApi() {
+      function loadPlayerApi() {
         if (window.YT && window.YT.Player) return Promise.resolve();
-        if (apiPromise) return apiPromise;
-        apiPromise = new Promise(function (resolve, reject) {
-          const previous = window.onYouTubeIframeAPIReady;
-          window.onYouTubeIframeAPIReady = function () {
-            if (typeof previous === 'function') previous();
-            resolve();
-          };
+        if (playerApiPromise) return playerApiPromise;
+        playerApiPromise = new Promise(function (resolve, reject) {
+          const oldReady = window.onYouTubeIframeAPIReady;
+          window.onYouTubeIframeAPIReady = function () { if (typeof oldReady === 'function') oldReady(); resolve(); };
           const script = document.createElement('script');
-          script.src = 'https://www.youtube.com/iframe_api';
-          script.async = true;
-          script.onerror = function () { reject(new Error('YouTube IFrame Player API did not load.')); };
+          script.src = 'https://www.youtube.com/iframe_api'; script.async = true;
+          script.onerror = function () { reject(new Error('YouTube player API failed to load.')); };
           document.head.appendChild(script);
         });
-        return apiPromise;
+        return playerApiPromise;
       }
 
-      function createPlayer(videoId) {
-        showState('Connecting player', 'Loading YouTube’s official player API.');
-        loadApi().then(function () {
+      function loadVideo(videoId) {
+        setPlayerState('Loading video', 'Connecting to YouTube.');
+        playerStatus.textContent = 'Loading';
+        playerLink.href = videoUrl(videoId); playerLink.textContent = 'Open video on YouTube ↗';
+        if (player && typeof player.cueVideoById === 'function') { player.cueVideoById(videoId); clearPlayerState(); playerStatus.textContent = 'Ready'; return; }
+        loadPlayerApi().then(function () {
           player = new window.YT.Player('youtube-player', {
             width: '100%', height: '100%', videoId: videoId,
             playerVars: { autoplay: 0, controls: 1, playsinline: 1, rel: 0, modestbranding: 1, origin: window.location.origin },
             events: {
-              onReady: function () { hideState(); help.textContent = 'Player ready. Paste another YouTube URL or video ID to change the video.'; },
-              onError: function () { showState('Player unavailable', 'This video may block embedding, or YouTube may be temporarily unavailable.'); }
+              onReady: function () { clearPlayerState(); playerStatus.textContent = 'Ready'; },
+              onError: function () { setPlayerState('Cannot play this video', 'It may block embedded playback. Open it on YouTube instead.'); playerStatus.textContent = 'Unavailable'; }
             }
           });
-        }).catch(function () {
-          showState('Player unavailable', 'The YouTube player API could not be loaded. Please try again later.');
+        }).catch(function () { setPlayerState('Player unavailable', 'The YouTube player API could not load. Try again later.'); playerStatus.textContent = 'Unavailable'; });
+      }
+
+      function copyUrl(url, trigger) {
+        const done = function () { const old = trigger.textContent; trigger.textContent = 'Copied'; setTimeout(function () { trigger.textContent = old; }, 1300); };
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done).catch(function () { window.prompt('Copy this URL', url); });
+        else window.prompt('Copy this URL', url);
+      }
+
+      function renderResults(items) {
+        searchResults.innerHTML = '';
+        items.forEach(function (item) {
+          const id = item.id && item.id.videoId;
+          if (!id) return;
+          const snippet = item.snippet || {}; const url = videoUrl(id);
+          const article = document.createElement('article'); article.className = 'search-result';
+          const image = document.createElement('img'); image.src = (snippet.thumbnails && (snippet.thumbnails.medium || snippet.thumbnails.default || snippet.thumbnails.high) || {}).url || ''; image.alt = ''; article.appendChild(image);
+          const info = document.createElement('div'); info.className = 'search-result-info';
+          const title = document.createElement('h3'); title.textContent = snippet.title || 'Untitled video'; info.appendChild(title);
+          const channel = document.createElement('p'); channel.textContent = snippet.channelTitle || 'YouTube'; info.appendChild(channel);
+          const actions = document.createElement('div'); actions.className = 'result-actions';
+          const play = document.createElement('button'); play.type = 'button'; play.textContent = 'Play'; play.addEventListener('click', function () { videoInput.value = url; loadVideo(id); });
+          const copy = document.createElement('button'); copy.type = 'button'; copy.textContent = 'Copy URL'; copy.addEventListener('click', function () { copyUrl(url, copy); });
+          const open = document.createElement('a'); open.href = url; open.target = '_blank'; open.rel = 'noopener'; open.textContent = 'Open ↗';
+          actions.append(play, copy, open); info.appendChild(actions); article.appendChild(info); searchResults.appendChild(article);
         });
       }
 
-      enterButton.addEventListener('click', function () {
-        warning.hidden = true;
-        content.setAttribute('aria-hidden', 'false');
-        createPlayer(DEFAULT_VIDEO_ID);
-      });
+      async function searchYoutube(query) {
+        if (!API_KEY) { searchState.textContent = 'Add a restricted YouTube Data API key to youtube-config.js, then reload this page.'; return; }
+        searchState.textContent = 'Searching…'; searchResults.innerHTML = '';
+        const url = new URL('https://www.googleapis.com/youtube/v3/search');
+        url.search = new URLSearchParams({ part: 'snippet', type: 'video', q: query, maxResults: '12', safeSearch: 'moderate', videoEmbeddable: 'true', key: API_KEY }).toString();
+        try {
+          const response = await fetch(url.toString()); const data = await response.json();
+          if (!response.ok) throw new Error((data.error && data.error.message) || 'Search request failed.');
+          const items = data.items || []; renderResults(items); searchState.textContent = items.length ? items.length + ' results. Each result has a playable video and a direct YouTube URL.' : 'No videos found.';
+        } catch (error) { searchState.textContent = error.message || 'Search is unavailable.'; }
+      }
 
-      form.addEventListener('submit', function (event) {
-        event.preventDefault();
-        const videoId = extractVideoId(input.value);
-        if (!videoId) {
-          help.textContent = 'Enter a valid YouTube URL or an 11-character video ID.';
-          input.focus();
-          return;
-        }
-        help.textContent = 'Loading selected video…';
-        if (player && typeof player.cueVideoById === 'function') {
-          player.cueVideoById(videoId);
-          hideState();
-          help.textContent = 'Video loaded. Press play in the YouTube player when ready.';
-        } else {
-          createPlayer(videoId);
-        }
-      });
-
-      enterButton.focus();
+      launcher.addEventListener('click', function () { warning.hidden = false; cancelWarning.focus(); });
+      cancelWarning.addEventListener('click', function () { warning.hidden = true; launcher.focus(); });
+      enterYoutube.addEventListener('click', function () { warning.hidden = true; workspace.hidden = false; launcher.setAttribute('aria-expanded', 'true'); workspace.scrollIntoView({ behavior: 'smooth', block: 'start' }); searchQuery.focus(); });
+      closeButton.addEventListener('click', function () { workspace.hidden = true; launcher.setAttribute('aria-expanded', 'false'); launcher.focus(); });
+      searchForm.addEventListener('submit', function (event) { event.preventDefault(); const query = searchQuery.value.trim(); if (!query) { searchState.textContent = 'Enter a search term.'; searchQuery.focus(); return; } searchYoutube(query); });
+      pasteForm.addEventListener('submit', function (event) { event.preventDefault(); const id = extractVideoId(videoInput.value); if (!id) { setPlayerState('Invalid video link', 'Paste a YouTube URL or an 11-character video ID.'); return; } loadVideo(id); });
     })();
   </script>
-
-  <script>
-    window.addEventListener('load', () => {
-      setTimeout(() => {
-        const loader = document.getElementById('global-page-loader');
-        if (loader) {
-          loader.style.opacity = '0';
-          setTimeout(() => loader.remove(), 400);
-        }
-      }, 400);
-    });
-  </script>
+  <script>window.addEventListener('load', function () { setTimeout(function () { const loader = document.getElementById('global-page-loader'); if (loader) { loader.style.opacity = '0'; setTimeout(function () { loader.remove(); }, 400); } }, 400); });</script>
 </body>
 </html>
