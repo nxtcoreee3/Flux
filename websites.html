@@ -2,12 +2,11 @@
 <html lang="en">
 <head>
   <script>
-    // Dynamic base keeps asset paths valid on both the project root and /Flux.
+    // Keep asset paths valid on the root site and under /Flux.
     (function () {
       var path = window.location.pathname;
-      var subpathMatch = path.match(/^(\/Flux)(\/|$)/i);
-      var base = subpathMatch ? subpathMatch[1] + '/' : (path.substring(0, path.lastIndexOf('/') + 1) || '/');
-      document.write('<base href="' + base + '">');
+      var match = path.match(/^(\/Flux)(\/|$)/i);
+      document.write('<base href="' + (match ? match[1] + '/' : (path.substring(0, path.lastIndexOf('/') + 1) || '/')) + '">');
     })();
   </script>
   <script>
@@ -30,39 +29,40 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Flux">
   <style>
-    /* Websites uses the same catalog vocabulary as Games: sections, grid cards, card images, and a modal launch surface. */
-    .website-badge { display:inline-flex;align-items:center;gap:4px;background:rgba(224,54,48,.11);color:#d92e29;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;border:1px solid rgba(224,54,48,.2); }
-    html.dark .website-badge, html.beta .website-badge { color:#ff8b84;border-color:rgba(255,139,132,.24);background:rgba(224,54,48,.14); }
+    /* Websites follows the established Games catalogue language: grid cards, thumbnail covers, card metadata, and a contained launch modal. */
+    .website-badge { display:inline-flex;align-items:center;gap:4px;background:rgba(58,125,255,.1);color:var(--accent);font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;border:1px solid rgba(58,125,255,.2); }
     .website-empty { grid-column:1/-1;padding:26px 0;color:var(--muted);font-size:13px;text-align:center; }
     .website-modal { position:fixed;inset:0;z-index:10000001;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(5,7,12,.72);backdrop-filter:blur(7px); }
     .website-modal.open { display:flex; }
     .website-modal-panel { width:min(1120px,100%);max-height:min(760px,calc(100vh - 40px));overflow:auto;border-radius:18px;background:var(--panel);border:1px solid var(--glass-border);box-shadow:0 24px 90px rgba(0,0,0,.4); }
     .website-modal-header { display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 18px;border-bottom:1px solid var(--glass-border); }
     .website-modal-title { display:flex;align-items:center;gap:10px;min-width:0; }
-    .website-modal-title img { width:34px;height:34px;border-radius:8px;object-fit:cover; }
+    .website-modal-title img { width:34px;height:34px;border-radius:8px;object-fit:cover;background:var(--bg); }
     .website-modal-title strong { display:block;font-size:15px;color:var(--text); }
     .website-modal-title span { display:block;margin-top:1px;font-size:11px;color:var(--muted); }
     .website-close { background:none;border:1px solid var(--glass-border);border-radius:8px;padding:7px 11px;color:var(--text);font:inherit;font-size:12px;font-weight:700;cursor:pointer; }
     .website-close:hover { border-color:var(--accent);color:var(--accent); }
     .website-modal-body { display:grid;grid-template-columns:minmax(0,1.35fr) minmax(310px,.85fr); }
     .website-player-column { border-right:1px solid var(--glass-border); }
-    .youtube-stage { position:relative;min-height:320px;background:#080a0f; }
-    #youtube-player { width:100%;min-height:320px;aspect-ratio:16/9; }
-    .player-state { position:absolute;inset:0;display:grid;place-items:center;padding:24px;text-align:center;color:#b7c0ce;font-size:13px;line-height:1.55; }
+    .embed-stage { position:relative;min-height:320px;background:#080a0f;display:flex;align-items:center;justify-content:center; }
+    #app-embed { width:100%;min-height:320px;display:flex;align-items:center;justify-content:center; }
+    #app-embed iframe { width:100%;height:100%;min-height:320px;border:0; }
+    .player-state { position:absolute;inset:0;display:grid;place-items:center;padding:24px;text-align:center;color:#b7c0ce;font-size:13px;line-height:1.55;pointer-events:none; }
     .player-state[hidden] { display:none; }
     .player-state strong { display:block;margin-bottom:5px;color:#fff; }
     .player-footer { display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 14px;border-top:1px solid var(--glass-border);font-size:11px;color:var(--muted); }
     .player-footer a { color:var(--accent);text-decoration:none;font-weight:700; }
     .player-footer a:hover { text-decoration:underline; }
-    .youtube-tools { padding:18px; }
-    .youtube-tools h2 { margin:0;font-family:'Bebas Neue',sans-serif;font-size:30px;line-height:1;color:var(--text); }
-    .youtube-tools > p { margin:6px 0 18px;color:var(--muted);font-size:12px;line-height:1.5; }
-    .youtube-paste-form { display:grid;grid-template-columns:1fr auto;gap:8px; }
-    .youtube-paste-form input { min-width:0;border:1px solid var(--glass-border);border-radius:9px;background:var(--input-bg);padding:10px 11px;color:var(--text);font:inherit;font-size:12px; }
-    .youtube-paste-form input:focus { outline:2px solid color-mix(in srgb,var(--accent) 40%,transparent);border-color:var(--accent); }
-    .youtube-paste-form button { border:0;border-radius:9px;background:var(--accent);padding:0 13px;color:#fff;font:inherit;font-size:12px;font-weight:700;cursor:pointer; }
-    .youtube-paste-form button:hover { opacity:.9; }
-    .youtube-note { margin:8px 0 0;color:var(--muted);font-size:11px;line-height:1.45; }
+    .app-tools { padding:18px; }
+    .app-tools h2 { margin:0;font-family:'Bebas Neue',sans-serif;font-size:30px;line-height:1;color:var(--text); }
+    .app-tools > p { margin:6px 0 18px;color:var(--muted);font-size:12px;line-height:1.5; }
+    .app-tools label { display:block;margin-bottom:7px;color:var(--muted);font-size:11px;font-weight:700; }
+    .app-url-form { display:grid;grid-template-columns:1fr auto;gap:8px; }
+    .app-url-form input { min-width:0;border:1px solid var(--glass-border);border-radius:9px;background:var(--input-bg);padding:10px 11px;color:var(--text);font:inherit;font-size:12px; }
+    .app-url-form input:focus { outline:2px solid color-mix(in srgb,var(--accent) 40%,transparent);border-color:var(--accent); }
+    .app-url-form button { border:0;border-radius:9px;background:var(--accent);padding:0 13px;color:#fff;font:inherit;font-size:12px;font-weight:700;cursor:pointer; }
+    .app-url-form button:hover { opacity:.9; }
+    .app-note { margin:12px 0 0;color:var(--muted);font-size:11px;line-height:1.45; }
     .website-warning { position:fixed;z-index:10000002;inset:0;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(5,7,12,.76);backdrop-filter:blur(7px); }
     .website-warning.open { display:flex; }
     .website-warning-card { width:min(100%,510px);border:1px solid rgba(245,158,11,.38);border-radius:16px;background:var(--panel);box-shadow:0 24px 80px rgba(0,0,0,.42);padding:24px; }
@@ -74,8 +74,8 @@
     .website-warning-actions button { border-radius:8px;padding:10px 12px;font:inherit;font-size:12px;font-weight:700;cursor:pointer; }
     #website-warning-cancel { border:1px solid var(--glass-border);background:transparent;color:var(--text); }
     #website-warning-open { border:0;background:var(--accent);color:#fff; }
-    @media (max-width:780px) { .website-modal { padding:0;align-items:flex-end; } .website-modal-panel { max-height:94vh;border-radius:18px 18px 0 0; } .website-modal-body { grid-template-columns:1fr; } .website-player-column { border-right:0;border-bottom:1px solid var(--glass-border); } .youtube-stage,#youtube-player { min-height:220px; } }
-    @media (max-width:440px) { .youtube-paste-form { grid-template-columns:1fr; } .youtube-paste-form button { min-height:39px; } }
+    @media (max-width:780px) { .website-modal { padding:0;align-items:flex-end; } .website-modal-panel { max-height:94vh;border-radius:18px 18px 0 0; } .website-modal-body { grid-template-columns:1fr; } .website-player-column { border-right:0;border-bottom:1px solid var(--glass-border); } .embed-stage,#app-embed,#app-embed iframe { min-height:220px; } }
+    @media (max-width:440px) { .app-url-form { grid-template-columns:1fr; } .app-url-form button { min-height:39px; } }
   </style>
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9156385751718783" crossorigin="anonymous"></script>
 </head>
@@ -88,40 +88,26 @@
   </header>
 
   <main class="games-page websites-catalog">
-    <section class="section" id="website-recent-section" style="display:none;">
-      <div class="section-head"><h2>Recently Opened</h2></div>
-      <div id="website-recent-grid" class="grid"></div>
-    </section>
-    <section class="section">
-      <div class="section-head">
-        <h2>All Websites</h2>
-        <div class="controls"><input id="websites-search" type="search" placeholder="Search websites..." aria-label="Search websites"><select id="websites-sort" aria-label="Sort websites"><option value="featured">Featured</option><option value="alpha">A → Z</option><option value="recent">Recently added</option></select></div>
-      </div>
-      <div id="websites-grid" class="grid"></div>
-    </section>
+    <section class="section" id="website-recent-section" style="display:none;"><div class="section-head"><h2>Recently Opened</h2></div><div id="website-recent-grid" class="grid"></div></section>
+    <section class="section"><div class="section-head"><h2>All Websites</h2><div class="controls"><input id="websites-search" type="search" placeholder="Search websites..." aria-label="Search websites"><select id="websites-sort" aria-label="Sort websites"><option value="featured">Featured</option><option value="alpha">A → Z</option><option value="recent">Recently added</option></select></div></div><div id="websites-grid" class="grid"></div></section>
   </main>
 
-  <div class="website-warning" id="website-warning" role="dialog" aria-modal="true" aria-labelledby="website-warning-title" aria-describedby="website-warning-copy">
-    <div class="website-warning-card"><p class="website-warning-label">Website app notice</p><h2 id="website-warning-title">YouTube may be unstable.</h2><p id="website-warning-copy">Website apps can fail or crash at any time. We fix issues when we can, but Games are the priority, so updates may take longer.</p><div class="website-warning-actions"><button type="button" id="website-warning-cancel">Cancel</button><button type="button" id="website-warning-open">Open YouTube</button></div></div>
-  </div>
+  <div class="website-warning" id="website-warning" role="dialog" aria-modal="true" aria-labelledby="website-warning-title" aria-describedby="website-warning-copy"><div class="website-warning-card"><p class="website-warning-label">Website app notice</p><h2 id="website-warning-title">This app may be unstable.</h2><p id="website-warning-copy">Website apps can fail or crash at any time. We fix issues when we can, but Games are the priority, so updates may take longer.</p><div class="website-warning-actions"><button type="button" id="website-warning-cancel">Cancel</button><button type="button" id="website-warning-open">Open app</button></div></div></div>
 
-  <div class="website-modal" id="website-modal" role="dialog" aria-modal="true" aria-labelledby="website-modal-title">
-    <div class="website-modal-panel">
-      <div class="website-modal-header"><div class="website-modal-title"><img src="assets/youtube.png" alt=""><span><strong id="website-modal-title">YouTube</strong><span>Search and play videos</span></span></div><button class="website-close" id="website-close" type="button">✕ Close</button></div>
-      <div class="website-modal-body">
-        <div class="website-player-column"><div class="youtube-stage"><div id="youtube-player" aria-label="YouTube player"></div><div class="player-state" id="player-state"><div><strong>No video selected</strong>Paste a YouTube URL or video ID to play it here.</div></div></div><div class="player-footer"><span id="player-status">Player idle</span><a id="current-video-link" href="https://developers.google.com/youtube/iframe_api_reference" target="_blank" rel="noopener">Player API reference ↗</a></div></div>
-        <aside class="youtube-tools"><h2>Play a video</h2><p>Paste a YouTube link or a video ID. You can open the loaded video on YouTube from the player footer.</p><label for="youtube-url" style="display:block;margin-bottom:7px;color:var(--muted);font-size:11px;font-weight:700;">YouTube URL or video ID</label><form class="youtube-paste-form" id="youtube-paste-form"><input id="youtube-url" type="text" placeholder="https://youtu.be/..." autocomplete="off" spellcheck="false"><button type="submit">Play</button></form><p class="youtube-note">If a video cannot be embedded, use its YouTube link instead.</p></aside>
-      </div>
-    </div>
-  </div>
+  <div class="website-modal" id="website-modal" role="dialog" aria-modal="true" aria-labelledby="website-modal-title"><div class="website-modal-panel"><div class="website-modal-header"><div class="website-modal-title"><img id="modal-cover" src="assets/youtube.png" alt=""><span><strong id="website-modal-title">YouTube</strong><span id="website-modal-subtitle">Play a pasted video</span></span></div><button class="website-close" id="website-close" type="button">✕ Close</button></div><div class="website-modal-body"><div class="website-player-column"><div class="embed-stage"><div id="app-embed"></div><div class="player-state" id="player-state"><div><strong>No content loaded</strong>Paste a supported link to open it here.</div></div></div><div class="player-footer"><span id="player-status">Player idle</span><a id="current-app-link" href="https://developers.google.com/youtube/iframe_api_reference" target="_blank" rel="noopener">Open official site ↗</a></div></div><aside class="app-tools"><h2 id="app-tools-title">Play a video</h2><p id="app-tools-copy">Paste a YouTube link or video ID to play it here.</p><label for="app-url" id="app-url-label">YouTube URL or video ID</label><form class="app-url-form" id="app-url-form"><input id="app-url" type="text" placeholder="https://youtu.be/..." autocomplete="off" spellcheck="false"><button type="submit" id="app-load-button">Play</button></form><p class="app-note" id="app-note">If a video cannot be embedded, use the official link instead.</p></aside></div></div></div>
 
   <footer class="site-footer"><div class="footer-inner"><div class="footer-brand"><a href="index.html" class="logo-small">FLUX</a><p>Curated links • Built by <a href="https://github.com/nxtcoreee3" target="_blank" rel="noopener">nxtcoreee3</a></p></div><div class="footer-links"><a href="index.html">Home</a><a href="info.html">Info</a></div></div><small class="copyright">Flux © <span id="year2"></span></small></footer>
 
   <script type="module" src="script.js"></script>
   <script>
-    // Websites catalog: same grid/card pattern as Games, scoped to website apps.
+    // Website apps share the Games catalogue structure but use official embed endpoints for their individual content types.
     (function () {
-      const WEBSITES = [{ id:'youtube', title:'YouTube', thumb:'assets/youtube.png', desc:'Search and play YouTube videos', tag:'Video app' }];
+      const WEBSITES = [
+        { id:'youtube', title:'YouTube', thumb:'assets/youtube.png', desc:'Play a pasted YouTube video', tag:'Video', subtitle:'Play a pasted video', heading:'Play a video', helper:'Paste a YouTube link or video ID to play it here.', label:'YouTube URL or video ID', placeholder:'https://youtu.be/...', action:'Play', note:'If a video cannot be embedded, use the official link instead.' },
+        { id:'twitch', title:'Twitch', thumb:'assets/twitch.png', desc:'Watch a channel, VOD, or clip', tag:'Live', subtitle:'Official Twitch player', heading:'Watch Twitch', helper:'Paste a full Twitch channel, VOD, or clip URL.', label:'Twitch URL', placeholder:'https://www.twitch.tv/channel', action:'Open', note:'Twitch embeds require a full public Twitch URL and may block unavailable content.' },
+        { id:'spotify', title:'Spotify', thumb:'assets/spotify.png', desc:'Listen to a track, album, or playlist', tag:'Music', subtitle:'Official Spotify embed', heading:'Listen on Spotify', helper:'Paste a Spotify track, album, artist, playlist, show, or episode URL.', label:'Spotify URL', placeholder:'https://open.spotify.com/track/...', action:'Open', note:'Playback availability depends on Spotify and the linked content.' },
+        { id:'tiktok', title:'TikTok', thumb:'assets/tiktok.png', desc:'Play a public TikTok video', tag:'Short video', subtitle:'Official TikTok player', heading:'Play TikTok', helper:'Paste a full public TikTok video URL.', label:'TikTok video URL', placeholder:'https://www.tiktok.com/@user/video/...', action:'Open', note:'Use a full TikTok post URL, not a shortened share link.' }
+      ];
       const RECENT_KEY = 'flux_recent_websites';
       const searchInput = document.getElementById('websites-search');
       const sortSelect = document.getElementById('websites-sort');
@@ -133,42 +119,62 @@
       const warningOpen = document.getElementById('website-warning-open');
       const modal = document.getElementById('website-modal');
       const closeButton = document.getElementById('website-close');
+      const modalCover = document.getElementById('modal-cover');
+      const modalTitle = document.getElementById('website-modal-title');
+      const modalSubtitle = document.getElementById('website-modal-subtitle');
+      const toolsTitle = document.getElementById('app-tools-title');
+      const toolsCopy = document.getElementById('app-tools-copy');
+      const urlLabel = document.getElementById('app-url-label');
+      const urlForm = document.getElementById('app-url-form');
+      const urlInput = document.getElementById('app-url');
+      const loadButton = document.getElementById('app-load-button');
+      const note = document.getElementById('app-note');
+      const embedHost = document.getElementById('app-embed');
       const playerState = document.getElementById('player-state');
       const playerStatus = document.getElementById('player-status');
-      const playerLink = document.getElementById('current-video-link');
-      const pasteForm = document.getElementById('youtube-paste-form');
-      const videoInput = document.getElementById('youtube-url');
-      let player;
-      let playerApiPromise;
-      let pendingWebsite;
+      const externalLink = document.getElementById('current-app-link');
+      let activeSite;
+      let pendingSite;
+      let youtubePlayer;
+      let youtubeApiPromise;
 
+      function fallbackCover(site) {
+        const colors = { youtube:'#e03630', twitch:'#6441a5', spotify:'#1db954', tiktok:'#111111' };
+        return 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450"><rect width="100%" height="100%" fill="' + colors[site.id] + '"/><text x="50%" y="54%" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="82" font-weight="700">' + site.title + '</text></svg>');
+      }
+      function setCover(image, site) { image.onerror = function () { image.onerror = null; image.src = fallbackCover(site); }; image.src = site.thumb; }
       function loadRecent() { try { return JSON.parse(localStorage.getItem(RECENT_KEY)) || []; } catch (e) { return []; } }
       function addRecent(id) { const next = [id].concat(loadRecent().filter(function (item) { return item !== id; })).slice(0, 6); localStorage.setItem(RECENT_KEY, JSON.stringify(next)); }
-      function setPlayerState(title, detail) { playerState.hidden = false; playerState.innerHTML = '<div><strong>' + title + '</strong>' + detail + '</div>'; }
-      function clearPlayerState() { playerState.hidden = true; }
-      function videoUrl(id) { return 'https://www.youtube.com/watch?v=' + encodeURIComponent(id); }
-
+      function showState(title, detail) { playerState.hidden = false; playerState.innerHTML = '<div><strong>' + title + '</strong>' + detail + '</div>'; }
+      function hideState() { playerState.hidden = true; }
+      function resetEmbed() { youtubePlayer = null; embedHost.innerHTML = ''; }
       function createWebsiteCard(site) {
         const card = document.createElement('article'); card.className = 'card'; card.dataset.id = site.id;
-        card.innerHTML = '<img class="thumb" src="' + site.thumb + '" alt="' + site.title + ' thumbnail" loading="lazy"><div class="card-body" style="cursor:pointer" title="Open app"><h3 class="title">' + site.title + '</h3><div class="meta">' + site.desc + '</div><div style="display:flex;align-items:center;gap:6px;margin-top:4px"><span class="website-badge">◉ ' + site.tag + '</span></div></div><div class="card-foot"><span style="font-size:11px;color:var(--muted)">Website</span><button class="play-btn" type="button">Open</button></div>';
+        card.innerHTML = '<img class="thumb" alt="' + site.title + ' cover" loading="lazy"><div class="card-body" style="cursor:pointer" title="Open app"><h3 class="title">' + site.title + '</h3><div class="meta">' + site.desc + '</div><div style="display:flex;align-items:center;gap:6px;margin-top:4px"><span class="website-badge">◉ ' + site.tag + '</span></div></div><div class="card-foot"><span style="font-size:11px;color:var(--muted)">Website</span><button class="play-btn" type="button">Open</button></div>';
+        setCover(card.querySelector('.thumb'), site);
         card.querySelector('.card-body').addEventListener('click', function () { requestOpen(site); });
         card.querySelector('.play-btn').addEventListener('click', function (event) { event.stopPropagation(); requestOpen(site); });
         return card;
       }
-
       function renderWebsites(list) { grid.innerHTML = ''; if (!list.length) { grid.innerHTML = '<p class="website-empty">No websites found.</p>'; return; } list.forEach(function (site) { grid.appendChild(createWebsiteCard(site)); }); }
       function renderRecent() { const recentSites = loadRecent().map(function (id) { return WEBSITES.find(function (site) { return site.id === id; }); }).filter(Boolean); recentGrid.innerHTML = ''; if (!recentSites.length) { recentSection.style.display = 'none'; return; } recentSites.forEach(function (site) { recentGrid.appendChild(createWebsiteCard(site)); }); recentSection.style.display = ''; }
-      function applyFilters() { const query = searchInput.value.toLowerCase().trim(); const sort = sortSelect.value; let list = WEBSITES.slice(); if (query) list = list.filter(function (site) { return site.title.toLowerCase().includes(query) || site.desc.toLowerCase().includes(query); }); if (sort === 'alpha') list.sort(function (a,b) { return a.title.localeCompare(b.title); }); else if (sort === 'recent') list = list.reverse(); renderWebsites(list); }
+      function applyFilters() { const query = searchInput.value.toLowerCase().trim(); let list = WEBSITES.slice(); if (query) list = list.filter(function (site) { return site.title.toLowerCase().includes(query) || site.desc.toLowerCase().includes(query); }); if (sortSelect.value === 'alpha') list.sort(function (a,b) { return a.title.localeCompare(b.title); }); else if (sortSelect.value === 'recent') list = list.reverse(); renderWebsites(list); }
       function debounce(fn, wait) { let timer; return function () { clearTimeout(timer); timer = setTimeout(fn, wait); }; }
-
-      function requestOpen(site) { pendingWebsite = site; warning.classList.add('open'); warningOpen.focus(); }
-      function openWebsite() { warning.classList.remove('open'); if (!pendingWebsite) return; addRecent(pendingWebsite.id); renderRecent(); modal.classList.add('open'); document.body.style.overflow = 'hidden'; searchField.focus(); }
-      function closeWebsite() { modal.classList.remove('open'); document.body.style.overflow = ''; }
-
-      function extractVideoId(value) { const raw = value.trim(); if (/^[A-Za-z0-9_-]{11}$/.test(raw)) return raw; try { const url = new URL(raw); const host = url.hostname.replace(/^www\./,'').replace(/^m\./,''); const id = host === 'youtu.be' ? url.pathname.slice(1).split('/')[0] : (url.searchParams.get('v') || (url.pathname.match(/\/(?:embed|shorts|live)\/([A-Za-z0-9_-]{11})/) || [])[1]); return id && /^[A-Za-z0-9_-]{11}$/.test(id) ? id : null; } catch (e) { return null; } }
-      function loadPlayerApi() { if (window.YT && window.YT.Player) return Promise.resolve(); if (playerApiPromise) return playerApiPromise; playerApiPromise = new Promise(function (resolve,reject) { const oldReady = window.onYouTubeIframeAPIReady; window.onYouTubeIframeAPIReady = function () { if (typeof oldReady === 'function') oldReady(); resolve(); }; const script = document.createElement('script'); script.src = 'https://www.youtube.com/iframe_api'; script.async = true; script.onerror = function () { reject(new Error('YouTube player API failed to load.')); }; document.head.appendChild(script); }); return playerApiPromise; }
-      function loadVideo(videoId) { setPlayerState('Loading video','Connecting to YouTube.'); playerStatus.textContent = 'Loading'; playerLink.href = videoUrl(videoId); playerLink.textContent = 'Open video on YouTube ↗'; if (player && typeof player.cueVideoById === 'function') { player.cueVideoById(videoId); clearPlayerState(); playerStatus.textContent = 'Ready'; return; } loadPlayerApi().then(function () { player = new window.YT.Player('youtube-player',{ width:'100%',height:'100%',videoId:videoId,playerVars:{autoplay:0,controls:1,playsinline:1,rel:0,modestbranding:1,origin:window.location.origin},events:{onReady:function(){clearPlayerState();playerStatus.textContent='Ready';},onError:function(){setPlayerState('Cannot play this video','It may block embedded playback. Open it on YouTube instead.');playerStatus.textContent='Unavailable';}}}); }).catch(function(){setPlayerState('Player unavailable','The YouTube player API could not load. Try again later.');playerStatus.textContent='Unavailable';}); }
-      searchInput.addEventListener('input',debounce(applyFilters,150)); sortSelect.addEventListener('change',applyFilters); warningCancel.addEventListener('click',function(){warning.classList.remove('open');}); warningOpen.addEventListener('click',openWebsite); closeButton.addEventListener('click',closeWebsite); modal.addEventListener('click',function(event){if(event.target === modal) closeWebsite();}); pasteForm.addEventListener('submit',function(event){event.preventDefault();const id=extractVideoId(videoInput.value);if(!id){setPlayerState('Invalid video link','Paste a YouTube URL or an 11-character video ID.');return;}loadVideo(id);}); document.addEventListener('keydown',function(event){if(event.key === 'Escape'){if(warning.classList.contains('open')) warning.classList.remove('open');else if(modal.classList.contains('open')) closeWebsite();}});
+      function requestOpen(site) { pendingSite = site; warning.classList.add('open'); warningOpen.focus(); }
+      function openSite() {
+        warning.classList.remove('open'); if (!pendingSite) return; activeSite = pendingSite; addRecent(activeSite.id); renderRecent();
+        setCover(modalCover, activeSite); modalTitle.textContent = activeSite.title; modalSubtitle.textContent = activeSite.subtitle; toolsTitle.textContent = activeSite.heading; toolsCopy.textContent = activeSite.helper; urlLabel.textContent = activeSite.label; urlInput.placeholder = activeSite.placeholder; loadButton.textContent = activeSite.action; note.textContent = activeSite.note; urlInput.value = ''; externalLink.href = activeSite.id === 'youtube' ? 'https://www.youtube.com/' : activeSite.id === 'twitch' ? 'https://www.twitch.tv/' : activeSite.id === 'spotify' ? 'https://open.spotify.com/' : 'https://www.tiktok.com/'; externalLink.textContent = 'Open official site ↗'; playerStatus.textContent = 'Player idle'; resetEmbed(); showState('No content loaded', activeSite.helper); modal.classList.add('open'); document.body.style.overflow = 'hidden'; urlInput.focus();
+      }
+      function closeSite() { modal.classList.remove('open'); document.body.style.overflow = ''; }
+      function makeIframe(src, title) { resetEmbed(); const frame = document.createElement('iframe'); frame.src = src; frame.title = title; frame.allow = 'autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture'; frame.allowFullscreen = true; embedHost.appendChild(frame); hideState(); playerStatus.textContent = 'Ready'; }
+      function extractYouTubeId(value) { const raw = value.trim(); if (/^[A-Za-z0-9_-]{11}$/.test(raw)) return raw; try { const url = new URL(raw); const host = url.hostname.replace(/^www\./,'').replace(/^m\./,''); const id = host === 'youtu.be' ? url.pathname.slice(1).split('/')[0] : (url.searchParams.get('v') || (url.pathname.match(/\/(?:embed|shorts|live)\/([A-Za-z0-9_-]{11})/) || [])[1]); return id && /^[A-Za-z0-9_-]{11}$/.test(id) ? id : null; } catch (e) { return null; } }
+      function loadYoutubeApi() { if (window.YT && window.YT.Player) return Promise.resolve(); if (youtubeApiPromise) return youtubeApiPromise; youtubeApiPromise = new Promise(function (resolve, reject) { const oldReady = window.onYouTubeIframeAPIReady; window.onYouTubeIframeAPIReady = function () { if (typeof oldReady === 'function') oldReady(); resolve(); }; const script = document.createElement('script'); script.src = 'https://www.youtube.com/iframe_api'; script.async = true; script.onerror = function () { reject(new Error('YouTube player API did not load.')); }; document.head.appendChild(script); }); return youtubeApiPromise; }
+      function loadYouTube(videoId) { showState('Loading video','Connecting to YouTube.'); playerStatus.textContent = 'Loading'; externalLink.href = 'https://www.youtube.com/watch?v=' + encodeURIComponent(videoId); externalLink.textContent = 'Open video on YouTube ↗'; if (youtubePlayer && typeof youtubePlayer.cueVideoById === 'function') { youtubePlayer.cueVideoById(videoId); hideState(); playerStatus.textContent = 'Ready'; return; } resetEmbed(); embedHost.innerHTML = '<div id="youtube-player" style="width:100%;min-height:320px"></div>'; loadYoutubeApi().then(function () { youtubePlayer = new window.YT.Player('youtube-player',{width:'100%',height:'100%',videoId:videoId,playerVars:{autoplay:0,controls:1,playsinline:1,rel:0,modestbranding:1,origin:window.location.origin},events:{onReady:function(){hideState();playerStatus.textContent='Ready';},onError:function(){showState('Cannot play this video','It may block embedded playback. Use the YouTube link instead.');playerStatus.textContent='Unavailable';}}}); }).catch(function(){showState('Player unavailable','The YouTube player API could not load.');playerStatus.textContent='Unavailable';}); }
+      function loadTwitch(value) { let url; try { url = new URL(value); } catch (e) { showState('Invalid Twitch link','Paste a full Twitch channel, VOD, or clip URL.'); return; } const host = url.hostname.replace(/^www\./,''); const parts = url.pathname.split('/').filter(Boolean); let source; const parent = window.location.hostname || 'localhost'; if (host === 'clips.twitch.tv' && parts[0]) { source = new URL('https://clips.twitch.tv/embed'); source.searchParams.set('clip', parts[0]); } else if ((host === 'twitch.tv' || host === 'm.twitch.tv') && parts[0] === 'videos' && /^\d+$/.test(parts[1] || '')) { source = new URL('https://player.twitch.tv/'); source.searchParams.set('video', 'v' + parts[1]); } else if ((host === 'twitch.tv' || host === 'm.twitch.tv') && parts[1] === 'clip' && parts[2]) { source = new URL('https://clips.twitch.tv/embed'); source.searchParams.set('clip', parts[2]); } else if ((host === 'twitch.tv' || host === 'm.twitch.tv') && /^[a-z0-9_]+$/i.test(parts[0] || '')) { source = new URL('https://player.twitch.tv/'); source.searchParams.set('channel', parts[0]); } else { showState('Invalid Twitch link','Paste a public Twitch channel, VOD, or clip URL.'); return; } source.searchParams.set('parent', parent); makeIframe(source.toString(), 'Twitch player'); externalLink.href = url.toString(); externalLink.textContent = 'Open on Twitch ↗'; }
+      function loadSpotify(value) { const raw = value.trim(); let type; let id; const uri = raw.match(/^spotify:(track|album|artist|playlist|show|episode):([A-Za-z0-9]+)$/i); if (uri) { type = uri[1].toLowerCase(); id = uri[2]; } else { try { const url = new URL(raw); if (!/(^|\.)open\.spotify\.com$/.test(url.hostname)) throw new Error(); const parts = url.pathname.split('/').filter(Boolean); if (parts[0] === 'embed') parts.shift(); type = (parts[0] || '').toLowerCase(); id = parts[1] || ''; } catch (e) {} } if (!/^(track|album|artist|playlist|show|episode)$/.test(type || '') || !/^[A-Za-z0-9]+$/.test(id || '')) { showState('Invalid Spotify link','Paste a Spotify track, album, artist, playlist, show, or episode URL.'); return; } const source = 'https://open.spotify.com/embed/' + type + '/' + id; makeIframe(source, 'Spotify embed'); externalLink.href = 'https://open.spotify.com/' + type + '/' + id; externalLink.textContent = 'Open in Spotify ↗'; }
+      function loadTikTok(value) { let url; try { url = new URL(value); } catch (e) { showState('Invalid TikTok link','Paste a full public TikTok video URL.'); return; } const match = url.pathname.match(/\/(?:video|player\/v1)\/(\d+)/); if (!/tiktok\.com$/i.test(url.hostname.replace(/^www\./,'')) || !match) { showState('Invalid TikTok link','Paste a full TikTok post URL such as tiktok.com/@user/video/ID.'); return; } const videoId = match[1]; const source = new URL('https://www.tiktok.com/player/v1/' + videoId); source.search = new URLSearchParams({controls:'1',description:'1',music_info:'1'}).toString(); makeIframe(source.toString(), 'TikTok player'); externalLink.href = 'https://www.tiktok.com/@_/video/' + videoId; externalLink.textContent = 'Open on TikTok ↗'; }
+      function loadActiveUrl() { const value = urlInput.value.trim(); if (!value) { showState('Link required', activeSite.helper); urlInput.focus(); return; } if (activeSite.id === 'youtube') { const id = extractYouTubeId(value); if (!id) { showState('Invalid YouTube link','Paste a YouTube URL or 11-character video ID.'); return; } loadYouTube(id); } else if (activeSite.id === 'twitch') loadTwitch(value); else if (activeSite.id === 'spotify') loadSpotify(value); else if (activeSite.id === 'tiktok') loadTikTok(value); }
+      searchInput.addEventListener('input', debounce(applyFilters, 150)); sortSelect.addEventListener('change', applyFilters); warningCancel.addEventListener('click', function () { warning.classList.remove('open'); }); warningOpen.addEventListener('click', openSite); closeButton.addEventListener('click', closeSite); modal.addEventListener('click', function (event) { if (event.target === modal) closeSite(); }); urlForm.addEventListener('submit', function (event) { event.preventDefault(); loadActiveUrl(); }); document.addEventListener('keydown', function (event) { if (event.key === 'Escape') { if (warning.classList.contains('open')) warning.classList.remove('open'); else if (modal.classList.contains('open')) closeSite(); } });
       renderWebsites(WEBSITES); renderRecent();
     })();
   </script>
