@@ -1,5 +1,38 @@
 /* ===================== SETTINGS TUTORIAL ===================== */
-const tutorialSteps = [
+const homeTutorialSteps = [
+  {
+    selector: '#main-nav',
+    eyebrow: '1 of 5 · Navigate Flux',
+    title: 'Everything starts here',
+    body: 'Use the navigation bar to move between Home, Games, Websites, Social, Messages, and more.'
+  },
+  {
+    selector: '#hero-light-title',
+    eyebrow: '2 of 5 · Discover',
+    title: 'Find something fun to play',
+    body: 'Flux is a curated game portal. Browse the featured collection or jump straight to the Games page.'
+  },
+  {
+    selector: '#quick-search',
+    eyebrow: '3 of 5 · Search',
+    title: 'Search the collection quickly',
+    body: 'Type a title or keyword to narrow the featured games and find your next game faster.'
+  },
+  {
+    selector: '#game-grid',
+    eyebrow: '4 of 5 · Play',
+    title: 'Open a game from its card',
+    body: 'Each card includes details, ratings, and a Play button. Games open in Flux’s existing play experience.'
+  },
+  {
+    selector: '.how',
+    eyebrow: '5 of 5 · You’re ready',
+    title: 'Enjoy Flux',
+    body: 'You can revisit this walkthrough from the Help section in Settings whenever you need a refresher.'
+  }
+];
+
+const settingsTutorialSteps = [
   {
     selector: '#game-servers-section',
     eyebrow: '1 of 5 · Game routing',
@@ -32,18 +65,21 @@ const tutorialSteps = [
   }
 ];
 
+const isHomePage = /(?:^|\/)index\.html$/.test(window.location.pathname) || window.location.pathname === '/';
+
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
 function startSettingsTutorial() {
   document.getElementById('flux-settings-tutorial')?.remove();
+  const tutorialSteps = isHomePage ? homeTutorialSteps : settingsTutorialSteps;
   const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   const overlay = document.createElement('div');
   overlay.id = 'flux-settings-tutorial';
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
-  overlay.setAttribute('aria-label', 'Flux Settings tutorial');
+  overlay.setAttribute('aria-label', isHomePage ? 'Flux onboarding' : 'Flux Settings tutorial');
   overlay.innerHTML = `
     <div class="flux-settings-tutorial__backdrop"></div>
     <div class="flux-settings-tutorial__spotlight" aria-hidden="true"></div>
@@ -149,10 +185,18 @@ function startSettingsTutorial() {
 
 window.startFluxTutorial = startSettingsTutorial;
 
-if (new URLSearchParams(window.location.search).get('tutorial') === '1') {
-  const launch = () => setTimeout(startSettingsTutorial, 350);
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', launch, { once: true });
-  else launch();
+const ONBOARDING_SEEN_KEY = 'flux_onboarding_seen_v1';
+
+function launchHomeOnboarding() {
+  if (!isHomePage) return;
+  let alreadySeen = false;
+  try { alreadySeen = localStorage.getItem(ONBOARDING_SEEN_KEY) === '1'; } catch {}
+  if (alreadySeen) return;
+  try { localStorage.setItem(ONBOARDING_SEEN_KEY, '1'); } catch {}
+  setTimeout(startSettingsTutorial, 700);
 }
 
-export { startSettingsTutorial };
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', launchHomeOnboarding, { once: true });
+else launchHomeOnboarding();
+
+export { startSettingsTutorial, launchHomeOnboarding };

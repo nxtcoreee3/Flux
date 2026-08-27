@@ -3469,7 +3469,6 @@ export async function initAuthUI(onUserChange) {
         if (!profile) {
           initProfileSetup((p) => {
             if (p && name) name.textContent = p.displayName || p.username;
-            setTimeout(() => { if (typeof window.startFluxTutorial === 'function') window.startFluxTutorial({ isNew: true }); }, 800);
           });
         } else {
           if (name) name.textContent = profile.displayName || profile.username || user.displayName || user.email;
@@ -3479,7 +3478,6 @@ export async function initAuthUI(onUserChange) {
           if (user.photoURL && user.photoURL !== profile.avatarURL) {
             updateDoc(doc(db, 'profiles', user.uid), { avatarURL: user.photoURL }).catch(() => {});
           }
-          setTimeout(() => { if (typeof window.startFluxTutorial === 'function') window.startFluxTutorial({ isNew: false }); }, 1200);
 
           // Grant mod panel access to users with admin/owner badge or moderator role
           const hasElevatedBadge = (profile.badges || []).some(b => b === 'admin' || b === 'owner');
