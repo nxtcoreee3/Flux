@@ -2422,7 +2422,7 @@ async function showUnlockModal(game, finalPrice, discount, originalPrice) {
   modal.addEventListener('click', e => { if (e.target === modal) close(); });
   document.getElementById('unlock-confirm-btn')?.addEventListener('click', async () => {
     const btn = document.getElementById('unlock-confirm-btn'); btn.textContent = 'Unlocking...'; btn.disabled = true;
-    const res = await unlockGame(game.id, finalPrice);
+    const res = await unlockGame(game.id, finalPrice, game.title);
     const msg = document.getElementById('unlock-msg'); msg.style.display = 'block';
     if (res.ok) {
       _unlockedGames.push(game.id);

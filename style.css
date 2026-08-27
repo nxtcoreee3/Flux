@@ -1208,3 +1208,78 @@ html.beta .flux-settings-tutorial__skip:hover { color: #f9fafb; }
   #flux-settings-tutorial .flux-settings-tutorial__card { animation: none; }
   #flux-settings-tutorial .flux-settings-tutorial__spotlight { transition: none; }
 }
+
+
+/* ── Settings purchase management ── */
+.purchase-management-empty {
+  padding: 18px 0;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+.purchase-management-empty--compact {
+  padding: 9px 0 6px;
+  text-align: left;
+}
+.purchase-history-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 52px;
+  border-bottom: 1px solid var(--glass-border);
+  cursor: pointer;
+}
+.purchase-history-row:last-child { border-bottom: 0; }
+.purchase-history-row:hover { background: rgba(58,125,255,0.035); }
+.purchase-history-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  flex-shrink: 0;
+}
+.purchase-history-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.purchase-history-check-placeholder {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #d1d5db;
+}
+.purchase-history-copy {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+.purchase-history-copy strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.purchase-history-copy small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.purchase-history-result {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 800;
+  text-align: right;
+}
+.purchase-history-result.is-eligible { color: #15803d; }
+.purchase-history-result.is-expired { color: var(--muted); }
+.purchase-history-row.is-expired { cursor: default; opacity: 0.68; }
+#purchase-management-section .settings-btn:disabled { cursor: not-allowed; opacity: 0.46; }
+@media (max-width: 520px) {
+  .purchase-history-result { max-width: 86px; white-space: normal; }
+  #purchase-management-section .settings-row:first-child { align-items: flex-start !important; }
+  #purchase-management-section .settings-row:first-child > button { padding: 7px 9px; font-size: 11px; }
+}

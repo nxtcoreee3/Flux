@@ -150,6 +150,32 @@
       </div>
     </div>
 
+    <!-- PURCHASES -->
+    <div class="settings-section" id="purchase-management-section">
+      <div class="settings-section-label">Purchase Management</div>
+      <div class="settings-card">
+        <div class="settings-row" style="align-items:flex-start;">
+          <div class="settings-row-left" style="align-items:flex-start;">
+            <div class="settings-row-icon" style="background:rgba(245,158,11,0.12);">↩️</div>
+            <div class="settings-row-text">
+              <div class="settings-row-label">Revert game purchases</div>
+              <div class="settings-row-desc">Select eligible games to return their Flux points and remove access.</div>
+            </div>
+          </div>
+          <button class="settings-btn danger" id="revert-all-purchases-btn" disabled>Revert all eligible</button>
+        </div>
+        <div id="purchase-history-list" style="padding:6px 18px 10px;"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 18px;border-top:1px solid var(--glass-border);">
+          <button class="settings-btn" id="select-all-purchases-btn" disabled>Select all eligible</button>
+          <button class="settings-btn danger" id="revert-selected-purchases-btn" disabled>Revert selected</button>
+        </div>
+        <div style="padding:13px 18px;background:rgba(245,158,11,0.055);font-size:11px;color:var(--muted);line-height:1.55;">
+          <strong style="color:var(--text);">Reversal policy:</strong> only games purchased within the last <strong style="color:var(--text);">7 days</strong> are eligible. Reverting a purchase returns <strong style="color:var(--text);">Flux points only</strong> and removes that game from your unlocked list. Flux points are virtual in-game currency and <strong style="color:var(--text);">cannot be exchanged for real money</strong>; this is not a cash refund.
+        </div>
+        <div id="purchase-management-message" role="status" style="display:none;padding:10px 18px;font-size:12px;"></div>
+      </div>
+    </div>
+
     <!-- ACCOUNT -->
     <div class="settings-section">
       <div class="settings-section-label">Account</div>
@@ -434,6 +460,7 @@
 
   <script type="module" src="settings-server-ui.js"></script>
   <script type="module" src="settings-tutorial.js"></script>
+  <script type="module" src="settings-purchases.js"></script>
   <script type="module">
     import { initAuthUI, initDarkMode, initPresence, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, logOut, getNotificationPreferences, setNotificationPreference } from './firebase-auth.js';
 
@@ -544,6 +571,7 @@
 
     // Auth UI (show/hide account-specific rows)
     initAuthUI(async (user) => {
+      window.loadPurchaseManagement?.(user);
       if (user && !user.isAnonymous) {
         document.getElementById('signout-row').style.display = 'flex';
         document.getElementById('pw-row').style.display = 'flex';

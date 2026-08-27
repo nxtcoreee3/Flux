@@ -4555,9 +4555,30 @@ export async function getUnlockedGames() {
   try { const snap = await getDoc(doc(db, 'profiles', user.uid)); return snap.exists() ? (snap.data().unlockedGames||[]) : []; } catch { return []; }
 }
 
-export async function unlockGame(gameId, cost) {
+export async function getPurchaseHistory() {
   const user = auth.currentUser;
-  if (!user || user.isAnonymous) return { ok: false, error: 'Sign in to unlock games.' };
+  if (!user || user.isAnonymous) return [];
+  try {
+    const snap = await getDoc(doc(db, 'profiles', user.uid));
+    if (!snap.exists()) return [];
+    const data = snap.data();
+    return Array.isArray(data.purchaseHistory) ? data.purchaseHistory : [];
+  } catch { return []; }
+}
+
+function purchaseTimestampMillis(value) {
+  if (!value) return 0;
+  if (typeof value.toMillis === 'function') return value.toMillis();
+  if (typeof value.seconds === 'number') return value.seconds * 1000 + Math.floor((value.nanoseconds || 0) / 1000000);
+  if (typeof value === 'number') return value;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export async function revertGamePurchase(gameId) {
+  const user = auth.currentUser;
+  if (!user || user.isAnonymous) return { ok: false, error: 'Sign in to manage purchases.' };
+  const REFUND_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
   try {
     const { runTransaction } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
     const profileRef = doc(db, 'profiles', user.uid);
@@ -4566,10 +4587,51 @@ export async function unlockGame(gameId, cost) {
       const snap = await tx.get(profileRef);
       if (!snap.exists()) { result = { ok: false, error: 'Profile not found.' }; return; }
       const data = snap.data();
+      const unlocked = Array.isArray(data.unlockedGames) ? data.unlockedGames : [];
+      const history = Array.isArray(data.purchaseHistory) ? data.purchaseHistory : [];
+      const recordIndex = history.findIndex(record => record && record.gameId === gameId);
+      if (recordIndex < 0 || !unlocked.includes(gameId)) {
+        result = { ok: false, error: 'This purchase has no refundable purchase record.' };
+        return;
+      }
+      const record = history[recordIndex];
+      const purchasedAt = purchaseTimestampMillis(record.purchasedAt);
+      if (!purchasedAt || Date.now() - purchasedAt > REFUND_WINDOW_MS) {
+        result = { ok: false, error: 'This purchase is outside the 7-day reversal window.' };
+        return;
+      }
+      const refundPoints = Math.max(0, Number(record.cost) || 0);
+      tx.update(profileRef, {
+        points: (data.points || 0) + refundPoints,
+        unlockedGames: unlocked.filter(id => id !== gameId),
+        purchaseHistory: history.filter((_, index) => index !== recordIndex),
+      });
+      result = { ok: true, gameId, refundPoints, newBalance: (data.points || 0) + refundPoints };
+    });
+    return result;
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+export async function unlockGame(gameId, cost, gameTitle = '') {
+  const user = auth.currentUser;
+  if (!user || user.isAnonymous) return { ok: false, error: 'Sign in to unlock games.' };
+  try {
+    const { runTransaction, Timestamp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const profileRef = doc(db, 'profiles', user.uid);
+    let result = {};
+    await runTransaction(db, async tx => {
+      const snap = await tx.get(profileRef);
+      if (!snap.exists()) { result = { ok: false, error: 'Profile not found.' }; return; }
+      const data = snap.data();
       const points = data.points||0, unlocked = data.unlockedGames||[];
+      const purchaseHistory = Array.isArray(data.purchaseHistory) ? data.purchaseHistory : [];
       if (unlocked.includes(gameId)) { result = { ok: true }; return; }
       if (points < cost) { result = { ok: false, error: `Need ${cost-points} more points.` }; return; }
-      tx.update(profileRef, { points: points-cost, unlockedGames: [...unlocked, gameId] });
+      tx.update(profileRef, {
+        points: points-cost,
+        unlockedGames: [...unlocked, gameId],
+        purchaseHistory: [...purchaseHistory, { gameId, title: gameTitle || gameId, cost: Number(cost) || 0, purchasedAt: Timestamp.now() }],
+      });
       result = { ok: true, newBalance: points-cost };
     });
     return result;
