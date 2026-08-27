@@ -785,12 +785,36 @@ export function initUpdateNotification() {
   setInterval(checkForUpdate, CHECK_INTERVAL);
 }
 
+export function initBetaShell() {
+  const existing = document.getElementById('flux-beta-shell');
+  if (!document.documentElement.classList.contains('beta')) {
+    existing?.remove();
+    return;
+  }
+  if (existing || !document.querySelector('.topbar')) return;
+  const shell = document.createElement('section');
+  shell.id = 'flux-beta-shell';
+  shell.className = 'flux-beta-shell';
+  shell.setAttribute('aria-label', 'Flux Beta workspace status');
+  shell.innerHTML = `
+    <div class="flux-beta-shell__identity">
+      <span class="flux-beta-shell__sigil">F/</span>
+      <span><strong>FLUX BETA</strong><small>experimental workspace</small></span>
+    </div>
+    <div class="flux-beta-shell__status"><i></i><span>Live interface</span></div>
+    <div class="flux-beta-shell__meta"><span>BUILD 02</span><span>INTERACTIVE MODE</span></div>
+  `;
+  const topbar = document.querySelector('.topbar');
+  topbar?.insertAdjacentElement('afterend', shell);
+}
+
 export function initDarkMode() {
   const DARK_KEY = 'flux_dark';
   const saved = localStorage.getItem(DARK_KEY);
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   const on = saved !== null ? saved === '1' : prefersDark;
   document.documentElement.classList.toggle('dark', on);
+  initBetaShell();
 }
 
 export function initStatsButton() {

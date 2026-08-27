@@ -1307,3 +1307,293 @@ html.beta .flux-settings-tutorial__skip:hover { color: #f9fafb; }
   .flux-play-server-switcher { padding: 3px; }
   .flux-play-server-switcher__options button { padding: 4px 5px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   FLUX BETA WORKSPACE — structural experimental interface
+   The classic UI remains untouched when html.beta is absent.
+═══════════════════════════════════════════════════════════════ */
+html.beta {
+  --beta-bg: #070a12;
+  --beta-surface: #0d1321;
+  --beta-surface2: #131c2e;
+  --beta-border: rgba(148,163,184,0.16);
+  --beta-accent: #67e8f9;
+  --beta-accent2: #a78bfa;
+  --beta-hot: #fb7185;
+  --beta-glow: rgba(103,232,249,0.22);
+  --beta-text: #e5f2ff;
+  --beta-muted: #8292aa;
+  --beta-card: #0e1727;
+  --beta-gradient: linear-gradient(110deg, #67e8f9 0%, #818cf8 52%, #e879f9 100%);
+  --bg: var(--beta-bg);
+  --panel: var(--beta-surface);
+  --glass-bg: rgba(13,19,33,0.78);
+  --glass-border: var(--beta-border);
+  --accent: var(--beta-accent);
+  --muted: var(--beta-muted);
+  --text: var(--beta-text);
+  --card: var(--beta-card);
+  --glass-shadow: 0 24px 70px rgba(0,0,0,0.38);
+  --glass-gradient: linear-gradient(135deg, rgba(103,232,249,0.08), rgba(167,139,250,0.06));
+  --glass-blur: 18px;
+  --footer-border: rgba(148,163,184,0.14);
+  --input-bg: rgba(15,23,42,0.88);
+}
+html.beta body {
+  background:
+    linear-gradient(rgba(103,232,249,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(103,232,249,0.025) 1px, transparent 1px),
+    radial-gradient(circle at 8% 0%, rgba(103,232,249,0.13), transparent 28rem),
+    radial-gradient(circle at 92% 22%, rgba(232,121,249,0.10), transparent 32rem),
+    var(--beta-bg);
+  background-size: 32px 32px, 32px 32px, auto, auto, auto;
+  color: var(--beta-text);
+}
+html.beta body::after {
+  content: 'BETA / EXPERIMENTAL BUILD';
+  position: fixed;
+  right: 18px;
+  bottom: 12px;
+  z-index: 9000;
+  color: rgba(103,232,249,0.38);
+  font: 800 9px/1 system-ui, sans-serif;
+  letter-spacing: 1.6px;
+  pointer-events: none;
+  transform: rotate(-90deg) translateX(100%);
+  transform-origin: right bottom;
+}
+html.beta .topbar {
+  position: relative;
+  z-index: 20;
+  padding: 14px 30px;
+  background: rgba(7,10,18,0.82);
+  border-bottom: 1px solid rgba(103,232,249,0.18);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.22);
+}
+html.beta .logo {
+  position: relative;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 3px;
+  color: var(--beta-text);
+  background: none;
+  -webkit-text-fill-color: initial;
+}
+html.beta .logo::before {
+  content: '///';
+  margin-right: 7px;
+  color: var(--beta-accent);
+  font-size: 11px;
+  letter-spacing: -1px;
+}
+html.beta .nav-list { gap: 4px; }
+html.beta .nav-list a {
+  position: relative;
+  padding: 9px 12px;
+  border-radius: 5px;
+  color: var(--beta-muted);
+  font: 800 10px/1 system-ui, sans-serif;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+html.beta .nav-list a::after {
+  content: '';
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 3px;
+  height: 1px;
+  background: var(--beta-accent);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.18s ease;
+}
+html.beta .nav-list a:hover::after,
+html.beta .nav-list a.active::after { transform: scaleX(1); }
+html.beta .nav-list a.active,
+html.beta .nav-list a:hover {
+  background: rgba(103,232,249,0.08);
+  color: var(--beta-accent);
+}
+html.beta .right-actions { gap: 8px; }
+html.beta .icon-btn,
+html.beta .cta {
+  border: 1px solid rgba(103,232,249,0.26);
+  border-radius: 5px;
+  background: rgba(103,232,249,0.06);
+  color: var(--beta-accent);
+  font: 800 10px/1 system-ui, sans-serif;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+}
+html.beta main { position: relative; max-width: 1240px; }
+html.beta .flux-beta-shell {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  max-width: 1240px;
+  margin: 18px auto -2px;
+  padding: 10px 14px;
+  border: 1px solid rgba(103,232,249,0.16);
+  border-left: 3px solid var(--beta-accent);
+  background: linear-gradient(90deg, rgba(103,232,249,0.09), rgba(167,139,250,0.04) 48%, transparent);
+  box-shadow: 0 12px 28px rgba(0,0,0,0.18);
+  font-family: system-ui, sans-serif;
+}
+html.beta .flux-beta-shell__identity,
+html.beta .flux-beta-shell__status,
+html.beta .flux-beta-shell__meta { display: flex; align-items: center; }
+html.beta .flux-beta-shell__identity { gap: 9px; margin-right: auto; }
+html.beta .flux-beta-shell__sigil {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid var(--beta-accent);
+  color: var(--beta-accent);
+  font: 900 11px/1 monospace;
+  transform: skew(-10deg);
+}
+html.beta .flux-beta-shell__identity strong,
+html.beta .flux-beta-shell__identity small { display: block; }
+html.beta .flux-beta-shell__identity strong { color: var(--beta-text); font: 900 11px/1.2 monospace; letter-spacing: 1.4px; }
+html.beta .flux-beta-shell__identity small { margin-top: 3px; color: var(--beta-muted); font: 600 9px/1 monospace; letter-spacing: 0.5px; }
+html.beta .flux-beta-shell__status { gap: 6px; color: #86efac; font: 800 9px/1 monospace; text-transform: uppercase; letter-spacing: 0.7px; }
+html.beta .flux-beta-shell__status i { width: 6px; height: 6px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 12px #4ade80; }
+html.beta .flux-beta-shell__meta { gap: 12px; color: var(--beta-muted); font: 700 9px/1 monospace; letter-spacing: 0.6px; }
+html.beta .hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.8fr);
+  gap: 26px;
+  align-items: stretch;
+  min-height: 310px;
+  padding: 44px;
+  overflow: hidden;
+  border: 1px solid rgba(103,232,249,0.19);
+  border-radius: 3px;
+  background: linear-gradient(115deg, rgba(13,19,33,0.98), rgba(16,27,47,0.8));
+  box-shadow: 0 30px 80px rgba(0,0,0,0.28);
+}
+html.beta .hero::before {
+  content: '01 / DISCOVER';
+  position: absolute;
+  top: 16px;
+  left: 18px;
+  color: rgba(103,232,249,0.55);
+  font: 800 9px/1 monospace;
+  letter-spacing: 1.4px;
+}
+html.beta .hero::after {
+  content: '';
+  position: absolute;
+  right: -110px;
+  top: -150px;
+  width: 360px;
+  height: 360px;
+  border: 1px solid rgba(167,139,250,0.28);
+  border-radius: 50%;
+  box-shadow: 0 0 0 28px rgba(167,139,250,0.04), 0 0 0 56px rgba(167,139,250,0.025);
+  pointer-events: none;
+}
+html.beta .hero-inner { position: relative; z-index: 1; align-self: center; }
+html.beta .hero h1 {
+  max-width: 620px;
+  color: var(--beta-text);
+  background: none;
+  -webkit-text-fill-color: initial;
+  font-size: clamp(42px, 6vw, 82px);
+  line-height: 0.92;
+  letter-spacing: -2px;
+  text-transform: uppercase;
+}
+html.beta .hero p { max-width: 500px; color: var(--beta-muted); font: 500 14px/1.7 system-ui, sans-serif; }
+html.beta .hero-actions { gap: 10px; }
+html.beta .btn-large,
+html.beta .play-btn {
+  border-radius: 3px;
+  background: var(--beta-gradient);
+  color: #07111d;
+  box-shadow: 6px 6px 0 rgba(103,232,249,0.12);
+  font: 900 11px/1 system-ui, sans-serif;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+html.beta .hero-commits {
+  position: relative;
+  z-index: 1;
+  align-self: end;
+  padding: 18px;
+  border: 1px solid rgba(103,232,249,0.16);
+  border-radius: 3px;
+  background: rgba(3,8,18,0.56);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
+}
+html.beta .section { position: relative; }
+html.beta .section-head { align-items: end; border-bottom: 1px solid rgba(103,232,249,0.15); padding-bottom: 12px; }
+html.beta .section-head h2 {
+  color: var(--beta-accent);
+  background: none;
+  -webkit-text-fill-color: initial;
+  font: 900 18px/1 system-ui, sans-serif;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+html.beta .section-head h2::before { content: '// '; color: var(--beta-hot); }
+html.beta .search-wrap input,
+html.beta .controls input,
+html.beta .controls select {
+  border: 1px solid rgba(103,232,249,0.22) !important;
+  border-radius: 3px !important;
+  background: rgba(8,14,26,0.88) !important;
+  color: var(--beta-text) !important;
+}
+html.beta .grid { gap: 14px; }
+html.beta .card {
+  position: relative;
+  border: 1px solid rgba(148,163,184,0.14);
+  border-radius: 3px;
+  background: linear-gradient(160deg, rgba(14,23,39,0.98), rgba(9,15,27,0.98));
+  box-shadow: 8px 8px 0 rgba(0,0,0,0.18);
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+html.beta .card::before {
+  content: 'GAME NODE';
+  position: absolute;
+  z-index: 2;
+  top: 8px;
+  left: 9px;
+  padding: 3px 5px;
+  color: rgba(103,232,249,0.8);
+  background: rgba(7,10,18,0.74);
+  font: 800 8px/1 monospace;
+  letter-spacing: 0.7px;
+}
+html.beta .card:hover { transform: translateY(-5px); border-color: rgba(103,232,249,0.55); box-shadow: 10px 14px 0 rgba(103,232,249,0.08); }
+html.beta .thumb { height: 142px; filter: saturate(0.82) contrast(1.08); }
+html.beta .card:hover .thumb { filter: saturate(1.12) contrast(1.08); }
+html.beta .card-body { background: transparent; }
+html.beta .title { color: var(--beta-text); font: 900 15px/1.1 system-ui, sans-serif; letter-spacing: 0.2px; text-transform: uppercase; }
+html.beta .meta { color: var(--beta-muted); font: 500 11px/1.5 system-ui, sans-serif; }
+html.beta .card-foot { border-top: 1px solid rgba(148,163,184,0.12); background: rgba(3,8,18,0.42); }
+html.beta .favorite { border-radius: 3px; border-color: rgba(148,163,184,0.18); background: transparent; }
+html.beta .favorite:hover { border-color: var(--beta-accent); color: var(--beta-accent); }
+html.beta .glass,
+html.beta .settings-section,
+html.beta .settings-row,
+html.beta .modal-panel {
+  border-radius: 3px;
+  border-color: rgba(103,232,249,0.15);
+  background: linear-gradient(135deg, rgba(13,19,33,0.94), rgba(9,15,27,0.92));
+}
+html.beta .site-footer { background: rgba(4,8,16,0.7); }
+html.beta .footer-links a,
+html.beta .footer-brand p,
+html.beta .copyright { color: var(--beta-muted); }
+@media (max-width: 760px) {
+  html.beta .flux-beta-shell { margin: 12px 14px -4px; gap: 10px; }
+  html.beta .flux-beta-shell__meta { display: none; }
+  html.beta .hero { grid-template-columns: 1fr; min-height: 0; padding: 34px 22px 22px; }
+  html.beta .hero-commits { align-self: stretch; }
+}
