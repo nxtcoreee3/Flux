@@ -1088,7 +1088,6 @@ function bootFlux() {
   defer(() => initJumpscare(), base + 400);
   defer(() => trackDailyVisitor(), base + 600);
   defer(() => injectBuildNumber(), base + 800);
-  defer(() => initHomeStatusBanner(), base + 700);
   defer(() => showSocialBanner(), base + 900);
   defer(() => initAIPicker(), base + 1000);
   defer(() => initMobileWarning(), base + 1100);
@@ -1911,7 +1910,7 @@ async function injectBuildNumber() {
   } catch { }
 }
 
-/* ===================== HOME STATUS / UPDATE BANNER ===================== */
+/* ===================== HOME STATUS / UPDATE DATA ===================== */
 async function fetchHomeIssues() {
   try {
     const response = await fetch('https://api.github.com/repos/nxtcoreee3/Flux/issues?state=all&per_page=8', { headers: { Accept: 'application/vnd.github+json' } });
@@ -1930,50 +1929,7 @@ function homeStatusLabel(key) {
   return known[key] || String(key).replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
-function initHomeStatusBanner() {
-  const banner = document.getElementById('home-status-banner');
-  const titleEl = document.getElementById('home-status-banner-title');
-  const detailEl = document.getElementById('home-status-banner-detail');
-  const kindEl = document.getElementById('home-status-banner-kind');
-  if (!banner || !titleEl || !detailEl || !kindEl) return;
 
-  let statusUpdates = [];
-  let currentIndex = 0;
-  let transitionTimer = null;
-
-  const render = () => {
-    const updates = statusUpdates;
-    if (!updates.length) { banner.hidden = true; return; }
-    const item = updates[currentIndex % updates.length];
-    currentIndex = (currentIndex + 1) % updates.length;
-    banner.hidden = false;
-    banner.classList.remove('is-visible');
-    clearTimeout(transitionTimer);
-    transitionTimer = setTimeout(() => banner.classList.add('is-visible'), 30);
-    banner.dataset.severity = item.severity || 'info';
-    titleEl.textContent = item.title;
-    detailEl.textContent = item.detail;
-    kindEl.textContent = item.kind === 'outage' ? 'Outage' : 'Warning';
-    banner.href = item.url || 'status.html';
-    banner.setAttribute('aria-label', `${item.title}. ${item.detail}. Open Flux status and updates.`);
-  };
-
-  subscribeToServiceHealth(payload => {
-    const services = payload.services || {};
-    statusUpdates = Object.entries(services)
-      .filter(([, service]) => service && ['outage', 'degraded', 'warning'].includes(service.status))
-      .map(([key, service]) => ({
-        kind: service.status === 'outage' ? 'outage' : 'warning',
-        title: `${homeStatusLabel(key)} ${service.status === 'outage' ? 'outage' : 'warning'}`,
-        detail: service.message || 'Flux is investigating an active service issue.',
-        severity: service.status === 'outage' ? 'outage' : 'warning',
-        url: 'status.html'
-      }));
-    currentIndex = 0;
-    render();
-  });
-
-}
 
 /* ===================== PLAY-MODE SERVER SWITCHER ===================== */
 function createPlayServerSwitcher(game, onChange) {
