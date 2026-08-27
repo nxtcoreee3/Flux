@@ -1234,3 +1234,76 @@ html.beta .flux-settings-tutorial__skip:hover { color: #f9fafb; }
   #purchase-management-section .settings-row:first-child { align-items: flex-start !important; }
   #purchase-management-section .settings-row:first-child > button { padding: 7px 9px; font-size: 11px; }
 }
+
+/* ── In-player server switcher ── */
+.flux-play-server-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 3px 5px 3px 8px;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 10px;
+  background: rgba(0,0,0,0.58);
+  color: rgba(255,255,255,0.72);
+  backdrop-filter: blur(6px);
+  white-space: nowrap;
+}
+.flux-play-server-switcher__label {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.55px;
+  text-transform: uppercase;
+}
+.flux-play-server-switcher__options {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.flux-play-server-switcher__options button {
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 4px 7px;
+  background: rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.82);
+  font: 700 10px/1.1 inherit;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+}
+.flux-play-server-switcher__options button:hover:not(:disabled) {
+  background: rgba(255,255,255,0.2);
+  color: #fff;
+}
+.flux-play-server-switcher__options button.is-active {
+  border-color: rgba(147,197,253,0.75);
+  background: rgba(59,130,246,0.72);
+  color: #fff;
+}
+.flux-play-server-switcher__options button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+.modal-tools .flux-play-server-switcher {
+  background: var(--panel, #fff);
+  border-color: var(--glass-border, rgba(0,0,0,0.12));
+  color: var(--muted, #6b7280);
+  backdrop-filter: none;
+}
+.modal-tools .flux-play-server-switcher__options button {
+  background: var(--bg, #f3f4f6);
+  color: var(--text, #111827);
+}
+.modal-tools .flux-play-server-switcher__options button:hover:not(:disabled) {
+  background: rgba(58,125,255,0.1);
+  color: var(--accent, #3a7dff);
+}
+.modal-tools .flux-play-server-switcher__options button.is-active {
+  border-color: rgba(58,125,255,0.55);
+  background: var(--accent, #3a7dff);
+  color: #fff;
+}
+@media (max-width: 620px) {
+  .flux-play-server-switcher__label { display: none; }
+  .flux-play-server-switcher { padding: 3px; }
+  .flux-play-server-switcher__options button { padding: 4px 5px; }
+}

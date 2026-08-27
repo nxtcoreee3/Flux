@@ -85,7 +85,7 @@ if (isNewOfficial) {
 }
 
 import { initAuthUI, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, fetchAllGameStats, setCurrentlyPlaying, clearCurrentlyPlaying, rateGame, getUserRating, reportGame, checkFirestoreHealth, fetchGameDetail, getAiGameDescription, getGameReviews, submitReview, addReviewComment, likeReview, deleteReview, fetchGamePricing, getUnlockedGames, unlockGame, SPIN_SEGMENTS, getLastSpin, spinWheel, giftPointsToUser, redeemCode, createRewardCode, getRewardCodes, deactivateRewardCode, initIncidentBanner, setServiceStatus, autoCheckServiceHealth, setIncidentBanner, checkNoAds, purchaseNoAds, NO_ADS_COST, setGameLockdown, initUpdateNotification } from './firebase-auth.js';
-import { getActiveServer, getLocalLibraryState, getGameAvailability, getRepositoryGameFolder, isGameAvailable, getGameLaunchUrl, initializeServerRuntime } from './server-config.js';
+import { SERVER_PROFILES, getActiveServer, getActiveServerId, setActiveServer, getLocalLibraryState, getGameAvailability, getRepositoryGameFolder, isGameAvailable, getGameLaunchUrl, initializeServerRuntime } from './server-config.js';
 
 const GAMES = [
   {
@@ -700,7 +700,7 @@ function createCard(game) {
       fetchHotGame().then(hot => { if (hot && hot.id !== _hotGameId) { _hotGameId = hot.id; applyFilters(); } });
     });
     setCurrentlyPlaying(game.id, game.title);
-    openPlayModal(launchUrl, game.title);
+    openPlayModal(launchUrl, game.title, game);
   });
 
   return div;
@@ -1552,7 +1552,7 @@ window._openGameFromPicker = (gameId) => {
   renderRecentSection();
   trackGamePlay(game.id, game.title);
   setCurrentlyPlaying(game.id, game.title);
-  openPlayModal(game.url, game.title);
+  openPlayModal(game.url, game.title, game);
 };
 
 function showSocialBanner() {
@@ -1873,8 +1873,56 @@ async function injectBuildNumber() {
   } catch { }
 }
 
+/* ===================== PLAY-MODE SERVER SWITCHER ===================== */
+function createPlayServerSwitcher(game, onChange) {
+  if (!game) return null;
+  const switcher = document.createElement('div');
+  switcher.className = 'flux-play-server-switcher';
+  switcher.setAttribute('role', 'group');
+  switcher.setAttribute('aria-label', 'Switch game server');
+  switcher.innerHTML = `
+    <span class="flux-play-server-switcher__label">Server</span>
+    <div class="flux-play-server-switcher__options">
+      ${Object.values(SERVER_PROFILES).map(profile => `<button type="button" data-server-id="${profile.id}" title="${profile.name}: ${profile.description}">${profile.icon} ${profile.shortName}</button>`).join('')}
+    </div>
+  `;
+  const buttons = [...switcher.querySelectorAll('[data-server-id]')];
+  const refresh = () => {
+    const activeId = getActiveServerId();
+    buttons.forEach(button => {
+      const active = button.dataset.serverId === activeId;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+  };
+  const handleChange = async (event) => {
+    const serverId = event.currentTarget.dataset.serverId;
+    if (!serverId || serverId === getActiveServerId()) return;
+    buttons.forEach(button => { button.disabled = true; });
+    setActiveServer(serverId);
+    refresh();
+    try {
+      await onChange?.(serverId);
+    } catch {
+      showToast('Unable to switch game servers right now.', 'warning');
+    } finally {
+      buttons.forEach(button => { button.disabled = false; });
+      refresh();
+    }
+  };
+  buttons.forEach(button => button.addEventListener('click', handleChange));
+  const onServerChanged = () => refresh();
+  window.addEventListener('flux-server-changed', onServerChanged);
+  switcher.cleanup = () => {
+    window.removeEventListener('flux-server-changed', onServerChanged);
+    buttons.forEach(button => button.removeEventListener('click', handleChange));
+  };
+  refresh();
+  return switcher;
+}
+
 /* ===================== FULLSCREEN ===================== */
-function openFullscreen(url, title) {
+function openFullscreen(url, title, game) {
   document.getElementById('flux-fullscreen')?.remove();
   const fs = document.createElement('div');
   fs.id = 'flux-fullscreen';
@@ -1903,6 +1951,19 @@ function openFullscreen(url, title) {
   const hoverZone = fs.querySelector('#fs-hover-zone');
   const fsIframe = fs.querySelector('#fs-iframe');
   const fsWarn = fs.querySelector('#fs-embed-warn');
+  const fsServerSwitcher = createPlayServerSwitcher(game, async () => {
+    const nextUrl = await getGameLaunchUrl(game);
+    if (!nextUrl) {
+      fsIframe.src = 'about:blank';
+      fsWarn.style.display = 'flex';
+      return;
+    }
+    fsWarn.style.display = 'none';
+    fsIframe.style.opacity = '0';
+    fsIframe.src = nextUrl;
+    setTimeout(() => { fsIframe.style.opacity = '1'; }, 120);
+  });
+  if (fsServerSwitcher) bar.appendChild(fsServerSwitcher);
   let barTimer;
 
   const showBar = () => {
@@ -1924,7 +1985,8 @@ function openFullscreen(url, title) {
   // Always show bar initially
   showBar();
 
-  fs.querySelector('#fs-exit').addEventListener('click', () => fs.remove());
+  const closeFullscreen = () => { fsServerSwitcher?.cleanup?.(); fs.remove(); };
+  fs.querySelector('#fs-exit').addEventListener('click', closeFullscreen);
   fs.querySelector('#fs-kill-btn')?.addEventListener('click', () => triggerKillSwitch());
   fs.querySelector('#fs-kill-settings-btn')?.addEventListener('click', (e) => { e.stopPropagation(); buildKillSwitchPopover(); });
   fs.querySelector('#fs-fallback-btn').addEventListener('click', () => { fsWarn.style.display = 'none'; });
@@ -1943,14 +2005,14 @@ function openFullscreen(url, title) {
       if (lbg) lbg.style.display = 'none';
     }
   }, 2200);
-  const escHandler = (e) => { if (e.key === 'Escape') { fs.remove(); window.removeEventListener('keydown', escHandler); } };
+  const escHandler = (e) => { if (e.key === 'Escape') { closeFullscreen(); window.removeEventListener('keydown', escHandler); } };
   window.addEventListener('keydown', escHandler);
 }
 
 /* ===================== PLAY MODAL ===================== */
 const MODAL_ID = 'play-modal';
 
-function openPlayModal(url, title) {
+function openPlayModal(url, title, game) {
   if (!url) {
     showToast('This game is unavailable on the selected server.', 'warning');
     return;
@@ -1964,10 +2026,12 @@ function openPlayModal(url, title) {
   const closeBtn = modal.querySelector('[id^="close-modal"]') || modal.querySelector('.tool-btn[aria-label="Close"]');
   const embedWarning = modal.querySelector('.embed-warning');
   const tools = modal.querySelector('.modal-tools');
+  let playUrl = url;
+  let playServerSwitcher = null;
 
   if (modalTitle) modalTitle.textContent = title;
   modal.setAttribute('aria-hidden', 'false');
-  if (openTabBtn) { openTabBtn.style.display = 'none'; openTabBtn.onclick = () => window.open(url, '_blank', 'noopener'); }
+  if (openTabBtn) { openTabBtn.style.display = 'none'; openTabBtn.onclick = () => window.open(playUrl, '_blank', 'noopener'); }
 
   // Add fullscreen button if not already present
   let fsBtn = tools?.querySelector('.fs-btn');
@@ -1977,7 +2041,31 @@ function openPlayModal(url, title) {
     fsBtn.textContent = '⛶ Fullscreen';
     tools.insertBefore(fsBtn, tools.firstChild);
   }
-  if (fsBtn) { fsBtn.style.display = ''; fsBtn.onclick = () => { closeModal(); openFullscreen(url, title); }; }
+  if (fsBtn) { fsBtn.style.display = ''; fsBtn.onclick = () => { closeModal(); openFullscreen(playUrl, title, game); }; }
+
+  playServerSwitcher = createPlayServerSwitcher(game, async () => {
+    const nextUrl = await getGameLaunchUrl(game);
+    if (!nextUrl) {
+      playUrl = '';
+      if (iframe) iframe.src = 'about:blank';
+      embedWarning?.classList.remove('hidden');
+      if (fsBtn) fsBtn.style.display = 'none';
+      return;
+    }
+    playUrl = nextUrl;
+    embedWarning?.classList.add('hidden');
+    if (fsBtn) fsBtn.style.display = '';
+    if (iframe) {
+      iframe.style.opacity = '0';
+      iframe.src = nextUrl;
+      setTimeout(() => { iframe.style.opacity = '1'; }, 120);
+    }
+  });
+  if (tools && playServerSwitcher) {
+    const killSlot = tools.querySelector('[id^="modal-kill-btn-wrap"]');
+    if (killSlot?.nextSibling) tools.insertBefore(playServerSwitcher, killSlot.nextSibling);
+    else tools.prepend(playServerSwitcher);
+  }
 
   // Wire keep-waiting button in play modal
   const keepWaitingBtn = embedWarning?.querySelector('#keep-waiting') || embedWarning?.querySelector('#keep-waiting-2');
@@ -1985,7 +2073,7 @@ function openPlayModal(url, title) {
     keepWaitingBtn.onclick = () => { embedWarning.classList.add('hidden'); };
   }
 
-  const closeModal = () => { modal.setAttribute('aria-hidden', 'true'); if (iframe) iframe.src = 'about:blank'; clearCurrentlyPlaying(); };
+  const closeModal = () => { playServerSwitcher?.cleanup?.(); playServerSwitcher?.remove?.(); playServerSwitcher = null; modal.setAttribute('aria-hidden', 'true'); if (iframe) iframe.src = 'about:blank'; clearCurrentlyPlaying(); };
   if (closeBtn) closeBtn.onclick = closeModal;
   modal.querySelectorAll('[data-close]').forEach(el => el.onclick = closeModal);
   window.addEventListener('keydown', function escClose(e) { if (e.key === 'Escape') { closeModal(); window.removeEventListener('keydown', escClose); } });
@@ -2218,7 +2306,7 @@ async function openGameDetail(game) {
     if (!launchUrl) { close(); showGameUnavailable(game); return; }
     close(); addRecent(game.id); renderRecentSection();
     trackGamePlay(game.id, game.title); setCurrentlyPlaying(game.id, game.title);
-    openPlayModal(launchUrl, game.title);
+    openPlayModal(launchUrl, game.title, game);
   });
   document.getElementById('gd-unlock-btn')?.addEventListener('click', () => { close(); showUnlockModal(game, finalPrice, activeDiscount, pricing.price); });
   document.getElementById('gd-modlock-info')?.addEventListener('click', () => { close(); showModLockInfoModal(game, stats); });
