@@ -2338,8 +2338,11 @@ async function playPurchaseCelebration(game) {
         button.disabled = true;
         button.tabIndex = -1;
       });
+      silhouette.style.position = 'fixed';
       silhouette.style.left = `${rect.left + rect.width / 2}px`;
       silhouette.style.top = `${rect.top + rect.height / 2}px`;
+      silhouette.style.setProperty('--purchase-origin-left', `${rect.left + rect.width / 2}px`);
+      silhouette.style.setProperty('--purchase-origin-top', `${rect.top + rect.height / 2}px`);
       silhouette.style.width = `${rect.width}px`;
       silhouette.style.height = `${rect.height}px`;
       overlay.appendChild(silhouette);
@@ -2349,15 +2352,18 @@ async function playPurchaseCelebration(game) {
     }
   }
 
+  const previousBodyOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
   document.body.appendChild(overlay);
-  await waitForPurchaseAnimation(reducedMotion ? 80 : 1580);
+  await waitForPurchaseAnimation(reducedMotion ? 80 : 4200);
   overlay.classList.add('is-fading');
-  await waitForPurchaseAnimation(reducedMotion ? 20 : 440);
+  await waitForPurchaseAnimation(reducedMotion ? 20 : 800);
 
   if (sourceCard) {
     sourceCard.style.visibility = previousVisibility;
     sourceCard.removeAttribute('aria-hidden');
   }
+  document.body.style.overflow = previousBodyOverflow;
   overlay.remove();
 }
 

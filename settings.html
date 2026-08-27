@@ -433,6 +433,7 @@
   </main>
 
   <script type="module" src="settings-server-ui.js"></script>
+  <script type="module" src="settings-tutorial.js"></script>
   <script type="module">
     import { initAuthUI, initDarkMode, initPresence, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, logOut, getNotificationPreferences, setNotificationPreference } from './firebase-auth.js';
 
@@ -506,7 +507,8 @@
 
     // Tutorial
     document.getElementById('tutorial-settings-btn').addEventListener('click', () => {
-      window.location.href = 'index.html?tutorial=1';
+      if (typeof window.startFluxTutorial === 'function') window.startFluxTutorial();
+      else import('./settings-tutorial.js').then(({ startSettingsTutorial }) => startSettingsTutorial?.());
     });
 
     // Password change

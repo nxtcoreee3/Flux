@@ -934,10 +934,10 @@ html.beta body { animation: beta-fadein 0.25s ease both; }
   pointer-events: none;
   overflow: hidden;
   background: rgba(3, 8, 13, 0);
-  animation: flux-purchase-backdrop-in 920ms cubic-bezier(.22,1,.36,1) both;
+  animation: flux-purchase-backdrop-in 1200ms cubic-bezier(.22,1,.36,1) both;
 }
 #flux-purchase-celebration.is-fading {
-  animation: flux-purchase-backdrop-out 420ms ease both;
+  animation: flux-purchase-backdrop-out 800ms ease both;
 }
 #flux-purchase-celebration .purchase-celebration__silhouette {
   position: fixed;
@@ -949,7 +949,7 @@ html.beta body { animation: beta-fadein 0.25s ease both; }
   box-shadow: 0 28px 90px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.08), 0 0 48px rgba(34,197,94,0.14);
   filter: grayscale(1) brightness(0.42) contrast(1.35);
   opacity: 0.98;
-  animation: flux-purchase-card-pop 1220ms cubic-bezier(.22,1,.36,1) both;
+  animation: flux-purchase-card-pop 4200ms cubic-bezier(.22,1,.36,1) both;
 }
 #flux-purchase-celebration .purchase-celebration__silhouette::after {
   content: '';
@@ -970,7 +970,7 @@ html.beta body { animation: beta-fadein 0.25s ease both; }
   background: radial-gradient(circle, rgba(134,239,172,0.9) 0 5%, rgba(34,197,94,0.72) 20%, rgba(22,163,74,0.32) 48%, transparent 72%);
   filter: blur(0.2px);
   transform: scale(0.18);
-  animation: flux-purchase-splash 780ms cubic-bezier(.16,1,.3,1) 430ms both;
+  animation: flux-purchase-splash 1900ms cubic-bezier(.16,1,.3,1) 1350ms both;
 }
 .purchase-celebration__splash::before,
 .purchase-celebration__splash::after {
@@ -980,7 +980,7 @@ html.beta body { animation: beta-fadein 0.25s ease both; }
   border: 2px solid rgba(187,247,208,0.62);
   border-radius: 44% 56% 52% 48%;
   transform: rotate(18deg) scale(0.8);
-  animation: flux-purchase-ring 780ms cubic-bezier(.16,1,.3,1) 430ms both;
+  animation: flux-purchase-ring 1900ms cubic-bezier(.16,1,.3,1) 1350ms both;
 }
 .purchase-celebration__splash::after {
   inset: 20%;
@@ -998,7 +998,7 @@ html.beta body { animation: beta-fadein 0.25s ease both; }
   text-shadow: 0 5px 18px rgba(21,128,61,0.42);
   opacity: 0;
   transform: scale(0.2) rotate(-15deg);
-  animation: flux-purchase-check 540ms cubic-bezier(.16,1,.3,1) 650ms both;
+  animation: flux-purchase-check 1150ms cubic-bezier(.16,1,.3,1) 1650ms both;
 }
 .purchase-celebration__label {
   position: absolute;
@@ -1011,7 +1011,7 @@ html.beta body { animation: beta-fadein 0.25s ease both; }
   white-space: nowrap;
   opacity: 0;
   transform: translate(-50%, 8px);
-  animation: flux-purchase-label 460ms ease 720ms both;
+  animation: flux-purchase-label 720ms ease 1750ms both;
 }
 @keyframes flux-purchase-backdrop-in {
   0% { background: rgba(3,8,13,0); }
@@ -1023,15 +1023,17 @@ html.beta body { animation: beta-fadein 0.25s ease both; }
   to { opacity: 0; background: rgba(3,8,13,0); }
 }
 @keyframes flux-purchase-card-pop {
-  0% { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 1; }
-  12% { transform: translate(-50%, -50%) scale(1.025) rotate(-1.2deg); }
-  22% { transform: translate(calc(-50% - 8px), -50%) scale(1.03) rotate(1.8deg); }
-  31% { transform: translate(calc(-50% + 7px), -50%) scale(1.035) rotate(-1.4deg); }
-  40% { transform: translate(calc(-50% - 4px), -50%) scale(1.04) rotate(0.8deg); }
-  52% { transform: translate(-50%, -50%) scale(1.11) rotate(0deg); filter: grayscale(1) brightness(0.5) contrast(1.4); }
-  67% { transform: translate(-50%, -50%) scale(0.94) rotate(0deg); opacity: 0.84; }
-  82% { transform: translate(-50%, -50%) scale(1.025) rotate(0deg); opacity: 0.96; }
-  100% { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 1; }
+  0% { left: var(--purchase-origin-left); top: var(--purchase-origin-top); transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 1; }
+  10% { left: var(--purchase-origin-left); top: var(--purchase-origin-top); transform: translate(-50%, -50%) scale(1.012) rotate(-0.8deg); }
+  17% { left: calc(var(--purchase-origin-left) - 7px); top: var(--purchase-origin-top); transform: translate(-50%, -50%) scale(1.018) rotate(1.2deg); }
+  24% { left: calc(var(--purchase-origin-left) + 6px); top: var(--purchase-origin-top); transform: translate(-50%, -50%) scale(1.024) rotate(-0.9deg); }
+  31% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1.03) rotate(0deg); }
+  40% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1.08) rotate(0deg); filter: grayscale(1) brightness(0.5) contrast(1.4); }
+  52% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(0.96) rotate(0deg); opacity: 0.88; }
+  67% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1.035) rotate(0deg); opacity: 1; }
+  78% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1) rotate(0deg); }
+  90% { left: var(--purchase-origin-left); top: var(--purchase-origin-top); transform: translate(-50%, -50%) scale(1.025) rotate(0deg); }
+  100% { left: var(--purchase-origin-left); top: var(--purchase-origin-top); transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 1; }
 }
 @keyframes flux-purchase-splash {
   0% { opacity: 0; transform: scale(0.18); }
@@ -1064,4 +1066,116 @@ html.beta body { animation: beta-fadein 0.25s ease both; }
     animation-duration: 1ms !important;
     animation-delay: 0ms !important;
   }
+}
+
+
+/* ── Settings tutorial ── */
+#flux-settings-tutorial {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  pointer-events: auto;
+  font-family: 'DM Sans', system-ui, sans-serif;
+}
+#flux-settings-tutorial .flux-settings-tutorial__backdrop {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+}
+#flux-settings-tutorial .flux-settings-tutorial__spotlight {
+  position: fixed;
+  z-index: 1;
+  border: 2px solid rgba(96,165,250,0.95);
+  border-radius: 14px;
+  box-shadow: 0 0 0 9999px rgba(3,8,18,0.76), 0 0 0 5px rgba(59,130,246,0.16), 0 0 30px rgba(59,130,246,0.5);
+  pointer-events: none;
+  transition: left 220ms ease, top 220ms ease, width 220ms ease, height 220ms ease;
+}
+#flux-settings-tutorial .flux-settings-tutorial__card {
+  position: fixed;
+  z-index: 2;
+  box-sizing: border-box;
+  padding: 22px 22px 18px;
+  border: 1px solid rgba(147,197,253,0.35);
+  border-radius: 18px;
+  background: #ffffff;
+  color: #111827;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.34), 0 0 0 1px rgba(255,255,255,0.1);
+  animation: flux-settings-tutorial-card-in 260ms cubic-bezier(.22,1,.36,1) both;
+}
+#flux-settings-tutorial .flux-settings-tutorial__eyebrow {
+  margin-bottom: 7px;
+  color: #2563eb;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+#flux-settings-tutorial h2 {
+  margin: 0 0 8px;
+  color: #111827;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 29px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+}
+#flux-settings-tutorial p {
+  margin: 0;
+  color: #4b5563;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.flux-settings-tutorial__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 20px;
+}
+.flux-settings-tutorial__actions { display: flex; align-items: center; gap: 8px; }
+#flux-settings-tutorial button {
+  font: 700 12px/1 'DM Sans', system-ui, sans-serif;
+  cursor: pointer;
+}
+.flux-settings-tutorial__skip,
+.flux-settings-tutorial__back {
+  padding: 9px 11px;
+  border: 0;
+  background: transparent;
+  color: #6b7280;
+}
+.flux-settings-tutorial__skip:hover,
+.flux-settings-tutorial__back:hover { color: #111827; }
+.flux-settings-tutorial__back:disabled { opacity: 0.4; cursor: default; }
+.flux-settings-tutorial__next {
+  min-width: 76px;
+  padding: 10px 15px;
+  border: 1px solid #2563eb;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #3a7dff, #2563eb);
+  color: #ffffff;
+  box-shadow: 0 5px 14px rgba(37,99,235,0.24);
+}
+.flux-settings-tutorial__next:hover { filter: brightness(1.06); transform: translateY(-1px); }
+@keyframes flux-settings-tutorial-card-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+html.dark #flux-settings-tutorial .flux-settings-tutorial__card,
+html.beta #flux-settings-tutorial .flux-settings-tutorial__card {
+  background: #111827;
+  border-color: rgba(147,197,253,0.28);
+  color: #f9fafb;
+}
+html.dark #flux-settings-tutorial h2,
+html.beta #flux-settings-tutorial h2 { color: #f9fafb; }
+html.dark #flux-settings-tutorial p,
+html.beta #flux-settings-tutorial p { color: #cbd5e1; }
+html.dark .flux-settings-tutorial__back:hover,
+html.dark .flux-settings-tutorial__skip:hover,
+html.beta .flux-settings-tutorial__back:hover,
+html.beta .flux-settings-tutorial__skip:hover { color: #f9fafb; }
+@media (prefers-reduced-motion: reduce) {
+  #flux-settings-tutorial .flux-settings-tutorial__card { animation: none; }
+  #flux-settings-tutorial .flux-settings-tutorial__spotlight { transition: none; }
 }
