@@ -4,7 +4,8 @@ import {
   getProfile, searchProfiles, renderBadges, renderRoleIcons,
   initAuthUI, initServerStatus, initBroadcast,
   initChaos, initJumpscare, initPresence, initCookieConsent,
-  initDarkMode, initChatLock, fetchLeaderboard, reportUser, updateProfile
+  initDarkMode, initChatLock, fetchLeaderboard, reportUser, updateProfile,
+  renderActivityAvatar, initActivityStatusUI
 } from './firebase-auth.js';
 
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -49,6 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initChaos();
   initJumpscare();
   initAuthUI(null);
+  initActivityStatusUI(document);
 
   initChat();
   initSearch();
@@ -118,11 +120,7 @@ function renderPresenceCorner(items = []) {
 
   const stack = items.slice(0, 3).map((i, idx) => {
     const p = i.profile || null;
-    const fallback = (p?.displayName || p?.username || i.uid || '?')[0] || '?';
-    const src = p?.avatarURL || '';
-    const avatar = src
-      ? `<img src="${src}" style="width:18px;height:18px;border-radius:6px;object-fit:cover;border:1px solid rgba(0,0,0,0.06);">`
-      : `<div style="width:18px;height:18px;border-radius:6px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:900;border:1px solid rgba(0,0,0,0.06);">${escapeHtml(fallback.toUpperCase())}</div>`;
+    const avatar = renderActivityAvatar(p || { uid: i.uid, username: i.uid }, { size: 18, uid: i.uid, className: 'presence-corner-avatar', square: true });
     return `<div style="margin-left:${idx === 0 ? 0 : -6}px;">${avatar}</div>`;
   }).join('');
 
@@ -332,9 +330,7 @@ function renderMessageSync(msg, currentUser) {
     ? msg.sentAt.toDate().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
     : '';
 
-  const avatarHTML = msg.avatarURL
-    ? `<img class="chat-msg-avatar" src="${msg.avatarURL}" style="width:28px;height:28px;border-radius:8px;object-fit:cover;margin-${isOwn?'left':'right'}:8px;flex-shrink:0;">`
-    : `<div class="chat-msg-avatar-placeholder" style="width:28px;height:28px;border-radius:8px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:12px;margin-${isOwn?'left':'right'}:8px;flex-shrink:0;">${(msg.displayName || msg.username || '?')[0].toUpperCase()}</div>`;
+  const avatarHTML = renderActivityAvatar({ uid: msg.uid, avatarURL: msg.avatarURL, displayName: msg.displayName, username: msg.username }, { size: 28, uid: msg.uid, className: `chat-msg-avatar-wrap ${isOwn ? 'is-own' : ''}`, square: true });
 
   const badgesHTML = renderRoleIcons({ badges: msg.badges || [], roles: msg.roles || [] }, { context: 'chat', size: 15 });
 
@@ -586,9 +582,7 @@ async function runSearch(term) {
 
   container.innerHTML = '';
   results.forEach(profile => {
-    const avatarHTML = profile.avatarURL
-      ? `<img class="search-result-avatar" src="${profile.avatarURL}" alt="">`
-      : `<div class="search-result-placeholder">${(profile.displayName || profile.username || '?')[0].toUpperCase()}</div>`;
+    const avatarHTML = renderActivityAvatar(profile, { size: 36, uid: profile.uid, className: 'search-result-avatar-wrap' });
 
     const item = document.createElement('a');
     item.className = 'search-result-item';
@@ -613,9 +607,7 @@ function showMyProfileCard(profile) {
   const preview = document.getElementById('my-profile-preview');
   if (!card || !preview) return;
 
-  const avatarHTML = profile.avatarURL
-    ? `<img style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid var(--glass-border);" src="${profile.avatarURL}" alt="">`
-    : `<div style="width:44px;height:44px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:18px;">${(profile.displayName || profile.username || '?')[0].toUpperCase()}</div>`;
+  const avatarHTML = renderActivityAvatar(profile, { size: 44, uid: profile.uid, className: 'my-profile-avatar' });
 
   preview.innerHTML = `
     <a href="profile.html?user=${profile.username}" style="display:flex;align-items:center;gap:12px;text-decoration:none;">
@@ -660,9 +652,7 @@ async function initLeaderboard() {
   const renderList = (list, valueKey, valueLabel, icon) => {
     if (!list.length) return '<div style="color:var(--muted);font-size:12px;text-align:center;padding:8px;">No data yet</div>';
     return list.map((p, i) => {
-      const avatarHTML = p.avatarURL
-        ? `<img src="${p.avatarURL}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;">`
-        : `<div style="width:32px;height:32px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:13px;flex-shrink:0;">${(p.displayName||p.username||'?')[0].toUpperCase()}</div>`;
+      const avatarHTML = renderActivityAvatar(p, { size: 32, uid: p.uid, className: 'leaderboard-avatar' });
       return `
         <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--glass-border);">
           <span style="font-size:16px;width:24px;text-align:center;flex-shrink:0;">${medals[i] || `${i+1}`}</span>
@@ -765,9 +755,7 @@ async function initRecommended() {
 
     list.innerHTML = '';
     recommendations.forEach(profile => {
-      const avatarHTML = profile.avatarURL
-        ? `<img src="${profile.avatarURL}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;border:1px solid var(--glass-border);flex-shrink:0;">`
-        : `<div style="width:38px;height:38px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:15px;flex-shrink:0;">${(profile.displayName || profile.username || '?')[0].toUpperCase()}</div>`;
+      const avatarHTML = renderActivityAvatar(profile, { size: 38, uid: profile.uid, className: 'recommendation-avatar' });
 
       const item = document.createElement('div');
       item.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--glass-border);';

@@ -1597,3 +1597,99 @@ html.beta .copyright { color: var(--beta-muted); }
   html.beta .hero { grid-template-columns: 1fr; min-height: 0; padding: 34px 22px 22px; }
   html.beta .hero-commits { align-self: stretch; }
 }
+
+/* ── Live profile activity rings ── */
+.flux-activity-avatar {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: var(--activity-size, 40px);
+  height: var(--activity-size, 40px);
+  box-sizing: border-box;
+  flex: 0 0 var(--activity-size, 40px);
+  border: 3px solid transparent;
+  border-radius: 50%;
+  background: var(--panel, #fff);
+  outline: none;
+  isolation: isolate;
+}
+.flux-activity-avatar.is-square { border-radius: 10px; }
+.flux-activity-avatar__image,
+.flux-activity-avatar__placeholder {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  border-radius: inherit;
+  object-fit: cover;
+}
+.flux-activity-avatar__placeholder {
+  background: var(--accent, #3a7dff);
+  color: #fff;
+  font-size: calc(var(--activity-size, 40px) * 0.38);
+  font-weight: 800;
+}
+.flux-activity-avatar[data-activity-status="active"] { border-color: #22c55e; box-shadow: 0 0 0 2px rgba(34,197,94,0.16), 0 0 14px rgba(34,197,94,0.42); }
+.flux-activity-avatar[data-activity-status="recent"] { border-color: #f59e0b; box-shadow: 0 0 0 2px rgba(245,158,11,0.14), 0 0 12px rgba(245,158,11,0.3); }
+.flux-activity-avatar[data-activity-status="hour"] { border-color: #ef4444; box-shadow: 0 0 0 2px rgba(239,68,68,0.12), 0 0 10px rgba(239,68,68,0.24); }
+.flux-activity-avatar[data-activity-status="away"],
+.flux-activity-avatar[data-activity-status="unknown"] { border-color: transparent; box-shadow: none; }
+.flux-activity-avatar__tooltip {
+  position: absolute;
+  z-index: 200;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  width: max-content;
+  max-width: 240px;
+  padding: 9px 11px;
+  border: 1px solid var(--glass-border, rgba(0,0,0,0.12));
+  border-radius: 10px;
+  background: var(--panel, #fff);
+  color: var(--text, #111827);
+  box-shadow: 0 12px 32px rgba(0,0,0,0.18);
+  font-size: 11px;
+  line-height: 1.35;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translate(-50%, 4px);
+  transition: opacity 0.16s ease, transform 0.16s ease, visibility 0.16s ease;
+}
+.flux-activity-avatar__tooltip::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  width: 9px;
+  height: 9px;
+  background: var(--panel, #fff);
+  border-right: 1px solid var(--glass-border, rgba(0,0,0,0.12));
+  border-bottom: 1px solid var(--glass-border, rgba(0,0,0,0.12));
+  transform: translateX(-50%) rotate(45deg);
+}
+.flux-activity-avatar__tooltip strong,
+.flux-activity-avatar__tooltip span,
+.flux-activity-avatar__tooltip small { display: block; }
+.flux-activity-avatar__tooltip strong { margin-bottom: 2px; font-size: 12px; }
+.flux-activity-avatar__tooltip span { color: var(--accent, #3a7dff); font-weight: 700; }
+.flux-activity-avatar__tooltip small { margin-top: 5px; color: var(--muted, #6b7280); font-size: 9px; }
+.flux-activity-avatar:hover .flux-activity-avatar__tooltip,
+.flux-activity-avatar:focus-visible .flux-activity-avatar__tooltip,
+.flux-activity-avatar.is-open .flux-activity-avatar__tooltip {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translate(-50%, 0);
+}
+.profile-avatar-ring { position: relative; }
+.profile-avatar-ring .flux-activity-avatar { margin: 0; }
+.chat-msg-avatar-wrap { margin-inline: 0 8px; }
+.chat-msg-avatar-wrap.is-own { margin-inline: 8px 0; }
+.chat-msg-avatar-wrap .flux-activity-avatar__tooltip { bottom: calc(100% + 8px); }
+@media (max-width: 600px) {
+  .flux-activity-avatar__tooltip { position: fixed; left: 50vw; bottom: 12px; max-width: min(280px, calc(100vw - 28px)); transform: translate(-50%, 8px); }
+  .flux-activity-avatar__tooltip::after { display: none; }
+  .flux-activity-avatar:hover .flux-activity-avatar__tooltip { opacity: 0; visibility: hidden; transform: translate(-50%, 8px); }
+  .flux-activity-avatar.is-open .flux-activity-avatar__tooltip,
+  .flux-activity-avatar:focus-visible .flux-activity-avatar__tooltip { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
+}

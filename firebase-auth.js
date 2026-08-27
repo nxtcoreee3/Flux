@@ -20,6 +20,7 @@ import {
   getDoc,
   setDoc,
   updateDoc,
+  onSnapshot,
   increment,
   deleteField,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -29,6 +30,7 @@ import {
   onValue,
   onDisconnect,
   set,
+  update,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 import { SERVER_PROFILES, getActiveServer, setActiveServer, getLocalLibraryState } from './server-config.js';
@@ -108,6 +110,8 @@ export async function fetchPeakOnline() {
 export function initPresence() {
   const sessionId = Math.random().toString(36).slice(2);
   const presenceRef = ref(rtdb, `presence/${sessionId}`);
+  const activityRef = ref(rtdb, `activityStatus/${sessionId}`);
+  let activityPingTimer = null;
   const connectedRef = ref(rtdb, '.info/connected');
 
   // Build the presence payload — enriched with uid/username once auth resolves
@@ -146,6 +150,13 @@ export function initPresence() {
       onDisconnect(presenceRef).remove().then(() => {
         set(presenceRef, payload);
       });
+      onDisconnect(activityRef).update({ online: false, lastActiveAt: serverTimestamp() }).then(() => {
+        set(activityRef, { online: true, lastActiveAt: serverTimestamp(), uid: payload.uid, username: payload.username, sessionId });
+        if (activityPingTimer) clearInterval(activityPingTimer);
+        activityPingTimer = setInterval(() => {
+          update(activityRef, { online: true, lastActiveAt: serverTimestamp() }).catch(() => {});
+        }, 30000);
+      });
       if (user && !user.isAnonymous) {
         logActivity('Entered the site');
         import("https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js").then(({ push }) => {
@@ -161,6 +172,15 @@ export function initPresence() {
     }
   });
 
+  onAuthStateChanged(auth, user => {
+    if (user && !user.isAnonymous) {
+      getDoc(doc(db, 'profiles', user.uid)).then(snap => {
+        if (!snap.exists()) return;
+        update(activityRef, { online: true, lastActiveAt: serverTimestamp(), uid: user.uid, username: snap.data().username || null }).catch(() => {});
+      }).catch(() => {});
+    }
+  });
+
   // Keep presence payload fresh when currentlyPlaying changes
   window._fluxUpdatePresence = async (currentlyPlaying) => {
     try {
@@ -169,6 +189,7 @@ export function initPresence() {
       const pSnap = await getDoc(doc(db, 'profiles', user.uid));
       const username = pSnap.exists() ? pSnap.data().username : null;
       set(presenceRef, { online: true, timestamp: serverTimestamp(), uid: user.uid, username, currentlyPlaying: currentlyPlaying || null, sessionId });
+      update(activityRef, { online: true, lastActiveAt: serverTimestamp(), uid: user.uid, username }).catch(() => {});
     } catch {}
   };
 
@@ -348,20 +369,24 @@ export async function trackTimeOnSite() {
   if (!user || user.isAnonymous) return;
   const startTime = Date.now();
   const POINTS_PER_MINUTE = 1; // 1 point per minute, awarded every 5 minutes
-  const INTERVAL = 5 * 60 * 1000; // 5 minutes
+  const INTERVAL = 60 * 1000; // keep the public duration live to the minute
+  let minutesSinceReward = 0;
 
   const interval = setInterval(async () => {
     try {
-      const minutesElapsed = 5;
-      const pointsEarned = minutesElapsed * POINTS_PER_MINUTE;
+      minutesSinceReward += 1;
+      const rewardDue = minutesSinceReward >= 5;
       const profileRef = doc(db, 'profiles', user.uid);
       const snap = await getDoc(profileRef);
       if (!snap.exists()) { clearInterval(interval); return; }
-      await updateDoc(profileRef, {
-        points: (snap.data().points || 0) + pointsEarned,
-        totalPointsEarned: (snap.data().totalPointsEarned || 0) + pointsEarned,
-        timeOnSiteMinutes: (snap.data().timeOnSiteMinutes || 0) + minutesElapsed,
-      });
+      const updates = { timeOnSiteMinutes: (snap.data().timeOnSiteMinutes || 0) + 1 };
+      if (rewardDue) {
+        const pointsEarned = minutesSinceReward * POINTS_PER_MINUTE;
+        updates.points = (snap.data().points || 0) + pointsEarned;
+        updates.totalPointsEarned = (snap.data().totalPointsEarned || 0) + pointsEarned;
+        minutesSinceReward = 0;
+      }
+      await updateDoc(profileRef, updates);
     } catch {}
   }, INTERVAL);
 
@@ -1037,6 +1062,105 @@ export async function getProfile(uid) {
     const snap = await getDoc(doc(db, 'profiles', uid));
     return snap.exists() ? snap.data() : null;
   } catch { return null; }
+}
+
+const ACTIVITY_LABELS = {
+  active: { text: 'Active now', ring: 'green ring' },
+  recent: { text: 'Active within the last 10 minutes', ring: 'yellow/orange ring' },
+  hour: { text: 'Active within the last hour', ring: 'red ring' },
+  away: { text: 'Inactive for over an hour', ring: 'no ring' },
+  unknown: { text: 'Activity unavailable', ring: 'no ring' },
+};
+
+function activityTimestamp(entry) {
+  const value = entry?.lastActiveAt ?? entry?.timestamp ?? 0;
+  return value?.toMillis ? value.toMillis() : Number(value) || 0;
+}
+
+export function getActivityStatus(entry, now = Date.now()) {
+  const lastActiveAt = activityTimestamp(entry);
+  if (!lastActiveAt) return { key: 'unknown', ageMs: Infinity, ...ACTIVITY_LABELS.unknown };
+  const ageMs = Math.max(0, now - lastActiveAt);
+  if (entry?.online && ageMs <= 2 * 60 * 1000) return { key: 'active', ageMs, ...ACTIVITY_LABELS.active };
+  if (ageMs <= 10 * 60 * 1000) return { key: 'recent', ageMs, ...ACTIVITY_LABELS.recent };
+  if (ageMs <= 60 * 60 * 1000) return { key: 'hour', ageMs, ...ACTIVITY_LABELS.hour };
+  return { key: 'away', ageMs, ...ACTIVITY_LABELS.away };
+}
+
+export function formatActivityAge(ageMs) {
+  if (!Number.isFinite(ageMs)) return 'unknown';
+  if (ageMs < 60 * 1000) return 'just now';
+  const minutes = Math.floor(ageMs / 60000);
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+}
+
+export function formatTimeOnSite(minutes) {
+  const total = Math.max(0, Math.floor(Number(minutes) || 0));
+  const days = Math.floor(total / 1440);
+  const hours = Math.floor((total % 1440) / 60);
+  const mins = total % 60;
+  const parts = [];
+  if (days) parts.push(`${days} day${days === 1 ? '' : 's'}`);
+  if (hours || days) parts.push(`${hours} hour${hours === 1 ? '' : 's'}`);
+  parts.push(`${mins} minute${mins === 1 ? '' : 's'}`);
+  return parts.join(', ');
+}
+
+export function subscribeToActivityStatuses(callback) {
+  if (typeof callback !== 'function') return () => {};
+  return onValue(ref(rtdb, 'activityStatus'), snap => callback(snap.exists() ? snap.val() || {} : {}), () => callback({}));
+}
+
+export function renderActivityAvatar(profile = {}, { size = 40, uid = profile.uid, className = '', square = false } = {}) {
+  const name = String(profile.displayName || profile.username || '?');
+  const safeName = name.replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+  const inner = profile.avatarURL
+    ? `<img src="${profile.avatarURL}" alt="${safeName}" class="flux-activity-avatar__image">`
+    : `<span class="flux-activity-avatar__placeholder">${safeName[0]?.toUpperCase() || '?'}</span>`;
+  return `<span class="flux-activity-avatar ${square ? 'is-square' : ''} ${className}" data-activity-uid="${uid || ''}" data-activity-name="${safeName}" style="--activity-size:${size}px;" tabindex="0" role="img" aria-label="${safeName} activity status">${inner}<span class="flux-activity-avatar__tooltip" role="tooltip"><strong>${safeName}</strong><span class="flux-activity-avatar__status">Checking activity…</span><small>Green = active now · yellow/orange = within 10m · red = within 1h · no ring = over 1h</small></span></span>`;
+}
+
+export function initActivityStatusUI(root = document) {
+  let activityMap = {};
+  const render = () => {
+    const now = Date.now();
+    root.querySelectorAll?.('[data-activity-uid]').forEach(el => {
+      const uid = el.dataset.activityUid;
+      const latest = Object.values(activityMap).filter(item => item?.uid === uid).sort((a, b) => activityTimestamp(b) - activityTimestamp(a))[0];
+      const status = getActivityStatus(latest, now);
+      el.dataset.activityStatus = status.key;
+      el.setAttribute('aria-label', `${el.dataset.activityName || 'User'}: ${status.text}; ${status.ring}. Green means active now, yellow/orange means active within 10 minutes, red means active within one hour, and no ring means inactive for over an hour.`);
+      const statusEl = el.querySelector('.flux-activity-avatar__status');
+      if (statusEl) statusEl.textContent = `${status.text}${status.key === 'active' ? '' : ` · ${formatActivityAge(status.ageMs)}`}`;
+    });
+  };
+  const unsubscribe = subscribeToActivityStatuses(next => { activityMap = next; render(); });
+  const timer = setInterval(render, 30000);
+  const observer = typeof MutationObserver !== 'undefined' ? new MutationObserver(render) : null;
+  observer?.observe(root === document ? document.body : root, { childList: true, subtree: true });
+  root.addEventListener?.('pointerdown', event => {
+    const avatar = event.target.closest?.('[data-activity-uid]');
+    if (!avatar || event.pointerType !== 'touch') return;
+    event.preventDefault();
+    avatar.classList.toggle('is-open');
+  }, { passive: false });
+  root.addEventListener?.('keydown', event => {
+    if ((event.key === 'Enter' || event.key === ' ') && event.target.closest?.('[data-activity-uid]')) {
+      event.preventDefault();
+      event.target.closest('[data-activity-uid]').classList.toggle('is-open');
+    }
+  });
+  render();
+  return () => { unsubscribe(); clearInterval(timer); observer?.disconnect(); };
+}
+
+export function subscribeToProfile(uid, callback) {
+  if (!uid || typeof callback !== 'function') return () => {};
+  return onSnapshot(doc(db, 'profiles', uid), snap => {
+    callback(snap.exists() ? { uid, ...snap.data() } : null);
+  }, () => callback(null));
 }
 
 export async function getProfileByUsername(username) {

@@ -6,7 +6,8 @@ import {
   renderBadges, renderRoleIcons, getActiveRoleIcons, setRoleIconHidden, assignRole, removeRole, PREDEFINED_ROLES,
   setUserRank, getUserRank, getContrastColor,
   initAuthUI, initServerStatus, initCookieConsent,
-  initBroadcast, initChaos, initJumpscare, initPresence, syncProfileAvatar
+  initBroadcast, initChaos, initJumpscare, initPresence, syncProfileAvatar,
+  subscribeToProfile, formatTimeOnSite, renderActivityAvatar, initActivityStatusUI
 } from './firebase-auth.js';
 
 // Firebase imports (reuse same app)
@@ -43,7 +44,8 @@ const GAMES_MAP = {
   'moto-x3m':                { title: 'Moto X3M',               thumb: 'assets/moto-x3m.png',               url: 'https://nxtcoreee3.github.io/Moto-X3M/' },
   '8-ball-classic':          { title: '8 Ball Classic',          thumb: 'assets/8-ball-classic.png',         url: 'https://nxtcoreee3.github.io/8-Ball-Classic/' },
 };
-
+let _profileActivityCleanup;
+let _profileTimeCleanup;
 /* ── year footer ── */
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('year');
@@ -92,6 +94,13 @@ async function loadProfilePage() {
 
     root.innerHTML = renderProfile(freshProfile, { isOwn, isAdmin, isFollowing, canSeeContent, currentUser });
     bindEvents(freshProfile, { isOwn, isAdmin, isFollowing, currentUser });
+    _profileActivityCleanup?.();
+    _profileActivityCleanup = initActivityStatusUI(root);
+    _profileTimeCleanup?.();
+    _profileTimeCleanup = subscribeToProfile(freshProfile.uid, liveProfile => {
+      const durationEl = root.querySelector('#profile-time-on-site');
+      if (durationEl && liveProfile) durationEl.textContent = formatTimeOnSite(liveProfile.timeOnSiteMinutes);
+    });
   });
 }
 
@@ -335,10 +344,9 @@ function renderProfile(profile, { isOwn, isAdmin, isFollowing, canSeeContent, cu
 
       <div class="profile-body">
         <div class="profile-top-row">
-          <div class="profile-avatar-ring">
-            ${profile.avatarURL
-              ? `<img class="profile-avatar" src="${profile.avatarURL}" alt="${profile.displayName}">`
-              : `<div class="profile-avatar-placeholder">${(profile.displayName || profile.username || '?')[0].toUpperCase()}</div>`}
+          <div class="profile-avatar-ring ${isOwn ? 'editable' : ''}" id="main-avatar" title="View activity status">
+            ${renderActivityAvatar(profile, { size: 80, uid: profile.uid, className: 'profile-activity-avatar' })}
+            ${isOwn ? '<div class="avatar-edit-hint" style="position:absolute;inset:3px;background:rgba(0,0,0,0.4);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;opacity:0;transition:opacity 0.2s;pointer-events:none;font-weight:700;z-index:2;">CHANGE</div>' : ''}
           </div>
           <div class="profile-name-block">
             <h1 class="profile-displayname">${profile.displayName || profile.username}</h1>
@@ -376,6 +384,10 @@ function renderProfile(profile, { isOwn, isAdmin, isFollowing, canSeeContent, cu
           <div class="profile-stat">
             <span class="profile-stat-num">${profile.loginStreak || 0}</span>
             <span class="profile-stat-label">🔥 Streak</span>
+          </div>
+          <div class="profile-stat">
+            <span class="profile-stat-num" id="profile-time-on-site">${formatTimeOnSite(profile.timeOnSiteMinutes)}</span>
+            <span class="profile-stat-label">Time on site</span>
           </div>
         </div>
 
@@ -581,9 +593,7 @@ async function showFollowListModal(title, uids) {
     item.addEventListener('mouseenter', () => item.style.background = 'var(--bg)');
     item.addEventListener('mouseleave', () => item.style.background = '');
 
-    const avatarHTML = p.avatarURL
-      ? `<img src="${p.avatarURL}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;flex-shrink:0;border:1px solid var(--glass-border);">`
-      : `<div style="width:40px;height:40px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:16px;flex-shrink:0;">${(p.displayName||p.username||'?')[0].toUpperCase()}</div>`;
+    const avatarHTML = renderActivityAvatar(p, { size: 40, uid: p.uid, className: 'profile-list-avatar' });
 
     item.innerHTML = `
       ${avatarHTML}
