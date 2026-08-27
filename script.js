@@ -1938,12 +1938,11 @@ function initHomeStatusBanner() {
   if (!banner || !titleEl || !detailEl || !kindEl) return;
 
   let statusUpdates = [];
-  let repositoryUpdates = [];
   let currentIndex = 0;
   let transitionTimer = null;
 
   const render = () => {
-    const updates = [...statusUpdates, ...repositoryUpdates];
+    const updates = statusUpdates;
     if (!updates.length) { banner.hidden = true; return; }
     const item = updates[currentIndex % updates.length];
     currentIndex = (currentIndex + 1) % updates.length;
@@ -1954,7 +1953,7 @@ function initHomeStatusBanner() {
     banner.dataset.severity = item.severity || 'info';
     titleEl.textContent = item.title;
     detailEl.textContent = item.detail;
-    kindEl.textContent = item.kind === 'outage' ? 'Outage' : item.kind === 'warning' ? 'Warning' : item.kind === 'commit' ? 'Commit' : 'Issue';
+    kindEl.textContent = item.kind === 'outage' ? 'Outage' : 'Warning';
     banner.href = item.url || 'status.html';
     banner.setAttribute('aria-label', `${item.title}. ${item.detail}. Open Flux status and updates.`);
   };
@@ -1974,19 +1973,6 @@ function initHomeStatusBanner() {
     render();
   });
 
-  Promise.all([fetchCommits(), fetchHomeIssues()]).then(([commits, issues]) => {
-    const commitUpdates = (commits || []).slice(0, 5).map(commit => ({
-      kind: 'commit',
-      title: (commit.commit?.message || 'Flux update').split('\\n')[0],
-      detail: `Commit ${commit.sha.slice(0, 7)} · View the latest Flux change`,
-      severity: 'info',
-      url: `https://github.com/nxtcoreee3/Flux/commit/${commit.sha}`
-    }));
-    repositoryUpdates = [...commitUpdates, ...(issues || [])];
-    currentIndex = 0;
-    render();
-    setInterval(render, 5000);
-  }).catch(() => {});
 }
 
 /* ===================== PLAY-MODE SERVER SWITCHER ===================== */
