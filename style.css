@@ -922,3 +922,146 @@ html.beta #stats-dropdown {
 /* ── Page transition fade-in ── */
 html.beta body { animation: beta-fadein 0.25s ease both; }
 @keyframes beta-fadein { from { opacity: 0; } to { opacity: 1; } }
+
+
+/* ── Game purchase celebration ── */
+#flux-purchase-celebration {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  overflow: hidden;
+  background: rgba(3, 8, 13, 0);
+  animation: flux-purchase-backdrop-in 920ms cubic-bezier(.22,1,.36,1) both;
+}
+#flux-purchase-celebration.is-fading {
+  animation: flux-purchase-backdrop-out 420ms ease both;
+}
+#flux-purchase-celebration .purchase-celebration__silhouette {
+  position: fixed;
+  z-index: 2;
+  margin: 0;
+  overflow: hidden;
+  transform-origin: center;
+  border-color: rgba(255,255,255,0.28) !important;
+  box-shadow: 0 28px 90px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.08), 0 0 48px rgba(34,197,94,0.14);
+  filter: grayscale(1) brightness(0.42) contrast(1.35);
+  opacity: 0.98;
+  animation: flux-purchase-card-pop 1220ms cubic-bezier(.22,1,.36,1) both;
+}
+#flux-purchase-celebration .purchase-celebration__silhouette::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(255,255,255,0.12), transparent 42%, rgba(34,197,94,0.18));
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+.purchase-celebration__splash {
+  position: absolute;
+  z-index: 1;
+  width: min(68vw, 360px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  opacity: 0;
+  background: radial-gradient(circle, rgba(134,239,172,0.9) 0 5%, rgba(34,197,94,0.72) 20%, rgba(22,163,74,0.32) 48%, transparent 72%);
+  filter: blur(0.2px);
+  transform: scale(0.18);
+  animation: flux-purchase-splash 780ms cubic-bezier(.16,1,.3,1) 430ms both;
+}
+.purchase-celebration__splash::before,
+.purchase-celebration__splash::after {
+  content: '';
+  position: absolute;
+  inset: 9%;
+  border: 2px solid rgba(187,247,208,0.62);
+  border-radius: 44% 56% 52% 48%;
+  transform: rotate(18deg) scale(0.8);
+  animation: flux-purchase-ring 780ms cubic-bezier(.16,1,.3,1) 430ms both;
+}
+.purchase-celebration__splash::after {
+  inset: 20%;
+  border-color: rgba(255,255,255,0.45);
+  transform: rotate(-24deg) scale(0.65);
+  animation-delay: 470ms;
+}
+.purchase-celebration__check {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #f0fdf4;
+  font: 900 clamp(38px, 8vw, 72px)/1 system-ui, sans-serif;
+  text-shadow: 0 5px 18px rgba(21,128,61,0.42);
+  opacity: 0;
+  transform: scale(0.2) rotate(-15deg);
+  animation: flux-purchase-check 540ms cubic-bezier(.16,1,.3,1) 650ms both;
+}
+.purchase-celebration__label {
+  position: absolute;
+  top: calc(50% + min(34vw, 180px));
+  left: 50%;
+  color: #dcfce7;
+  font: 800 12px/1 system-ui, sans-serif;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translate(-50%, 8px);
+  animation: flux-purchase-label 460ms ease 720ms both;
+}
+@keyframes flux-purchase-backdrop-in {
+  0% { background: rgba(3,8,13,0); }
+  35% { background: rgba(3,8,13,0.84); }
+  100% { background: rgba(3,8,13,0.78); }
+}
+@keyframes flux-purchase-backdrop-out {
+  from { opacity: 1; background: rgba(3,8,13,0.78); }
+  to { opacity: 0; background: rgba(3,8,13,0); }
+}
+@keyframes flux-purchase-card-pop {
+  0% { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 1; }
+  12% { transform: translate(-50%, -50%) scale(1.025) rotate(-1.2deg); }
+  22% { transform: translate(calc(-50% - 8px), -50%) scale(1.03) rotate(1.8deg); }
+  31% { transform: translate(calc(-50% + 7px), -50%) scale(1.035) rotate(-1.4deg); }
+  40% { transform: translate(calc(-50% - 4px), -50%) scale(1.04) rotate(0.8deg); }
+  52% { transform: translate(-50%, -50%) scale(1.11) rotate(0deg); filter: grayscale(1) brightness(0.5) contrast(1.4); }
+  67% { transform: translate(-50%, -50%) scale(0.94) rotate(0deg); opacity: 0.84; }
+  82% { transform: translate(-50%, -50%) scale(1.025) rotate(0deg); opacity: 0.96; }
+  100% { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 1; }
+}
+@keyframes flux-purchase-splash {
+  0% { opacity: 0; transform: scale(0.18); }
+  24% { opacity: 1; transform: scale(0.82); }
+  58% { opacity: 0.9; transform: scale(1.16); }
+  100% { opacity: 0; transform: scale(1.62); }
+}
+@keyframes flux-purchase-ring {
+  0% { opacity: 0; transform: rotate(18deg) scale(0.55); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: rotate(78deg) scale(1.35); }
+}
+@keyframes flux-purchase-check {
+  0% { opacity: 0; transform: scale(0.2) rotate(-15deg); }
+  55% { opacity: 1; transform: scale(1.12) rotate(3deg); }
+  100% { opacity: 0; transform: scale(0.9) rotate(0deg); }
+}
+@keyframes flux-purchase-label {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+  to { opacity: 0.95; transform: translate(-50%, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #flux-purchase-celebration,
+  #flux-purchase-celebration .purchase-celebration__silhouette,
+  .purchase-celebration__splash,
+  .purchase-celebration__splash::before,
+  .purchase-celebration__splash::after,
+  .purchase-celebration__check,
+  .purchase-celebration__label {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+  }
+}

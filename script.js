@@ -2305,6 +2305,62 @@ async function loadDetailReviews(gameId) {
   });
 }
 
+/* ===================== PURCHASE CELEBRATION ===================== */
+function waitForPurchaseAnimation(milliseconds) {
+  return new Promise(resolve => setTimeout(resolve, milliseconds));
+}
+
+async function playPurchaseCelebration(game) {
+  document.getElementById('flux-purchase-celebration')?.remove();
+
+  const sourceCard = [...document.querySelectorAll('.card[data-id]')].find(card => card.dataset.id === game.id);
+  const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const overlay = document.createElement('div');
+  overlay.id = 'flux-purchase-celebration';
+  overlay.setAttribute('role', 'status');
+  overlay.setAttribute('aria-live', 'polite');
+  overlay.setAttribute('aria-label', `${game.title} unlocked`);
+  overlay.innerHTML = `
+    <div class="purchase-celebration__splash" aria-hidden="true">
+      <span class="purchase-celebration__check">✓</span>
+    </div>
+    <div class="purchase-celebration__label">${game.title} unlocked</div>
+  `;
+
+  let previousVisibility = '';
+  if (sourceCard) {
+    const rect = sourceCard.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      const silhouette = sourceCard.cloneNode(true);
+      silhouette.classList.add('purchase-celebration__silhouette');
+      silhouette.setAttribute('aria-hidden', 'true');
+      silhouette.querySelectorAll('button').forEach(button => {
+        button.disabled = true;
+        button.tabIndex = -1;
+      });
+      silhouette.style.left = `${rect.left + rect.width / 2}px`;
+      silhouette.style.top = `${rect.top + rect.height / 2}px`;
+      silhouette.style.width = `${rect.width}px`;
+      silhouette.style.height = `${rect.height}px`;
+      overlay.appendChild(silhouette);
+      previousVisibility = sourceCard.style.visibility;
+      sourceCard.style.visibility = 'hidden';
+      sourceCard.setAttribute('aria-hidden', 'true');
+    }
+  }
+
+  document.body.appendChild(overlay);
+  await waitForPurchaseAnimation(reducedMotion ? 80 : 1580);
+  overlay.classList.add('is-fading');
+  await waitForPurchaseAnimation(reducedMotion ? 20 : 440);
+
+  if (sourceCard) {
+    sourceCard.style.visibility = previousVisibility;
+    sourceCard.removeAttribute('aria-hidden');
+  }
+  overlay.remove();
+}
+
 /* ===================== UNLOCK MODAL ===================== */
 async function showUnlockModal(game, finalPrice, discount, originalPrice) {
   document.getElementById('flux-unlock-modal')?.remove();
@@ -2341,8 +2397,16 @@ async function showUnlockModal(game, finalPrice, discount, originalPrice) {
     const btn = document.getElementById('unlock-confirm-btn'); btn.textContent = 'Unlocking...'; btn.disabled = true;
     const res = await unlockGame(game.id, finalPrice);
     const msg = document.getElementById('unlock-msg'); msg.style.display = 'block';
-    if (res.ok) { _unlockedGames.push(game.id); msg.style.color = '#22c55e'; msg.textContent = `✓ Unlocked! Balance: ${res.newBalance} pts`; setTimeout(() => { close(); renderGames(GAMES); }, 1500); }
-    else { msg.style.color = '#ef4444'; msg.textContent = res.error; btn.textContent = `🔓 Unlock for ${finalPrice} pts`; btn.disabled = false; }
+    if (res.ok) {
+      _unlockedGames.push(game.id);
+      msg.style.color = '#22c55e';
+      msg.textContent = `✓ Unlocked! Balance: ${res.newBalance} pts`;
+      setTimeout(async () => {
+        close();
+        await playPurchaseCelebration(game);
+        renderGames(GAMES);
+      }, 650);
+    } else { msg.style.color = '#ef4444'; msg.textContent = res.error; btn.textContent = `🔓 Unlock for ${finalPrice} pts`; btn.disabled = false; }
   });
   document.getElementById('earn-more-btn')?.addEventListener('click', () => { close(); showEarnPointsModal(game, finalPrice); });
 }
