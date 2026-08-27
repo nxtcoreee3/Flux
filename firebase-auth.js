@@ -1102,9 +1102,9 @@ export function formatTimeOnSite(minutes) {
   const hours = Math.floor((total % 1440) / 60);
   const mins = total % 60;
   const parts = [];
-  if (days) parts.push(`${days} day${days === 1 ? '' : 's'}`);
-  if (hours || days) parts.push(`${hours} hour${hours === 1 ? '' : 's'}`);
-  parts.push(`${mins} minute${mins === 1 ? '' : 's'}`);
+  if (days) parts.push(`${days}d`);
+  if (hours || days) parts.push(`${hours}h`);
+  parts.push(`${mins}m`);
   return parts.join(', ');
 }
 
