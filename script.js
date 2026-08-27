@@ -1834,6 +1834,28 @@ async function renderCommitsPanel(commits) {
   if (latestSha) localStorage.setItem('flux_last_seen_commit', latestSha);
 }
 
+async function renderIssuesPanel(issues) {
+  const list = document.getElementById('commits-list');
+  if (!list) return;
+  const totalLabel = document.getElementById('commits-total-label');
+  if (totalLabel) totalLabel.textContent = `${issues.length} Issues`;
+  list.innerHTML = '';
+  issues.forEach(issue => {
+    const row = document.createElement('div');
+    row.className = 'commit-row issue-row';
+    const state = issue.state === 'open' ? 'Open' : 'Closed';
+    row.innerHTML = `<div class="commit-sha-line"><span class="commit-sha issue-state ${issue.state}">${state}</span><span class="commit-msg"></span></div><div class="commit-ai-desc"></div><span class="commit-time"></span>`;
+    row.querySelector('.commit-msg').textContent = issue.title || 'Repository issue';
+    row.querySelector('.commit-ai-desc').textContent = issue.state === 'open' ? 'Open issue on the Flux repository' : 'Resolved issue on the Flux repository';
+    row.querySelector('.commit-time').textContent = issue.updated_at ? timeAgoShort(issue.updated_at) : '';
+    row.addEventListener('click', () => window.open(issue.html_url, '_blank', 'noopener'));
+    row.setAttribute('role', 'link');
+    row.setAttribute('tabindex', '0');
+    row.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); row.click(); } });
+    list.appendChild(row);
+  });
+}
+
 async function injectBuildNumber() {
   try {
     const commits = await fetchCommits();
@@ -1860,15 +1882,29 @@ async function injectBuildNumber() {
     obs.observe(document.body, { childList: true, subtree: true });
     setTimeout(() => obs.disconnect(), 30000);
 
-    // Render commits panel (index.html only)
+    // Render and rotate the existing home update panel between complete commit and issue lists.
     if (document.getElementById('hero-commits')) {
       await renderCommitsPanel(commits);
+      const issues = await fetchHomeIssues();
+      let showingIssues = false;
+      if (issues.length) {
+        setInterval(async () => {
+          showingIssues = !showingIssues;
+          if (showingIssues) await renderIssuesPanel(issues);
+          else await renderCommitsPanel(commits);
+        }, 5000);
+      }
 
-      // Auto-refresh every 5 minutes
+      // Auto-refresh commits and issues every 5 minutes while preserving the active panel.
       setInterval(async () => {
         try {
           const fresh = await fetchCommits(true);
-          if (fresh?.length) await renderCommitsPanel(fresh);
+          if (fresh?.length) {
+            commits.splice(0, commits.length, ...fresh);
+            if (!showingIssues) await renderCommitsPanel(commits);
+          }
+          const freshIssues = await fetchHomeIssues();
+          if (freshIssues.length && !showingIssues) await renderCommitsPanel(commits);
         } catch {}
       }, COMMITS_CACHE_TTL);
     }
@@ -1884,7 +1920,7 @@ async function fetchHomeIssues() {
     return Array.isArray(issues) ? issues.filter(issue => !issue.pull_request).map(issue => ({
       kind: 'issue', title: issue.title || 'Repository issue',
       detail: issue.state === 'open' ? 'Open issue on the Flux repository' : 'Resolved repository issue',
-      url: issue.html_url, severity: issue.state === 'open' ? 'warning' : 'info'
+      url: issue.html_url, html_url: issue.html_url, state: issue.state, updated_at: issue.updated_at, severity: issue.state === 'open' ? 'warning' : 'info'
     })) : [];
   } catch { return []; }
 }

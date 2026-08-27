@@ -21,6 +21,7 @@ import {
   getDoc,
   setDoc,
   updateDoc,
+  serverTimestamp as firestoreServerTimestamp,
   onSnapshot,
   increment,
   deleteField,
@@ -156,6 +157,7 @@ export function initPresence() {
         if (activityPingTimer) clearInterval(activityPingTimer);
         activityPingTimer = setInterval(() => {
           update(activityRef, { online: true, lastActiveAt: serverTimestamp() }).catch(() => {});
+          if (payload.uid) updateDoc(doc(db, 'profiles', payload.uid), { online: true, lastActiveAt: firestoreServerTimestamp() }).catch(() => {});
         }, 30000);
       });
       if (user && !user.isAnonymous) {
