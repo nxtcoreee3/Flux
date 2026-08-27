@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+  
+  <!-- Top Notification -->
+<style>
+#nxtcoreee3-notification {
+  position: fixed;
+  top: -120px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(20,20,20,0.95);
+  backdrop-filter: blur(10px);
+  color: white;
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-radius: 999px;
+  box-shadow: 0 8px 25px rgba(0,0,0,0.35);
+  font-family: sans-serif;
+  font-size: 15px;
+  z-index: 999999;
+  transition: top 0.5s ease;
+}
+
+#nxtcoreee3-notification img {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+</style>
+
+<div id="nxtcoreee3-notification">
+ <img src="https://raw.githubusercontent.com/nxtcoreee3/Drive-Mad/main/IMG_0556.JPG" alt="profile">
+  <span>Cracked by nxtcoreee3</span>
+</div>
+
+<script>
+const notif = document.getElementById("nxtcoreee3-notification");
+
+setTimeout(() => {
+  notif.style.top = "20px"; // slide down
+}, 300);
+
+setTimeout(() => {
+  notif.style.top = "-120px"; // slide up
+}, 5300);
+</script>
+  <head>
+    <title>Drift Boss</title>
+    <link rel="icon" type="image/x-icon" href="/media/graphics/misc/favicon.ico">
+    <meta http-equiv="Content-type" content="text/html; charset=utf-8">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="viewport" content="width=device-width,height=device-height, initial-scale=1, maximum-scale=1, user-scalable=0, minimal-ui" />
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-MENBM6GSNY"></script>
+    <script>
+      function gtag() {
+        dataLayer.push(arguments)
+      }
+      window.dataLayer = window.dataLayer || [], gtag("js", new Date), gtag("config", "G-MENBM6GSNY")
+    </script>
+    <link rel="stylesheet" type="text/css" href="https://738501629-461082748261058427.preview.editmysite.com/uploads/b/139890129-817510652323129407/files/game.css">
+    <script type="text/javascript" src="https://738501629-461082748261058427.preview.editmysite.com/uploads/b/139890129-817510652323129407/files/game.js"></script>
+  </head>
+  <body onload="setTimeout(function(){window.scrollTo(0,1)},1);">
+    <div id="ajaxbar">
+      <div id="game">
+        <canvas id="canvas"></canvas>
+      </div>
+      <div id="webgl">
+        <canvas id="webglcanvas"></canvas>
+      </div>
+      <div id="orientate">
+        <img src="https://738501629-461082748261058427.preview.editmysite.com/uploads/b/139890129-817510652323129407/files/media/graphics/orientate/landscape.jpg">
+      </div>
+      <div id="play" class="play" onclick="">
+        <img src="https://738501629-461082748261058427.preview.editmysite.com/uploads/b/139890129-817510652323129407/files/media/graphics/splash/mobile/cover-start.jpg">
+      </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/gh/st39/sdk@main/api.js"></script>
+  </body>
+</html>

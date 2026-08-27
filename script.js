@@ -85,6 +85,7 @@ if (isNewOfficial) {
 }
 
 import { initAuthUI, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, fetchAllGameStats, setCurrentlyPlaying, clearCurrentlyPlaying, rateGame, getUserRating, reportGame, checkFirestoreHealth, fetchGameDetail, getAiGameDescription, getGameReviews, submitReview, addReviewComment, likeReview, deleteReview, fetchGamePricing, getUnlockedGames, unlockGame, SPIN_SEGMENTS, getLastSpin, spinWheel, giftPointsToUser, redeemCode, createRewardCode, getRewardCodes, deactivateRewardCode, initIncidentBanner, setServiceStatus, autoCheckServiceHealth, setIncidentBanner, checkNoAds, purchaseNoAds, NO_ADS_COST, setGameLockdown, initUpdateNotification } from './firebase-auth.js';
+import { getActiveServer, getLocalLibraryState, getGameAvailability, getRepositoryGameFolder, isGameAvailable, getGameLaunchUrl, initializeServerRuntime } from './server-config.js';
 
 const GAMES = [
   {
@@ -370,6 +371,42 @@ const GAMES = [
   }
 ];
 
+function getGameServerState(game) {
+  const server = getActiveServer();
+  const availability = getGameAvailability(game);
+  return {
+    server,
+    availability,
+    checking: server.id === 'local' && availability.checking,
+    unavailable: server.id === 'local' && !availability.available && !availability.checking,
+  };
+}
+
+function showGameUnavailable(game) {
+  const { server, availability } = getGameServerState(game);
+  if (server.id !== 'local') return;
+  const message = availability.checking
+    ? `Checking /games/${getRepositoryGameFolder(game)}/…`
+    : `${game.title} is not present in the repository games folder.`;
+  showToast(message, 'warning');
+}
+
+function renderServerAvailabilityBadge(game) {
+  const { server, unavailable, checking } = getGameServerState(game);
+  if (server.id !== 'local') return '';
+  if (checking) return '<span class="compat-badge" style="color:#2563eb;background:rgba(59,130,246,0.1);border-color:rgba(59,130,246,0.25);">⌛ Checking repository</span>';
+  return unavailable
+    ? '<span class="compat-badge" style="color:#d97706;background:rgba(245,158,11,0.1);border-color:rgba(245,158,11,0.25);">⛔ Not in /games</span>'
+    : '<span class="compat-badge" style="color:#16a34a;background:rgba(34,197,94,0.1);border-color:rgba(34,197,94,0.25);">✓ Repository file ready</span>';
+}
+
+window.addEventListener('flux-server-changed', () => {
+  if (document.getElementById('game-grid') || document.getElementById('games-grid')) applyFilters();
+});
+window.addEventListener('flux-local-library-changed', () => {
+  if (document.getElementById('game-grid') || document.getElementById('games-grid')) applyFilters();
+});
+
 // expose game count globally for stats button
 window._FLUX_GAME_COUNT = GAMES.length;
 window._FLUX_GAMES = GAMES;
@@ -550,12 +587,13 @@ function createCard(game) {
   // Mod lockdown — owner can still play
   const isModLocked = stats.locked === true;
   const isOwnerView = window._fluxIsOwner === true;
+  const { unavailable, checking } = getGameServerState(game);
 
   const pricing = _gamePricing[game.id] || { price: 0, discount: 0 };
   const isExpired = pricing.discountExpiry && new Date(pricing.discountExpiry) < new Date();
   const activeDiscount = (!isExpired && pricing.discount > 0) ? pricing.discount : 0;
   const finalPrice = activeDiscount > 0 ? Math.round(pricing.price * (1 - activeDiscount / 100)) : (pricing.price || 0);
-  const isLocked = finalPrice > 0 && !_unlockedGames.includes(game.id);
+  const isLocked = !unavailable && !checking && finalPrice > 0 && !_unlockedGames.includes(game.id);
 
   const compatBadge = compat === 'ipad'
     ? '<span class="compat-badge" data-tip="📱 Touchscreen compatible — works great on iPad and touch devices">📱 iPad</span>'
@@ -592,7 +630,10 @@ function createCard(game) {
       <div class="meta">${game.desc || ''}</div>
       <div style="display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap;">
         ${compatBadge}
+        ${renderServerAvailabilityBadge(game)}
         ${ratingHTML}
+        ${checking ? '<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(59,130,246,0.1);color:#2563eb;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;border:1px solid rgba(59,130,246,0.25);">⌛ Checking repository</span>' : ''}
+        ${unavailable ? '<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(245,158,11,0.1);color:#d97706;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;border:1px solid rgba(245,158,11,0.25);">⛔ Unavailable in /games</span>' : ''}
         ${isModLocked && !isOwnerView ? '<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(239,68,68,0.1);color:#ef4444;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;border:1px solid rgba(239,68,68,0.2);">🔒 Temporarily unavailable</span>' : ''}
         ${isModLocked && isOwnerView ? '<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(239,68,68,0.1);color:#ef4444;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;border:1px solid rgba(239,68,68,0.2);">🔒 Locked (admin view)</span>' : ''}
       </div>
@@ -606,7 +647,11 @@ function createCard(game) {
       <div style="display:flex;gap:8px;align-items:center">
         ${isModLocked && !isOwnerView
       ? `<button class="modlock-info-btn" style="padding:7px 14px;background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.3);border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;">Get Info</button>`
-      : `<button class="play-btn" data-url="${game.url}" data-title="${game.title}">${isLocked ? `🔒 ${finalPrice} pts` : 'Play'}</button>`
+      : checking
+        ? `<button class="play-btn" disabled style="padding:7px 14px;background:rgba(59,130,246,0.1);color:#2563eb;border:1px solid rgba(59,130,246,0.25);border-radius:20px;font-size:12px;font-weight:700;cursor:wait;">Checking…</button>`
+      : unavailable
+        ? `<button class="play-btn" disabled style="padding:7px 14px;background:rgba(107,114,128,0.12);color:var(--muted);border:1px solid var(--glass-border);border-radius:20px;font-size:12px;font-weight:700;cursor:not-allowed;">Unavailable</button>`
+        : `<button class="play-btn" data-url="${game.url}" data-title="${game.title}">${isLocked ? `🔒 ${finalPrice} pts` : 'Play'}</button>`
     }
       </div>
     </div>
@@ -641,17 +686,21 @@ function createCard(game) {
     showModLockInfoModal(game, stats);
   });
 
-  div.querySelector('.play-btn')?.addEventListener('click', (e) => {
+  div.querySelector('.play-btn')?.addEventListener('click', async (e) => {
     e.stopPropagation();
     if (window._fluxBanned) return;
+    if (getGameServerState(game).checking) { showToast(`Checking /games/${getRepositoryGameFolder(game)}/…`, 'info'); return; }
+    if (!isGameAvailable(game)) { showGameUnavailable(game); return; }
     if (isLocked) { showUnlockModal(game, finalPrice, activeDiscount, pricing.price); return; }
+    const launchUrl = await getGameLaunchUrl(game);
+    if (!launchUrl) { showGameUnavailable(game); return; }
     addRecent(game.id);
     renderRecentSection();
     trackGamePlay(game.id, game.title).then(() => {
       fetchHotGame().then(hot => { if (hot && hot.id !== _hotGameId) { _hotGameId = hot.id; applyFilters(); } });
     });
     setCurrentlyPlaying(game.id, game.title);
-    openPlayModal(e.currentTarget.dataset.url, e.currentTarget.dataset.title);
+    openPlayModal(launchUrl, game.title);
   });
 
   return div;
@@ -1019,6 +1068,7 @@ function bootFlux() {
   // Render immediately so the page never feels empty
   if (document.getElementById('game-grid') || document.getElementById('games-grid')) {
     renderGames(GAMES);
+    initializeServerRuntime(GAMES).then(() => applyFilters());
   }
 
   if (document.getElementById('quick-search')) {
@@ -1901,6 +1951,10 @@ function openFullscreen(url, title) {
 const MODAL_ID = 'play-modal';
 
 function openPlayModal(url, title) {
+  if (!url) {
+    showToast('This game is unavailable on the selected server.', 'warning');
+    return;
+  }
   const modal = document.getElementById(MODAL_ID) || document.querySelector('.modal');
   if (!modal) { window.open(url, '_blank', 'noopener'); return; }
 
@@ -2087,11 +2141,12 @@ async function openGameDetail(game) {
   overlay.id = 'flux-game-detail';
   overlay.style.cssText = 'position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.65);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;font-family:inherit;';
 
+  const { server, unavailable, checking } = getGameServerState(game);
   const pricing = _gamePricing[game.id] || { price: 0, discount: 0 };
   const isExpired = pricing.discountExpiry && new Date(pricing.discountExpiry) < new Date();
   const activeDiscount = (!isExpired && pricing.discount > 0) ? pricing.discount : 0;
   const finalPrice = activeDiscount > 0 ? Math.round(pricing.price * (1 - activeDiscount / 100)) : (pricing.price || 0);
-  const isLocked = finalPrice > 0 && !_unlockedGames.includes(game.id);
+  const isLocked = !unavailable && !checking && finalPrice > 0 && !_unlockedGames.includes(game.id);
   const stats = _allGameStats[game.id] || {};
   const addedAt = game.addedAt || stats.firstSeen;
   const avgRating = stats.ratingCount ? (stats.ratingTotal / stats.ratingCount).toFixed(1) : null;
@@ -2113,6 +2168,9 @@ async function openGameDetail(game) {
           <div style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg,#f9fafb);border-radius:10px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));"><span>💎</span><div><div style="font-size:16px;font-weight:700;color:var(--text,#111);">${finalPrice > 0 ? finalPrice + ' pts' : 'Free'}</div><div style="font-size:10px;color:var(--muted,#6b7280);">${isLocked ? 'to unlock' : '✓ unlocked'}</div></div></div>
           ${addedAt ? `<div style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg,#f9fafb);border-radius:10px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));"><span>📅</span><div><div style="font-size:12px;font-weight:700;color:var(--text,#111);">${new Date(addedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</div><div style="font-size:10px;color:var(--muted,#6b7280);">added</div></div></div>` : ''}
         </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:10px;background:${checking ? 'rgba(59,130,246,0.1)' : unavailable ? 'rgba(245,158,11,0.1)' : 'rgba(58,125,255,0.07)'};border:1px solid ${checking ? 'rgba(59,130,246,0.25)' : unavailable ? 'rgba(245,158,11,0.25)' : 'rgba(58,125,255,0.15)'};font-size:12px;color:${checking ? '#2563eb' : unavailable ? '#d97706' : 'var(--accent,#3a7dff)'};font-weight:700;">
+          <span>${server.icon}</span><span>Server: ${server.name}${checking ? ` · Checking /games/${getRepositoryGameFolder(game)}/` : unavailable ? ' · This game is not in the repository games folder' : ''}</span>
+        </div>
         <div>
           <div style="font-size:11px;font-weight:700;color:var(--muted,#6b7280);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">About this game</div>
           <div id="gd-ai-desc" style="font-size:14px;color:var(--text,#111);line-height:1.7;background:var(--bg,#f9fafb);border-radius:12px;padding:14px 16px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));">${game.desc} <span style="color:var(--muted,#9ca3af);font-size:12px;">✨ Enhancing...</span></div>
@@ -2120,9 +2178,13 @@ async function openGameDetail(game) {
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
           ${isModLocked && !isOwnerView
       ? `<button id="gd-modlock-info" style="flex:1;min-width:140px;padding:12px 20px;background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.3);border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;">🔒 Temporarily Unavailable (Get Info)</button>`
-      : isLocked
-        ? `<button id="gd-unlock-btn" style="flex:1;min-width:140px;padding:12px 20px;background:linear-gradient(135deg,#f59e0b,#ef4444);color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;">🔒 Unlock for ${finalPrice} pts</button>`
-        : `<button id="gd-play-btn" style="flex:1;min-width:140px;padding:12px 20px;background:var(--accent,#3a7dff);color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;">▶ Play Now</button>`}
+      : checking
+        ? `<button id="gd-checking-btn" disabled style="flex:1;min-width:140px;padding:12px 20px;background:rgba(59,130,246,0.1);color:#2563eb;border:1px solid rgba(59,130,246,0.25);border-radius:12px;font-size:14px;font-weight:700;cursor:wait;">⌛ Checking repository</button>`
+      : unavailable
+        ? `<button id="gd-unavailable-btn" disabled style="flex:1;min-width:140px;padding:12px 20px;background:rgba(107,114,128,0.12);color:var(--muted);border:1px solid var(--glass-border);border-radius:12px;font-size:14px;font-weight:700;cursor:not-allowed;">⛔ Unavailable in /games</button>`
+        : isLocked
+          ? `<button id="gd-unlock-btn" style="flex:1;min-width:140px;padding:12px 20px;background:linear-gradient(135deg,#f59e0b,#ef4444);color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;">🔒 Unlock for ${finalPrice} pts</button>`
+          : `<button id="gd-play-btn" style="flex:1;min-width:140px;padding:12px 20px;background:var(--accent,#3a7dff);color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;">▶ Play Now</button>`}
           <button id="gd-fav-btn" style="padding:12px 20px;border:1px solid var(--glass-border,rgba(0,0,0,0.1));border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;background:var(--bg,#f9fafb);color:var(--text,#111);">${isFav(game.id) ? '★ Favourited' : '☆ Favourite'}</button>
         </div>
         <div>
@@ -2149,10 +2211,14 @@ async function openGameDetail(game) {
   overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
   window.addEventListener('keydown', function escH(e) { if (e.key === 'Escape') { close(); window.removeEventListener('keydown', escH); } });
 
-  document.getElementById('gd-play-btn')?.addEventListener('click', () => {
+  document.getElementById('gd-play-btn')?.addEventListener('click', async () => {
+    if (getGameServerState(game).checking) { close(); showToast(`Checking /games/${getRepositoryGameFolder(game)}/…`, 'info'); return; }
+    if (!isGameAvailable(game)) { close(); showGameUnavailable(game); return; }
+    const launchUrl = await getGameLaunchUrl(game);
+    if (!launchUrl) { close(); showGameUnavailable(game); return; }
     close(); addRecent(game.id); renderRecentSection();
     trackGamePlay(game.id, game.title); setCurrentlyPlaying(game.id, game.title);
-    openPlayModal(game.url, game.title);
+    openPlayModal(launchUrl, game.title);
   });
   document.getElementById('gd-unlock-btn')?.addEventListener('click', () => { close(); showUnlockModal(game, finalPrice, activeDiscount, pricing.price); });
   document.getElementById('gd-modlock-info')?.addEventListener('click', () => { close(); showModLockInfoModal(game, stats); });

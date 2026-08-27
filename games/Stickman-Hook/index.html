@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<script src="https://cdn.jsdelivr.net/npm/p5@1.11.5/lib/p5.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/p5@1.11.5/lib/addons/p5.sound.min.js"></script>
+	<script src="mySketch.js"></script>
+	<link rel="stylesheet" type="text/css" href="style.css">
+<head>
+    <base href="https://cdn.jsdelivr.net/gh/genizy/google-class@cd06df26d3c4d9f73c8151fc13f7b2dc27f3adda/stickman-hook/">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
+    <style>
+      html,
+      body {
+      position: absolute;
+      top: 0px;
+      left: 0px;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      }
+      canvas {
+      width: 100%;
+      }
+    </style>
+    <script src="poki3.js"></script>
+  </head>
+ 
+<!-- Top Notification -->
+<style>
+#nxtcoreee3-notification {
+  position: fixed;
+  top: -120px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(20,20,20,0.95);
+  backdrop-filter: blur(10px);
+  color: white;
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-radius: 999px;
+  box-shadow: 0 8px 25px rgba(0,0,0,0.35);
+  font-family: sans-serif;
+  font-size: 15px;
+  z-index: 999999;
+  transition: top 0.5s ease;
+}
+
+#nxtcoreee3-notification img {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+</style>
+
+<div id="nxtcoreee3-notification">
+ <img src="https://raw.githubusercontent.com/nxtcoreee3/Drive-Mad/main/IMG_0556.JPG" alt="profile">
+  <span>Cracked by nxtcoreee3</span>
+</div>
+
+<script>
+const notif = document.getElementById("nxtcoreee3-notification");
+
+setTimeout(() => {
+  notif.style.top = "20px"; // slide down
+}, 300);
+
+setTimeout(() => {
+  notif.style.top = "-120px"; // slide up
+}, 5300);
+</script>
+	
+	<body>
+    <script src="bundle.js"></script>
+    <script defer src="https://static.cloudflareinsights.com/beacon.min.js/vcd15cbe7772f49c399c6a5babf22c1241717689176015" integrity="sha512-ZpsOmlRQV6y907TI0dKBHq9Md29nnaEIPlkf84rnaERnq6zvWvPUqr2ft8M1aS28oN72PdrCzSjY4U6VaAw1EQ==" data-cf-beacon='{"rayId":"91be7a7b6dbe0904","version":"2025.1.0","r":1,"token":"0e8becf3a433401faa232e8c05dfd1f4","serverTiming":{"name":{"cfExtPri":true,"cfL4":true,"cfSpeedBrain":true,"cfCacheStatus":true}}}' crossorigin="anonymous"></script>
+  </body>
+</html>

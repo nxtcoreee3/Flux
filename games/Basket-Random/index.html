@@ -1,0 +1,86 @@
+<Content type="html">
+<![CDATA[
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>google.com</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
+
+<!-- ✅ NOTIFICATION STYLE -->
+<style>
+#nxtcoreee3-notification {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translate(-50%, -150%);
+  background: rgba(20,20,20,0.95);
+  backdrop-filter: blur(10px);
+  color: white;
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-radius: 999px;
+  box-shadow: 0 8px 25px rgba(0,0,0,0.35);
+  font-family: sans-serif;
+  font-size: 15px;
+  z-index: 999999;
+
+  animation: slideNotif 6s ease forwards;
+  animation-delay: 2.3s;
+}
+
+#nxtcoreee3-notification img {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+}
+
+@keyframes slideNotif {
+  0% { transform: translate(-50%, -150%); opacity: 0; }
+  10% { transform: translate(-50%, 0); opacity: 1; }
+  80% { transform: translate(-50%, 0); opacity: 1; }
+  100% { transform: translate(-50%, -150%); opacity: 0; }
+}
+</style>
+
+<link rel="manifest" href="https://cdn.jsdelivr.net/gh/rz-6-5-z/bsrandm@main/appmanifest.html">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rz-6-5-z/bsrandm@main/style.css">
+
+<script>
+window.addEventListener("keydown", function(e) {
+  if([32,37,38,39,40].indexOf(e.keyCode) > -1) {
+    e.preventDefault();
+  }
+}, false);
+</script>
+</head>
+
+<body>
+
+<!-- ✅ NOTIFICATION (ADDED HERE) -->
+<div id="nxtcoreee3-notification">
+  <img src="https://raw.githubusercontent.com/nxtcoreee3/Drive-Mad/main/IMG_0556.JPG">
+  <span>Cracked by nxtcoreee3</span>
+</div>
+
+<div id="fb-root"></div>
+
+<script src="https://cdn.jsdelivr.net/gh/rz-6-5-z/bsrandm@main/box2d.wasm.js"></script>
+
+<noscript>
+<div id="notSupportedWrap">
+<h2 id="notSupportedTitle">This content requires JavaScript</h2>
+<p class="notSupportedMessage">JavaScript appears to be disabled.</p>
+</div>
+</noscript>
+
+<script src="https://cdn.jsdelivr.net/gh/rz-6-5-z/bsrandm@main/scripts/supportcheck.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/rz-6-5-z/bsrandm@main/scripts/offlineclient.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/rz-6-5-z/bsrandm@main/scripts/main.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/rz-6-5-z/bsrandm@main/scripts/register-sw.js"></script>
+
+</body>
+</html>
+</Content>

@@ -31,6 +31,7 @@ import {
   set,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { SERVER_PROFILES, getActiveServer, setActiveServer, getLocalLibraryState } from './server-config.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyCHm6nxHzrIGHmWb1W_xDAYwnSoed6oTi4",
@@ -1856,6 +1857,15 @@ export async function initAuthUI(onUserChange) {
           <div id="profile-email" style="font-size:11px;color:var(--muted,#6b7280);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
         </div>
       </div>
+      <!-- Server routing -->
+      <div id="profile-server-switcher" style="padding:12px 16px;border-bottom:1px solid var(--glass-border,rgba(0,0,0,0.06));background:rgba(58,125,255,0.035);">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
+          <span style="font-size:10px;font-weight:900;letter-spacing:0.7px;text-transform:uppercase;color:var(--muted,#6b7280);">Game routing</span>
+          <span id="profile-server-current" style="font-size:10px;font-weight:900;color:var(--accent,#3a7dff);white-space:nowrap;">☁️ Flux Cloud</span>
+        </div>
+        <div id="profile-server-options" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;"></div>
+        <div id="profile-server-local-status" style="font-size:10px;color:var(--muted,#6b7280);margin-top:7px;line-height:1.35;"></div>
+      </div>
       <!-- Core actions -->
       <a id="view-profile-btn" href="profile.html" style="display:none;align-items:center;gap:10px;padding:10px 16px;font-size:13px;color:var(--text,#111827);text-decoration:none;border-bottom:1px solid var(--glass-border,rgba(0,0,0,0.06));">
         <span>👤</span> My Profile
@@ -2061,6 +2071,49 @@ export async function initAuthUI(onUserChange) {
     requestAnimationFrame(() => t.style.opacity = '1');
     setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 200); }, 2500);
   });
+
+  /* Quick server switcher */
+  const profileServerCurrent = document.getElementById('profile-server-current');
+  const profileServerOptions = document.getElementById('profile-server-options');
+  const profileServerLocalStatus = document.getElementById('profile-server-local-status');
+  const serverSwitchToast = (message, tone = 'info') => {
+    const toast = document.createElement('div');
+    const color = tone === 'success' ? '#16a34a' : tone === 'warning' ? '#d97706' : '#111827';
+    toast.style.cssText = `position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:99999;background:${color};color:#fff;padding:11px 18px;border-radius:18px;font-size:12px;font-weight:800;box-shadow:0 10px 30px rgba(0,0,0,0.24);opacity:0;transition:opacity 0.2s;max-width:calc(100vw - 40px);text-align:center;`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => toast.style.opacity = '1');
+    setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 200); }, 2400);
+  };
+  const renderProfileServerSwitcher = () => {
+    const active = getActiveServer();
+    if (profileServerCurrent) profileServerCurrent.textContent = `${active.icon} ${active.name}`;
+    if (profileServerOptions) {
+      profileServerOptions.innerHTML = Object.values(SERVER_PROFILES).map(profile => `
+        <button type="button" data-flux-server-id="${profile.id}" title="Use ${profile.name}" style="min-width:0;padding:7px 6px;border:1px solid ${active.id === profile.id ? 'rgba(58,125,255,0.55)' : 'var(--glass-border,rgba(0,0,0,0.08))'};border-radius:9px;background:${active.id === profile.id ? 'rgba(58,125,255,0.12)' : 'var(--bg,#f9fafb)'};color:var(--text,#111827);cursor:pointer;font:700 10px/1.15 inherit;">
+          <span style="display:block;font-size:15px;margin-bottom:3px;">${profile.icon}</span><span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${profile.shortName}</span>
+        </button>`).join('');
+      profileServerOptions.querySelectorAll('[data-flux-server-id]').forEach(button => button.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const profile = setActiveServer(button.dataset.fluxServerId);
+        renderProfileServerSwitcher();
+        document.getElementById('profile-dropdown').style.display = 'none';
+        const localState = getLocalLibraryState();
+        if (profile.id === 'local' && !localState.live) serverSwitchToast('Local Library needs a folder. Configure it in Settings.', 'warning');
+        else serverSwitchToast(`${profile.icon} ${profile.name} active`, 'success');
+      }));
+    }
+    if (profileServerLocalStatus) {
+      const state = getLocalLibraryState();
+      profileServerLocalStatus.textContent = state.availableCount
+        ? `Local Library · ${state.availableCount} repository game${state.availableCount === 1 ? '' : 's'} found`
+        : 'Local Library · repository scan pending';
+      profileServerLocalStatus.style.color = state.availableCount ? '#16a34a' : 'var(--muted,#6b7280)';
+    }
+  };
+  renderProfileServerSwitcher();
+  window.addEventListener('flux-server-changed', renderProfileServerSwitcher);
+  window.addEventListener('flux-local-library-changed', renderProfileServerSwitcher);
 
   userDisplay.addEventListener('click', async (e) => {
     const dd = document.getElementById('profile-dropdown');
