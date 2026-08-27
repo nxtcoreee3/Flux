@@ -132,9 +132,9 @@ export function initPresence() {
   onValue(connectedRef, async (snap) => {
     if (snap.val() === true) {
       const payload = buildPayload();
+      const user = auth.currentUser;
       // Try to attach username from Firestore profile
       try {
-        const user = auth.currentUser;
         if (user && !user.isAnonymous) {
           const pSnap = await getDoc(doc(db, 'profiles', user.uid));
           if (pSnap.exists()) {
