@@ -2344,27 +2344,7 @@ async function playPurchaseCelebration(game) {
       silhouette.style.setProperty('--purchase-origin-top', `${rect.top + rect.height / 2}px`);
       silhouette.style.width = `${rect.width}px`;
       silhouette.style.height = `${rect.height}px`;
-
-      const unlockedPreview = sourceCard.cloneNode(true);
-      unlockedPreview.classList.add('purchase-celebration__unlocked');
-      unlockedPreview.setAttribute('aria-hidden', 'true');
-      unlockedPreview.style.position = 'fixed';
-      unlockedPreview.style.left = '50%';
-      unlockedPreview.style.top = '50%';
-      unlockedPreview.style.width = `${rect.width}px`;
-      unlockedPreview.style.height = `${rect.height}px`;
-      unlockedPreview.style.setProperty('--purchase-origin-left', `${rect.left + rect.width / 2}px`);
-      unlockedPreview.style.setProperty('--purchase-origin-top', `${rect.top + rect.height / 2}px`);
-      unlockedPreview.querySelector('.card-lock-overlay')?.remove();
-      const unlockedButton = unlockedPreview.querySelector('.play-btn');
-      if (unlockedButton) {
-        unlockedButton.textContent = 'Play';
-        unlockedButton.removeAttribute('disabled');
-        unlockedButton.style.cursor = 'default';
-      }
-
       overlay.appendChild(silhouette);
-      overlay.appendChild(unlockedPreview);
       previousVisibility = sourceCard.style.visibility;
       sourceCard.style.visibility = 'hidden';
       sourceCard.setAttribute('aria-hidden', 'true');
@@ -2374,9 +2354,7 @@ async function playPurchaseCelebration(game) {
   const previousBodyOverflow = document.body.style.overflow;
   document.body.style.overflow = 'hidden';
   document.body.appendChild(overlay);
-  await waitForPurchaseAnimation(reducedMotion ? 80 : 2900);
-  overlay.classList.add('is-revealed');
-  await waitForPurchaseAnimation(reducedMotion ? 20 : 1300);
+  await waitForPurchaseAnimation(reducedMotion ? 80 : 4200);
   overlay.classList.add('is-fading');
   await waitForPurchaseAnimation(reducedMotion ? 20 : 800);
 
