@@ -949,7 +949,7 @@ html.beta body { animation: beta-fadein 0.25s ease both; }
   box-shadow: 0 28px 90px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.08), 0 0 48px rgba(34,197,94,0.14);
   filter: grayscale(1) brightness(0.42) contrast(1.35);
   opacity: 0.98;
-  animation: flux-purchase-card-pop 4200ms cubic-bezier(.22,1,.36,1) both;
+  animation: flux-purchase-card-pop 2900ms cubic-bezier(.22,1,.36,1) both;
 }
 #flux-purchase-celebration .purchase-celebration__silhouette::after {
   content: '';
@@ -967,8 +967,9 @@ html.beta body { animation: beta-fadein 0.25s ease both; }
   aspect-ratio: 1;
   border-radius: 50%;
   opacity: 0;
-  background: radial-gradient(circle, rgba(134,239,172,0.9) 0 5%, rgba(34,197,94,0.72) 20%, rgba(22,163,74,0.32) 48%, transparent 72%);
-  filter: blur(0.2px);
+  background: radial-gradient(circle, #f0fdf4 0 4%, #86efac 8%, #22c55e 24%, #16a34a 45%, rgba(34,197,94,0.5) 62%, transparent 78%);
+  box-shadow: 0 0 42px rgba(34,197,94,0.92), 0 0 120px rgba(22,163,74,0.7);
+  filter: saturate(1.35) blur(0.2px);
   transform: scale(0.18);
   animation: flux-purchase-splash 1900ms cubic-bezier(.16,1,.3,1) 1350ms both;
 }
@@ -986,7 +987,7 @@ html.beta body { animation: beta-fadein 0.25s ease both; }
   inset: 20%;
   border-color: rgba(255,255,255,0.45);
   transform: rotate(-24deg) scale(0.65);
-  animation-delay: 470ms;
+  animation-delay: 1470ms;
 }
 .purchase-celebration__check {
   position: absolute;
@@ -1000,18 +1001,24 @@ html.beta body { animation: beta-fadein 0.25s ease both; }
   transform: scale(0.2) rotate(-15deg);
   animation: flux-purchase-check 1150ms cubic-bezier(.16,1,.3,1) 1650ms both;
 }
-.purchase-celebration__label {
-  position: absolute;
-  top: calc(50% + min(34vw, 180px));
-  left: 50%;
-  color: #dcfce7;
-  font: 800 12px/1 system-ui, sans-serif;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  white-space: nowrap;
+.purchase-celebration__unlocked {
+  position: fixed;
+  z-index: 3;
+  margin: 0;
+  overflow: hidden;
+  transform-origin: center;
   opacity: 0;
-  transform: translate(-50%, 8px);
-  animation: flux-purchase-label 720ms ease 1750ms both;
+  pointer-events: none;
+  box-shadow: 0 30px 100px rgba(0,0,0,0.62), 0 0 0 1px rgba(134,239,172,0.35), 0 0 56px rgba(34,197,94,0.42);
+}
+#flux-purchase-celebration.is-revealed .purchase-celebration__silhouette {
+  animation: flux-purchase-card-final-shake 1300ms cubic-bezier(.22,1,.36,1) both;
+}
+#flux-purchase-celebration.is-revealed .purchase-celebration__unlocked {
+  animation: flux-purchase-unlocked-reveal 1300ms cubic-bezier(.22,1,.36,1) both;
+}
+#flux-purchase-celebration.is-fading .purchase-celebration__unlocked {
+  animation: flux-purchase-card-return 800ms cubic-bezier(.22,1,.36,1) both;
 }
 @keyframes flux-purchase-backdrop-in {
   0% { background: rgba(3,8,13,0); }
@@ -1024,15 +1031,41 @@ html.beta body { animation: beta-fadein 0.25s ease both; }
 }
 @keyframes flux-purchase-card-pop {
   0% { left: var(--purchase-origin-left); top: var(--purchase-origin-top); transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 1; }
-  10% { left: var(--purchase-origin-left); top: var(--purchase-origin-top); transform: translate(-50%, -50%) scale(1.012) rotate(-0.8deg); }
-  17% { left: calc(var(--purchase-origin-left) - 7px); top: var(--purchase-origin-top); transform: translate(-50%, -50%) scale(1.018) rotate(1.2deg); }
-  24% { left: calc(var(--purchase-origin-left) + 6px); top: var(--purchase-origin-top); transform: translate(-50%, -50%) scale(1.024) rotate(-0.9deg); }
-  31% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1.03) rotate(0deg); }
-  40% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1.08) rotate(0deg); filter: grayscale(1) brightness(0.5) contrast(1.4); }
-  52% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(0.96) rotate(0deg); opacity: 0.88; }
-  67% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1.035) rotate(0deg); opacity: 1; }
-  78% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1) rotate(0deg); }
-  90% { left: var(--purchase-origin-left); top: var(--purchase-origin-top); transform: translate(-50%, -50%) scale(1.025) rotate(0deg); }
+  10% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1.015) rotate(0deg); }
+  19% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1.025) rotate(-1.8deg); }
+  23% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1.025) rotate(1.8deg); }
+  27% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1.02) rotate(0deg); }
+  38% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1.02) rotate(0deg); }
+  48% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1.04) rotate(-3.5deg); }
+  53% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1.045) rotate(3.5deg); }
+  58% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1.035) rotate(0deg); }
+  68% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1.035) rotate(0deg); }
+  76% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1.08) rotate(-7deg); }
+  81% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1.09) rotate(7deg); }
+  86% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1.06) rotate(-4deg); }
+  92% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1.035) rotate(0deg); }
+  100% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1.035) rotate(0deg); opacity: 1; }
+}
+@keyframes flux-purchase-card-final-shake {
+  0% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1.035) rotate(0deg); opacity: 1; }
+  18% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1.08) rotate(-8deg); }
+  28% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1.1) rotate(9deg); }
+  38% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1.07) rotate(-6deg); }
+  48% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1.06) rotate(4deg); }
+  64% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1.045) rotate(0deg); opacity: 0.72; }
+  82% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1.035) rotate(0deg); opacity: 0.18; }
+  100% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1.025) rotate(0deg); opacity: 0; }
+}
+@keyframes flux-purchase-unlocked-reveal {
+  0% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(0.9); opacity: 0; filter: brightness(1.8) saturate(1.5); }
+  22% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1.06); opacity: 0.2; filter: brightness(1.55) saturate(1.35); }
+  45% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1.025); opacity: 0.78; filter: brightness(1.2) saturate(1.2); }
+  68% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1.012); opacity: 1; filter: brightness(1) saturate(1); }
+  100% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1); opacity: 1; filter: brightness(1) saturate(1); }
+}
+@keyframes flux-purchase-card-return {
+  0% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  55% { left: var(--purchase-origin-left); top: var(--purchase-origin-top); transform: translate(-50%, -50%) scale(1.025) rotate(0deg); opacity: 1; }
   100% { left: var(--purchase-origin-left); top: var(--purchase-origin-top); transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 1; }
 }
 @keyframes flux-purchase-splash {
@@ -1051,18 +1084,14 @@ html.beta body { animation: beta-fadein 0.25s ease both; }
   55% { opacity: 1; transform: scale(1.12) rotate(3deg); }
   100% { opacity: 0; transform: scale(0.9) rotate(0deg); }
 }
-@keyframes flux-purchase-label {
-  from { opacity: 0; transform: translate(-50%, 8px); }
-  to { opacity: 0.95; transform: translate(-50%, 0); }
-}
 @media (prefers-reduced-motion: reduce) {
   #flux-purchase-celebration,
   #flux-purchase-celebration .purchase-celebration__silhouette,
+  #flux-purchase-celebration .purchase-celebration__unlocked,
   .purchase-celebration__splash,
   .purchase-celebration__splash::before,
   .purchase-celebration__splash::after,
-  .purchase-celebration__check,
-  .purchase-celebration__label {
+  .purchase-celebration__check {
     animation-duration: 1ms !important;
     animation-delay: 0ms !important;
   }
