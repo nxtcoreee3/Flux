@@ -1088,6 +1088,7 @@ function bootFlux() {
   defer(() => initJumpscare(), base + 400);
   defer(() => trackDailyVisitor(), base + 600);
   defer(() => injectBuildNumber(), base + 800);
+  defer(() => initHomeUpdatePanel(), base + 700);
   defer(() => showSocialBanner(), base + 900);
   defer(() => initAIPicker(), base + 1000);
   defer(() => initMobileWarning(), base + 1100);
@@ -1763,9 +1764,12 @@ function getPageLinkFromFiles(files) {
 async function renderCommitsPanel(commits) {
   const list = document.getElementById('commits-list');
   if (!list) return;
+  const renderToken = Symbol('commits-panel-render');
+  window._fluxHeroPanelRenderToken = renderToken;
 
   const totalLabel = document.getElementById('commits-total-label');
   const commitTotal = await fetchCommitTotal(false);
+  if (window._fluxHeroPanelRenderToken !== renderToken) return;
   if (totalLabel && commitTotal) totalLabel.textContent = `${commitTotal} Commits`;
 
   // Mark commits newer than last seen
@@ -1836,6 +1840,8 @@ async function renderCommitsPanel(commits) {
 async function renderIssuesPanel(issues) {
   const list = document.getElementById('commits-list');
   if (!list) return;
+  const renderToken = Symbol('issues-panel-render');
+  window._fluxHeroPanelRenderToken = renderToken;
   const totalLabel = document.getElementById('commits-total-label');
   if (totalLabel) totalLabel.textContent = `${issues.length} Issues`;
   list.innerHTML = '';
@@ -1881,32 +1887,7 @@ async function injectBuildNumber() {
     obs.observe(document.body, { childList: true, subtree: true });
     setTimeout(() => obs.disconnect(), 30000);
 
-    // Render and rotate the existing home update panel between complete commit and issue lists.
-    if (document.getElementById('hero-commits')) {
-      await renderCommitsPanel(commits);
-      const issues = await fetchHomeIssues();
-      let showingIssues = false;
-      if (issues.length) {
-        setInterval(async () => {
-          showingIssues = !showingIssues;
-          if (showingIssues) await renderIssuesPanel(issues);
-          else await renderCommitsPanel(commits);
-        }, 5000);
-      }
 
-      // Auto-refresh commits and issues every 5 minutes while preserving the active panel.
-      setInterval(async () => {
-        try {
-          const fresh = await fetchCommits(true);
-          if (fresh?.length) {
-            commits.splice(0, commits.length, ...fresh);
-            if (!showingIssues) await renderCommitsPanel(commits);
-          }
-          const freshIssues = await fetchHomeIssues();
-          if (freshIssues.length && !showingIssues) await renderCommitsPanel(commits);
-        } catch {}
-      }, COMMITS_CACHE_TTL);
-    }
   } catch { }
 }
 
@@ -1922,6 +1903,53 @@ async function fetchHomeIssues() {
       url: issue.html_url, html_url: issue.html_url, state: issue.state, updated_at: issue.updated_at, severity: issue.state === 'open' ? 'warning' : 'info'
     })) : [];
   } catch { return []; }
+}
+
+async function initHomeUpdatePanel() {
+  const panel = document.getElementById('hero-commits');
+  if (!panel || panel.dataset.rotationStarted === '1') return;
+  panel.dataset.rotationStarted = '1';
+  try {
+    const issuesPromise = fetchHomeIssues();
+    const commits = await fetchCommits().catch(() => []);
+    if (commits.length) renderCommitsPanel(commits);
+    let issues = await issuesPromise;
+    let showingIssues = false;
+    let rotationTimer = null;
+    const rotate = async () => {
+      showingIssues = !showingIssues;
+      if (showingIssues) await renderIssuesPanel(issues);
+      else await renderCommitsPanel(commits);
+    };
+    const ensureIssueRotation = () => {
+      if (rotationTimer || !issues.length || !commits.length) return;
+      rotationTimer = setInterval(rotate, 5000);
+    };
+    const refreshIssues = async () => {
+      const freshIssues = await fetchHomeIssues();
+      if (freshIssues.length) {
+        issues = freshIssues;
+        ensureIssueRotation();
+        if (showingIssues) await renderIssuesPanel(issues);
+      } else if (showingIssues) {
+        showingIssues = false;
+        await renderCommitsPanel(commits);
+      }
+    };
+    await refreshIssues();
+    if (!commits.length && issues.length) await renderIssuesPanel(issues);
+    setTimeout(refreshIssues, 1000);
+    setInterval(refreshIssues, 15000);
+    setInterval(async () => {
+      try {
+        const freshCommits = await fetchCommits(true);
+        if (freshCommits?.length) {
+          commits.splice(0, commits.length, ...freshCommits);
+          if (!showingIssues) await renderCommitsPanel(commits);
+        }
+      } catch {}
+    }, COMMITS_CACHE_TTL);
+  } catch {}
 }
 
 function homeStatusLabel(key) {
