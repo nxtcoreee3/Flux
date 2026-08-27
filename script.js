@@ -1837,25 +1837,25 @@ async function renderCommitsPanel(commits) {
   if (latestSha) localStorage.setItem('flux_last_seen_commit', latestSha);
 }
 
-async function renderIssuesPanel(issues) {
+async function renderStatusIssuesPanel(issues) {
   const list = document.getElementById('commits-list');
   if (!list) return;
-  const renderToken = Symbol('issues-panel-render');
+  const renderToken = Symbol('status-issues-panel-render');
   window._fluxHeroPanelRenderToken = renderToken;
   const totalLabel = document.getElementById('commits-total-label');
-  if (totalLabel) totalLabel.textContent = `${issues.length} Issues`;
+  if (totalLabel) totalLabel.textContent = `${issues.length} Status issue${issues.length === 1 ? '' : 's'}`;
   list.innerHTML = '';
   issues.forEach(issue => {
     const row = document.createElement('div');
-    row.className = 'commit-row issue-row';
-    const state = issue.state === 'open' ? 'Open' : 'Closed';
-    row.innerHTML = `<div class="commit-sha-line"><span class="commit-sha issue-state ${issue.state}">${state}</span><span class="commit-msg"></span></div><div class="commit-ai-desc"></div><span class="commit-time"></span>`;
-    row.querySelector('.commit-msg').textContent = issue.title || 'Repository issue';
-    row.querySelector('.commit-ai-desc').textContent = issue.state === 'open' ? 'Open issue on the Flux repository' : 'Resolved issue on the Flux repository';
-    row.querySelector('.commit-time').textContent = issue.updated_at ? timeAgoShort(issue.updated_at) : '';
-    row.addEventListener('click', () => window.open(issue.html_url, '_blank', 'noopener'));
+    row.className = 'commit-row issue-row status-issue-row';
+    row.innerHTML = `<div class="commit-sha-line"><span class="commit-sha issue-state ${issue.severity}"></span><span class="commit-msg"></span></div><div class="commit-ai-desc"></div><span class="commit-time">Status</span>`;
+    row.querySelector('.issue-state').textContent = issue.statusLabel;
+    row.querySelector('.commit-msg').textContent = issue.title;
+    row.querySelector('.commit-ai-desc').textContent = issue.detail;
+    row.addEventListener('click', () => { window.location.href = 'status.html'; });
     row.setAttribute('role', 'link');
     row.setAttribute('tabindex', '0');
+    row.setAttribute('aria-label', `${issue.title}: ${issue.detail}. Open Flux status page.`);
     row.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); row.click(); } });
     list.appendChild(row);
   });
@@ -1905,41 +1905,41 @@ async function fetchHomeIssues() {
   } catch { return []; }
 }
 
+function getHomeStatusIssues(payload) {
+  const services = payload?.services || {};
+  return Object.entries(services).filter(([, service]) => service && ['outage', 'degraded', 'warning', 'error', 'down', 'offline'].includes(String(service.status).toLowerCase())).map(([key, service]) => {
+    const status = String(service.status).toLowerCase();
+    const isOutage = ['outage', 'error', 'down', 'offline'].includes(status);
+    return { severity: isOutage ? 'outage' : 'warning', statusLabel: isOutage ? 'Outage' : 'Warning', title: `${homeStatusLabel(key)} ${isOutage ? 'outage' : 'warning'}`, detail: service.message || 'Flux is investigating an active service issue.' };
+  });
+}
+
 async function initHomeUpdatePanel() {
   const panel = document.getElementById('hero-commits');
   if (!panel || panel.dataset.rotationStarted === '1') return;
   panel.dataset.rotationStarted = '1';
   try {
-    const issuesPromise = fetchHomeIssues();
     const commits = await fetchCommits().catch(() => []);
     if (commits.length) renderCommitsPanel(commits);
-    let issues = await issuesPromise;
+    let statusIssues = [];
     let showingIssues = false;
     let rotationTimer = null;
     const rotate = async () => {
       showingIssues = !showingIssues;
-      if (showingIssues) await renderIssuesPanel(issues);
+      if (showingIssues) await renderStatusIssuesPanel(statusIssues);
       else await renderCommitsPanel(commits);
     };
     const ensureIssueRotation = () => {
-      if (rotationTimer || !issues.length || !commits.length) return;
+      if (rotationTimer || !statusIssues.length || !commits.length) return;
       rotationTimer = setInterval(rotate, 5000);
     };
-    const refreshIssues = async () => {
-      const freshIssues = await fetchHomeIssues();
-      if (freshIssues.length) {
-        issues = freshIssues;
-        ensureIssueRotation();
-        if (showingIssues) await renderIssuesPanel(issues);
-      } else if (showingIssues) {
-        showingIssues = false;
-        await renderCommitsPanel(commits);
-      }
+    const applyHealth = payload => {
+      statusIssues = getHomeStatusIssues(payload);
+      if (showingIssues && statusIssues.length) renderStatusIssuesPanel(statusIssues);
+      else if (showingIssues && !statusIssues.length) { showingIssues = false; renderCommitsPanel(commits); }
+      ensureIssueRotation();
     };
-    await refreshIssues();
-    if (!commits.length && issues.length) await renderIssuesPanel(issues);
-    setTimeout(refreshIssues, 1000);
-    setInterval(refreshIssues, 15000);
+    subscribeToServiceHealth(applyHealth);
     setInterval(async () => {
       try {
         const freshCommits = await fetchCommits(true);
