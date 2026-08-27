@@ -3124,7 +3124,7 @@ function createKillButton(compact = false) {
 }
 
 const KILL_ENABLED_KEY = 'flux_kill_switch_enabled';
-function isKillSwitchEnabled() { return localStorage.getItem(KILL_ENABLED_KEY) !== '0'; }
+function isKillSwitchEnabled() { return localStorage.getItem(KILL_ENABLED_KEY) === '1'; }
 
 function initKillSwitch() {
   if (!isKillSwitchEnabled()) return;

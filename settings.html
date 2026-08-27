@@ -612,7 +612,7 @@
       try { return JSON.parse(localStorage.getItem(KILL_KEY)) || { value: 'https://www.google.com', label: '🔍 Google', custom: '' }; }
       catch { return { value: 'https://www.google.com', label: '🔍 Google', custom: '' }; }
     }
-    function isKillEnabled() { return localStorage.getItem(KILL_ENABLED_KEY) !== '0'; }
+    function isKillEnabled() { return localStorage.getItem(KILL_ENABLED_KEY) === '1'; }
 
     const killToggle = document.getElementById('kill-switch-toggle');
     const killDestRow = document.getElementById('kill-switch-dest-row');
