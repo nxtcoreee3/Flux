@@ -1130,10 +1130,12 @@ export function initActivityStatusUI(root = document) {
       const uid = el.dataset.activityUid;
       const latest = Object.values(activityMap).filter(item => item?.uid === uid).sort((a, b) => activityTimestamp(b) - activityTimestamp(a))[0];
       const status = getActivityStatus(latest, now);
-      el.dataset.activityStatus = status.key;
-      el.setAttribute('aria-label', `${el.dataset.activityName || 'User'}: ${status.text}; ${status.ring}. Green means active now, yellow/orange means active within 10 minutes, red means active within one hour, and no ring means inactive for over an hour.`);
+      if (el.dataset.activityStatus !== status.key) el.dataset.activityStatus = status.key;
+      const ariaLabel = `${el.dataset.activityName || 'User'}: ${status.text}; ${status.ring}. Green means active now, yellow/orange means active within 10 minutes, red means active within one hour, and no ring means inactive for over an hour.`;
+      if (el.getAttribute('aria-label') !== ariaLabel) el.setAttribute('aria-label', ariaLabel);
       const statusEl = el.querySelector('.flux-activity-avatar__status');
-      if (statusEl) statusEl.textContent = `${status.text}${status.key === 'active' ? '' : ` · ${formatActivityAge(status.ageMs)}`}`;
+      const statusText = `${status.text}${status.key === 'active' ? '' : ` · ${formatActivityAge(status.ageMs)}`}`;
+      if (statusEl && statusEl.textContent !== statusText) statusEl.textContent = statusText;
     });
   };
   const unsubscribe = subscribeToActivityStatuses(next => { activityMap = next; render(); });
