@@ -84,7 +84,7 @@ if (isNewOfficial) {
   }
 }
 
-import { initAuthUI, initBetaShell, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, fetchAllGameStats, setCurrentlyPlaying, clearCurrentlyPlaying, rateGame, getUserRating, reportGame, checkFirestoreHealth, fetchGameDetail, getAiGameDescription, getGameReviews, submitReview, addReviewComment, likeReview, deleteReview, fetchGamePricing, getUnlockedGames, unlockGame, SPIN_SEGMENTS, getLastSpin, spinWheel, giftPointsToUser, redeemCode, createRewardCode, getRewardCodes, deactivateRewardCode, initIncidentBanner, setServiceStatus, autoCheckServiceHealth, setIncidentBanner, checkNoAds, purchaseNoAds, NO_ADS_COST, setGameLockdown, initUpdateNotification } from './firebase-auth.js';
+import { initAuthUI, initBetaShell, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, fetchAllGameStats, setCurrentlyPlaying, clearCurrentlyPlaying, rateGame, getUserRating, reportGame, checkFirestoreHealth, fetchGameDetail, getAiGameDescription, getGameReviews, submitReview, addReviewComment, likeReview, deleteReview, fetchGamePricing, getUnlockedGames, unlockGame, SPIN_SEGMENTS, getLastSpin, spinWheel, giftPointsToUser, redeemCode, createRewardCode, getRewardCodes, deactivateRewardCode, initIncidentBanner, setServiceStatus, autoCheckServiceHealth, setIncidentBanner, subscribeToServiceHealth, checkNoAds, purchaseNoAds, NO_ADS_COST, setGameLockdown, initUpdateNotification } from './firebase-auth.js';
 import { SERVER_PROFILES, getActiveServer, getActiveServerId, setActiveServer, getLocalLibraryState, getGameAvailability, getRepositoryGameFolder, isGameAvailable, getGameLaunchUrl, initializeServerRuntime } from './server-config.js';
 
 const GAMES = [
@@ -1088,6 +1088,7 @@ function bootFlux() {
   defer(() => initJumpscare(), base + 400);
   defer(() => trackDailyVisitor(), base + 600);
   defer(() => injectBuildNumber(), base + 800);
+  defer(() => initHomeStatusBanner(), base + 700);
   defer(() => showSocialBanner(), base + 900);
   defer(() => initAIPicker(), base + 1000);
   defer(() => initMobileWarning(), base + 1100);
@@ -1872,6 +1873,84 @@ async function injectBuildNumber() {
       }, COMMITS_CACHE_TTL);
     }
   } catch { }
+}
+
+/* ===================== HOME STATUS / UPDATE BANNER ===================== */
+async function fetchHomeIssues() {
+  try {
+    const response = await fetch('https://api.github.com/repos/nxtcoreee3/Flux/issues?state=all&per_page=8', { headers: { Accept: 'application/vnd.github+json' } });
+    if (!response.ok) return [];
+    const issues = await response.json();
+    return Array.isArray(issues) ? issues.filter(issue => !issue.pull_request).map(issue => ({
+      kind: 'issue', title: issue.title || 'Repository issue',
+      detail: issue.state === 'open' ? 'Open issue on the Flux repository' : 'Resolved repository issue',
+      url: issue.html_url, severity: issue.state === 'open' ? 'warning' : 'info'
+    })) : [];
+  } catch { return []; }
+}
+
+function homeStatusLabel(key) {
+  const known = { firestore: 'Database', googleAuth: 'Authentication', website: 'Website', games: 'Games' };
+  return known[key] || String(key).replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function initHomeStatusBanner() {
+  const banner = document.getElementById('home-status-banner');
+  const titleEl = document.getElementById('home-status-banner-title');
+  const detailEl = document.getElementById('home-status-banner-detail');
+  const kindEl = document.getElementById('home-status-banner-kind');
+  if (!banner || !titleEl || !detailEl || !kindEl) return;
+
+  let statusUpdates = [];
+  let repositoryUpdates = [];
+  let currentIndex = 0;
+  let transitionTimer = null;
+
+  const render = () => {
+    const updates = [...statusUpdates, ...repositoryUpdates];
+    if (!updates.length) { banner.hidden = true; return; }
+    const item = updates[currentIndex % updates.length];
+    currentIndex = (currentIndex + 1) % updates.length;
+    banner.hidden = false;
+    banner.classList.remove('is-visible');
+    clearTimeout(transitionTimer);
+    transitionTimer = setTimeout(() => banner.classList.add('is-visible'), 30);
+    banner.dataset.severity = item.severity || 'info';
+    titleEl.textContent = item.title;
+    detailEl.textContent = item.detail;
+    kindEl.textContent = item.kind === 'outage' ? 'Outage' : item.kind === 'warning' ? 'Warning' : item.kind === 'commit' ? 'Commit' : 'Issue';
+    banner.href = item.url || 'status.html';
+    banner.setAttribute('aria-label', `${item.title}. ${item.detail}. Open Flux status and updates.`);
+  };
+
+  subscribeToServiceHealth(payload => {
+    const services = payload.services || {};
+    statusUpdates = Object.entries(services)
+      .filter(([, service]) => service && ['outage', 'degraded', 'warning'].includes(service.status))
+      .map(([key, service]) => ({
+        kind: service.status === 'outage' ? 'outage' : 'warning',
+        title: `${homeStatusLabel(key)} ${service.status === 'outage' ? 'outage' : 'warning'}`,
+        detail: service.message || 'Flux is investigating an active service issue.',
+        severity: service.status === 'outage' ? 'outage' : 'warning',
+        url: 'status.html'
+      }));
+    currentIndex = 0;
+    render();
+  });
+
+  Promise.all([fetchCommits(), fetchHomeIssues()]).then(([commits, issues]) => {
+    const commitUpdates = (commits || []).slice(0, 5).map(commit => ({
+      kind: 'commit',
+      title: (commit.commit?.message || 'Flux update').split('\\n')[0],
+      detail: `Commit ${commit.sha.slice(0, 7)} · View the latest Flux change`,
+      severity: 'info',
+      url: `https://github.com/nxtcoreee3/Flux/commit/${commit.sha}`
+    }));
+    repositoryUpdates = [...commitUpdates, ...(issues || [])];
+    currentIndex = 0;
+    render();
+    setInterval(render, 5000);
+  }).catch(() => {});
 }
 
 /* ===================== PLAY-MODE SERVER SWITCHER ===================== */

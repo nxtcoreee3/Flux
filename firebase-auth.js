@@ -3971,6 +3971,13 @@ async function probeDomain(url, timeoutMs = 6000) {
   });
 }
 
+export function subscribeToServiceHealth(callback) {
+  if (typeof callback !== 'function') return () => {};
+  return onSnapshot(doc(db, 'stats', 'serviceHealth'), snap => {
+    callback(snap.exists() ? snap.data() || {} : {});
+  }, () => callback({}));
+}
+
 export async function setServiceStatus(serviceKey, status, flaggedBy = 'dev') {
   const user = auth.currentUser;
   if (!user || user.uid !== OWNER_UID) return { ok: false, error: 'Admin only.' };

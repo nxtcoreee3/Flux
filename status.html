@@ -263,9 +263,11 @@
       const card = document.getElementById('services-card');
       const keys = ['firestore', 'googleAuth', 'website', 'games'];
       const domainKeys = DOMAIN_META.map(d => d.key);
-      const allKeys = [...keys, ...domainKeys];
+      const knownKeys = new Set([...keys, ...domainKeys]);
+      const customKeys = Object.keys(services || {}).filter(k => !knownKeys.has(k));
+      const allKeys = [...keys, ...domainKeys, ...customKeys];
       const statuses = allKeys.map(k => services?.[k]?.status || 'checking');
-      const overallStatus = statuses.includes('outage') ? 'outage' : statuses.includes('degraded') ? 'degraded' : statuses.every(s => s === 'operational') ? 'operational' : 'checking';
+      const overallStatus = statuses.includes('outage') ? 'outage' : (statuses.includes('degraded') || statuses.includes('warning')) ? 'degraded' : statuses.every(s => s === 'operational') ? 'operational' : 'checking';
 
       // Once we've shown real data, never let a partial/incomplete update
       // regress the page back to a generic "checking" state — keep showing
@@ -291,7 +293,7 @@
       if (latestDetectedAt) _lastDetectedAt = latestDetectedAt; // remembered so the ticker below can keep counting up between real checks
       updatedEl.textContent = _lastDetectedAt ? `Last updated ${timeAgo(_lastDetectedAt)}` : '';
 
-      card.innerHTML = keys.map(key => renderRow(key, services?.[key], SERVICE_META[key])).join('');
+      card.innerHTML = [...keys, ...customKeys].map(key => renderRow(key, services?.[key], SERVICE_META[key] || { name: services?.[key]?.name || key.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), icon: services?.[key]?.icon || '⚠️' })).join('');
 
       const domainsCard = document.getElementById('domains-card');
       domainsCard.innerHTML = DOMAIN_META.map(d => renderRow(d.key, services?.[d.key], { name: d.label, icon: d.icon })).join('');
@@ -299,7 +301,7 @@
       // Active incidents section
       const incidents = allKeys
         .filter(k => services?.[k]?.status && services[k].status !== 'operational')
-        .map(k => ({ key: k, ...services[k], ...(SERVICE_META[k] || DOMAIN_META.find(d => d.key === k) && { name: DOMAIN_META.find(d => d.key === k).label, icon: DOMAIN_META.find(d => d.key === k).icon }) }));
+        .map(k => ({ key: k, ...services[k], ...(SERVICE_META[k] || DOMAIN_META.find(d => d.key === k) || { name: services?.[k]?.name || k.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), icon: services?.[k]?.icon || '⚠️' }) }));
 
       const incLabel = document.getElementById('incidents-label');
       const incCard  = document.getElementById('incidents-card');
@@ -310,7 +312,7 @@
           const flagBy = inc.flaggedBy === 'ai'
             ? '<span class="status-flag-pill">🤖 Flagged by flux.ai (Automatic)</span>'
             : '<span class="status-flag-pill">👨‍💻 Flagged by Developer</span>';
-          const sLabel = inc.status === 'outage' ? 'Outage' : 'Degraded Performance';
+          const sLabel = inc.status === 'outage' ? 'Outage' : inc.status === 'warning' ? 'Warning' : 'Degraded Performance';
           return `
             <div class="incident-item">
               <div class="incident-title">${inc.icon} ${inc.name} — ${sLabel}</div>
@@ -330,6 +332,7 @@
 
     function renderRow(key, svc, meta) {
       const status = svc?.status || 'checking';
+      meta = meta || { name: key, icon: '⚠️' };
       const flagBy = svc?.flaggedBy === 'ai'
         ? '<span class="status-flag-pill">🤖 Flagged by flux.ai (Automatic)</span>'
         : svc?.flaggedBy === 'dev'
@@ -345,7 +348,7 @@
           <div class="status-row-body">
             <div class="status-row-header">
               <span class="status-row-name">${meta.name}</span>
-              <span class="status-badge ${status}">${STATUS_LABEL[status]}</span>
+              <span class="status-badge ${status}">${STATUS_LABEL[status] || (status === 'warning' ? '⚠️ Warning' : status)}</span>
               ${flagBy}
             </div>
             <div class="status-row-desc">${desc}</div>
