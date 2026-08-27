@@ -387,7 +387,7 @@ function renderProfile(profile, { isOwn, isAdmin, isFollowing, canSeeContent, cu
           </div>
           <div class="profile-stat">
             <span class="profile-stat-num" id="profile-time-on-site">${formatTimeOnSite(profile.timeOnSiteMinutes)}</span>
-            <span class="profile-stat-label">Time on site</span>
+            <span class="profile-stat-label">Total time spent</span>
           </div>
         </div>
 

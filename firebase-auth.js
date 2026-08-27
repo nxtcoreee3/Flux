@@ -16,6 +16,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
   getFirestore,
+  collection,
   doc,
   getDoc,
   setDoc,
@@ -176,7 +177,9 @@ export function initPresence() {
     if (user && !user.isAnonymous) {
       getDoc(doc(db, 'profiles', user.uid)).then(snap => {
         if (!snap.exists()) return;
-        update(activityRef, { online: true, lastActiveAt: serverTimestamp(), uid: user.uid, username: snap.data().username || null }).catch(() => {});
+        const username = snap.data().username || null;
+        update(activityRef, { online: true, lastActiveAt: serverTimestamp(), uid: user.uid, username }).catch(() => {});
+        updateDoc(doc(db, 'profiles', user.uid), { online: true, lastActiveAt: serverTimestamp() }).catch(() => {});
       }).catch(() => {});
     }
   });
@@ -190,6 +193,7 @@ export function initPresence() {
       const username = pSnap.exists() ? pSnap.data().username : null;
       set(presenceRef, { online: true, timestamp: serverTimestamp(), uid: user.uid, username, currentlyPlaying: currentlyPlaying || null, sessionId });
       update(activityRef, { online: true, lastActiveAt: serverTimestamp(), uid: user.uid, username }).catch(() => {});
+      updateDoc(doc(db, 'profiles', user.uid), { online: true, lastActiveAt: serverTimestamp() }).catch(() => {});
     } catch {}
   };
 
@@ -1079,7 +1083,7 @@ function activityTimestamp(entry) {
 
 export function getActivityStatus(entry, now = Date.now()) {
   const lastActiveAt = activityTimestamp(entry);
-  if (!lastActiveAt) return { key: 'unknown', ageMs: Infinity, ...ACTIVITY_LABELS.unknown };
+  if (!lastActiveAt) return { key: 'away', ageMs: Infinity, ...ACTIVITY_LABELS.away };
   const ageMs = Math.max(0, now - lastActiveAt);
   if (entry?.online && ageMs <= 2 * 60 * 1000) return { key: 'active', ageMs, ...ACTIVITY_LABELS.active };
   if (ageMs <= 10 * 60 * 1000) return { key: 'recent', ageMs, ...ACTIVITY_LABELS.recent };
@@ -1088,7 +1092,7 @@ export function getActivityStatus(entry, now = Date.now()) {
 }
 
 export function formatActivityAge(ageMs) {
-  if (!Number.isFinite(ageMs)) return 'unknown';
+  if (!Number.isFinite(ageMs)) return 'over an hour ago';
   if (ageMs < 60 * 1000) return 'just now';
   const minutes = Math.floor(ageMs / 60000);
   if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
@@ -1108,9 +1112,21 @@ export function formatTimeOnSite(minutes) {
   return parts.join(', ');
 }
 
-export function subscribeToActivityStatuses(callback) {
+export function subscribeToActivityStatuses(callback, profileUids = []) {
   if (typeof callback !== 'function') return () => {};
-  return onValue(ref(rtdb, 'activityStatus'), snap => callback(snap.exists() ? snap.val() || {} : {}), () => callback({}));
+  let realtimeStatuses = {};
+  let profileStatuses = {};
+  const emit = () => callback({ ...profileStatuses, ...realtimeStatuses });
+  const realtimeUnsubscribe = onValue(ref(rtdb, 'activityStatus'), snap => {
+    realtimeStatuses = snap.exists() ? snap.val() || {} : {};
+    emit();
+  }, () => { realtimeStatuses = {}; emit(); });
+  const uniqueUids = [...new Set(profileUids.filter(Boolean))];
+  const profileUnsubscribes = uniqueUids.map(uid => onSnapshot(doc(db, 'profiles', uid), snap => {
+    profileStatuses[`profile_${uid}`] = snap.exists() ? { uid, ...snap.data() } : { uid };
+    emit();
+  }, () => { profileStatuses[`profile_${uid}`] = { uid }; emit(); }));
+  return () => { realtimeUnsubscribe(); profileUnsubscribes.forEach(unsubscribe => unsubscribe()); };
 }
 
 export function renderActivityAvatar(profile = {}, { size = 40, uid = profile.uid, className = '', square = false } = {}) {
@@ -1134,11 +1150,12 @@ export function initActivityStatusUI(root = document) {
       const ariaLabel = `${el.dataset.activityName || 'User'}: ${status.text}; ${status.ring}. Green means active now, yellow/orange means active within 10 minutes, red means active within one hour, and no ring means inactive for over an hour.`;
       if (el.getAttribute('aria-label') !== ariaLabel) el.setAttribute('aria-label', ariaLabel);
       const statusEl = el.querySelector('.flux-activity-avatar__status');
-      const statusText = `${status.text}${status.key === 'active' ? '' : ` · ${formatActivityAge(status.ageMs)}`}`;
+      const statusText = `${status.text}${status.key === 'active' || !Number.isFinite(status.ageMs) ? '' : ` · ${formatActivityAge(status.ageMs)}`}`;
       if (statusEl && statusEl.textContent !== statusText) statusEl.textContent = statusText;
     });
   };
-  const unsubscribe = subscribeToActivityStatuses(next => { activityMap = next; render(); });
+  const profileUids = [...root.querySelectorAll?.('[data-activity-uid]') || []].map(el => el.dataset.activityUid).filter(Boolean);
+  const unsubscribe = subscribeToActivityStatuses(next => { activityMap = next; render(); }, profileUids);
   const timer = setInterval(render, 30000);
   const observer = typeof MutationObserver !== 'undefined' ? new MutationObserver(render) : null;
   observer?.observe(root === document ? document.body : root, { childList: true, subtree: true });
