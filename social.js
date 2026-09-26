@@ -277,7 +277,7 @@ const _profileCache = {};
 // final safety layer for messages that reach Firestore.
 const GLOBAL_CHAT_BLOCKED_KEYWORDS = [
   'fuck', 'shit', 'bitch', 'bastard', 'asshole', 'dickhead', 'motherfucker',
-  'cunt', 'whore', 'slut', 'nigger', 'nigga', 'faggot', 'fag', 'retard',
+  'cunt', 'whore', 'slut', 'nigger', 'nigga', 'nlgger', 'nlgga', 'faggot', 'fag', 'retard',
   'kike', 'spic', 'chink', 'gook', 'wetback', 'tranny'
 ];
 
