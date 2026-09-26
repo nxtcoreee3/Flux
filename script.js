@@ -85,7 +85,9 @@ if (isNewOfficial) {
 }
 
 import { initAuthUI, initBetaShell, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, fetchAllGameStats, setCurrentlyPlaying, clearCurrentlyPlaying, rateGame, getUserRating, reportGame, checkFirestoreHealth, fetchGameDetail, getAiGameDescription, getGameReviews, submitReview, addReviewComment, likeReview, deleteReview, fetchGamePricing, getUnlockedGames, unlockGame, SPIN_SEGMENTS, getLastSpin, spinWheel, giftPointsToUser, redeemCode, createRewardCode, getRewardCodes, deactivateRewardCode, initIncidentBanner, setServiceStatus, autoCheckServiceHealth, setIncidentBanner, subscribeToServiceHealth, checkNoAds, purchaseNoAds, NO_ADS_COST, setGameLockdown, initUpdateNotification } from './firebase-auth.js';
-import { SERVER_PROFILES, getActiveServer, getActiveServerId, setActiveServer, getLocalLibraryState, getGameAvailability, getRepositoryGameFolder, isGameAvailable, getGameLaunchUrl, initializeServerRuntime } from './server-config.js';
+import { ZAPGAMES } from './external-games.js';
+import { POKI_GAMES } from './poki-games.js';
+import { SERVER_PROFILES, getSelectableServerProfiles, getActiveServer, getActiveServerId, setActiveServer, getLocalLibraryState, getGameAvailability, getRepositoryGameFolder, isGameAvailable, getGameLaunchUrl, initializeServerRuntime, isProviderBlacklisted } from './server-config.js';
 
 const GAMES = [
   {
@@ -371,6 +373,10 @@ const GAMES = [
   }
 ];
 
+function getCatalogGames() {
+  const providerCatalogs = { zapgames: ZAPGAMES, poki: POKI_GAMES };
+  return providerCatalogs[getActiveServerId()] || GAMES;
+}
 function getGameServerState(game) {
   const server = getActiveServer();
   const availability = getGameAvailability(game);
@@ -400,7 +406,12 @@ function renderServerAvailabilityBadge(game) {
     : '<span class="compat-badge" style="color:#16a34a;background:rgba(34,197,94,0.1);border-color:rgba(34,197,94,0.25);">✓ Repository file ready</span>';
 }
 
+window.addEventListener('flux-provider-blacklist-changed', () => {
+  if (document.getElementById('game-grid') || document.getElementById('games-grid')) applyFilters();
+});
 window.addEventListener('flux-server-changed', () => {
+  if (quickSearch) quickSearch.value = '';
+  if (sortSelect) sortSelect.value = 'featured';
   if (document.getElementById('game-grid') || document.getElementById('games-grid')) applyFilters();
 });
 window.addEventListener('flux-local-library-changed', () => {
@@ -531,7 +542,7 @@ function renderRecentSection() {
   const section = document.getElementById('recent-section');
   const grid = document.getElementById('recent-grid');
   if (!section || !grid) return;
-  const recentGames = loadRecent().map(id => GAMES.find(g => g.id === id)).filter(Boolean);
+  const recentGames = loadRecent().map(id => getCatalogGames().find(g => g.id === id)).filter(Boolean);
   grid.innerHTML = '';
   if (recentGames.length > 0) {
     recentGames.forEach(g => grid.appendChild(createCard(g)));
@@ -851,7 +862,7 @@ function renderFavouritesSection() {
   const favsGrid = document.getElementById('favourites-grid');
   const favsSection = document.getElementById('favourites-section');
   if (!favsGrid || !favsSection) return;
-  const favGames = GAMES.filter(g => isFav(g.id));
+  const favGames = getCatalogGames().filter(g => isFav(g.id));
   favsGrid.innerHTML = '';
   if (favGames.length > 0) {
     favGames.forEach(g => favsGrid.appendChild(createCard(g)));
@@ -874,7 +885,7 @@ function renderGames(list) {
 function applyFilters() {
   const query = (quickSearch?.value || '').toLowerCase().trim();
   const sort = sortSelect?.value || 'featured';
-  let list = [...GAMES];
+  let list = [...getCatalogGames()];
   if (query) list = list.filter(g => g.title.toLowerCase().includes(query) || (g.desc || '').toLowerCase().includes(query));
   if (sort === 'alpha') list.sort((a, b) => a.title.localeCompare(b.title));
   else if (sort === 'recent') list = list.slice().reverse();
@@ -1068,8 +1079,8 @@ function bootFlux() {
 
   // Render immediately so the page never feels empty
   if (document.getElementById('game-grid') || document.getElementById('games-grid')) {
-    renderGames(GAMES);
-    initializeServerRuntime(GAMES).then(() => applyFilters());
+    renderGames(getCatalogGames());
+    initializeServerRuntime(getCatalogGames()).then(() => applyFilters());
   }
 
   if (document.getElementById('quick-search')) {
@@ -1135,7 +1146,7 @@ function bootFlux() {
         ]);
         _allGameStats = stats || {};
         if (hotGame) _hotGameId = hotGame.id;
-        GAMES.forEach(g => { _newGameCache[g.id] = g.addedAt || _allGameStats[g.id]?.firstSeen || null; });
+        getCatalogGames().forEach(g => { _newGameCache[g.id] = g.addedAt || _allGameStats[g.id]?.firstSeen || null; });
         Object.assign(_gamePricing, pricing || {});
         window._fluxGamePricing = _gamePricing;
         _unlockedGames = unlocked || [];
@@ -1358,7 +1369,7 @@ async function getAIRecommendations() {
 
   // Simple collaborative filtering: find games played by fans of my games
   // We approximate this using play counts as a proxy for popularity overlap
-  GAMES.forEach(g => {
+  getCatalogGames().forEach(g => {
     if (playedSet.has(g.id)) {
       scores[g.id] = (scores[g.id] || 0) - 50; // penalise already played
       return;
@@ -1397,12 +1408,12 @@ async function getAIRecommendations() {
   });
 
   // Sort by score, take top games
-  const ranked = GAMES
+  const ranked = getCatalogGames()
     .filter(g => !playedSet.has(g.id) || scores[g.id] > 0)
     .sort((a, b) => (scores[b.id] || 0) - (scores[a.id] || 0));
 
   // If we don't have enough unplayed games, include some played ones
-  const pool = ranked.length >= 3 ? ranked : [...ranked, ...GAMES.filter(g => playedSet.has(g.id))];
+  const pool = ranked.length >= 3 ? ranked : [...ranked, ...getCatalogGames().filter(g => playedSet.has(g.id))];
 
   // Pick top 3 with match percentages
   const top3 = pool.slice(0, 3);
@@ -1441,7 +1452,7 @@ async function runSlotMachine(recommendations) {
   ];
 
   // Build a shuffled pool of all games for spinning illusion
-  const allGames = [...GAMES].sort(() => Math.random() - 0.5);
+  const allGames = [...getCatalogGames()].sort(() => Math.random() - 0.5);
 
   // Set up each reel with many items + the final result at the end
   reels.forEach((reel, i) => {
@@ -1548,7 +1559,7 @@ function showSlotResults(recommendations) {
 }
 
 window._openGameFromPicker = (gameId) => {
-  const game = GAMES.find(g => g.id === gameId);
+  const game = getCatalogGames().find(g => g.id === gameId);
   if (!game) return;
   addRecent(game.id);
   renderRecentSection();
@@ -1969,7 +1980,7 @@ function createPlayServerSwitcher(game, onChange) {
   switcher.innerHTML = `
     <span class="flux-play-server-switcher__label">Server</span>
     <div class="flux-play-server-switcher__options">
-      ${Object.values(SERVER_PROFILES).map(profile => `<button type="button" data-server-id="${profile.id}" title="${profile.name}: ${profile.description}">${profile.icon} ${profile.shortName}</button>`).join('')}
+      ${getSelectableServerProfiles().map(profile => `<button type="button" data-server-id="${profile.id}" title="${profile.name}: ${profile.description}">${profile.icon} ${profile.shortName}</button>`).join('')}
     </div>
   `;
   const buttons = [...switcher.querySelectorAll('[data-server-id]')];
@@ -1998,9 +2009,19 @@ function createPlayServerSwitcher(game, onChange) {
   };
   buttons.forEach(button => button.addEventListener('click', handleChange));
   const onServerChanged = () => refresh();
+  const onBlacklistChanged = () => {
+    getSelectableServerProfiles().forEach(profile => {
+      const button = switcher.querySelector(`[data-server-id=\"${profile.id}\"]`);
+      if (button) button.hidden = false;
+    });
+    buttons.forEach(button => { button.hidden = isProviderBlacklisted(button.dataset.serverId); });
+    refresh();
+  };
   window.addEventListener('flux-server-changed', onServerChanged);
+  window.addEventListener('flux-provider-blacklist-changed', onBlacklistChanged);
   switcher.cleanup = () => {
     window.removeEventListener('flux-server-changed', onServerChanged);
+    window.removeEventListener('flux-provider-blacklist-changed', onBlacklistChanged);
     buttons.forEach(button => button.removeEventListener('click', handleChange));
   };
   refresh();

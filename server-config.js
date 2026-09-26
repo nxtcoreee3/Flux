@@ -5,6 +5,7 @@
 
 export const SERVER_STORAGE_KEY = 'flux_active_server';
 export const LOCAL_MANIFEST_KEY = 'flux_local_repository_manifest';
+export const PROVIDER_BLACKLIST_KEY = 'flux_provider_blacklist';
 export const REPOSITORY_GAMES_ROOT = './games/';
 
 export const SERVER_PROFILES = Object.freeze({
@@ -16,6 +17,28 @@ export const SERVER_PROFILES = Object.freeze({
     eyebrow: 'Official hosted service',
     description: 'Use the official Flux-hosted game library.',
     kind: 'remote',
+  }),
+  zapgames: Object.freeze({
+    id: 'zapgames',
+    name: 'External Cloud Gaming',
+    shortName: 'External',
+    icon: '🎮',
+    eyebrow: 'External cloud provider',
+    description: 'Use the public game catalog hosted by ZapGames.io.',
+    kind: 'remote',
+    provider: true,
+    attribution: 'ZapGames B.V. · zapgames.io',
+  }),
+  poki: Object.freeze({
+    id: 'poki',
+    name: 'Poki',
+    shortName: 'Poki',
+    icon: '🟣',
+    eyebrow: 'External game provider',
+    description: 'Use the public game catalog hosted by Poki.com.',
+    kind: 'remote',
+    provider: true,
+    attribution: 'Poki · poki.com',
   }),
   local: Object.freeze({
     id: 'local',
@@ -81,9 +104,31 @@ function saveManifest(entries) {
   return compact;
 }
 
+function readProviderBlacklist() {
+  try {
+    const value = JSON.parse(safeStorageGet(PROVIDER_BLACKLIST_KEY) || '[]');
+    return Array.isArray(value) ? value.filter(id => Object.prototype.hasOwnProperty.call(SERVER_PROFILES, id)) : [];
+  } catch { return []; }
+}
+export function getBlacklistedProviders() { return readProviderBlacklist(); }
+export function isProviderBlacklisted(id) { return readProviderBlacklist().includes(id); }
+export function setProviderBlacklisted(id, blocked) {
+  const profile = SERVER_PROFILES[id];
+  if (!profile?.provider) return getBlacklistedProviders();
+  const next = new Set(readProviderBlacklist());
+  if (blocked) next.add(id); else next.delete(id);
+  const value = [...next];
+  safeStorageSet(PROVIDER_BLACKLIST_KEY, JSON.stringify(value));
+  if (blocked && getActiveServerId() === id) setActiveServer('cloud');
+  try { window.dispatchEvent(new CustomEvent('flux-provider-blacklist-changed', { detail: value })); } catch {}
+  return value;
+}
+export function getSelectableServerProfiles() {
+  return Object.values(SERVER_PROFILES).filter(profile => !isProviderBlacklisted(profile.id));
+}
 export function getActiveServerId() {
   const saved = safeStorageGet(SERVER_STORAGE_KEY);
-  return Object.prototype.hasOwnProperty.call(SERVER_PROFILES, saved) ? saved : 'cloud';
+  return Object.prototype.hasOwnProperty.call(SERVER_PROFILES, saved) && !isProviderBlacklisted(saved) ? saved : 'cloud';
 }
 
 export function getActiveServer() {
@@ -91,7 +136,7 @@ export function getActiveServer() {
 }
 
 export function setActiveServer(serverId) {
-  const id = Object.prototype.hasOwnProperty.call(SERVER_PROFILES, serverId) ? serverId : 'cloud';
+  const id = Object.prototype.hasOwnProperty.call(SERVER_PROFILES, serverId) && !isProviderBlacklisted(serverId) ? serverId : 'cloud';
   safeStorageSet(SERVER_STORAGE_KEY, id);
   const profile = SERVER_PROFILES[id];
   try { window.dispatchEvent(new CustomEvent('flux-server-changed', { detail: profile })); } catch {}
