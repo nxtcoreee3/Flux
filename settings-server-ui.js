@@ -41,8 +41,8 @@ if (serverProfilesEl && activeServerLabel && localLibraryStatus) {
     if (!blacklistEl) return;
     const providers = Object.values(EXTERNAL_PROVIDERS);
     blacklistEl.innerHTML = `
-      <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:4px;">Provider access</div>
-      <div style="font-size:11px;color:var(--muted);line-height:1.45;margin-bottom:10px;">Blacklist a provider if its domain is blocked on your Wi‑Fi. Blacklisted providers disappear from the game switcher and cannot become active.</div>
+      <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:4px;">ZapGames access</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.45;margin-bottom:10px;">Block ZapGames if its domain is unavailable on your Wi‑Fi. When blocked, External Cloud Gaming is hidden and cannot become active.</div>
       <div style="display:flex;flex-direction:column;gap:7px;">${providers.map(profile => `
         <label style="display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--glass-border);border-radius:10px;background:var(--bg,#f9fafb);cursor:pointer;">
           <input type="checkbox" data-provider-blacklist="${profile.id}" ${isProviderBlacklisted(profile.id) ? 'checked' : ''} style="accent-color:#ef4444;width:16px;height:16px;">

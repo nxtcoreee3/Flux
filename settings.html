@@ -23,6 +23,8 @@
   <title>Settings — Flux</title>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <script src="nav-preferences-boot.js"></script>
+
   <link rel="manifest" href="manifest.json">
   <script>
     (function() {
@@ -33,6 +35,9 @@
         }
         if (localStorage.getItem('flux_beta') === '1') {
           document.documentElement.classList.add('beta');
+        }
+        if (localStorage.getItem('flux_bottom_nav') === '1') {
+          document.documentElement.classList.add('flux-bottom-nav');
         }
       } catch(e) {}
     })();
@@ -128,12 +133,12 @@
             <div class="settings-row-icon" style="background:rgba(58,125,255,0.1);">🛰️</div>
             <div class="settings-row-text">
               <div class="settings-row-label">Active Game Server</div>
-              <div class="settings-row-desc">Choose which game-provider category Flux displays. All Game Providers combines Flux Cloud, Local Library, and available External Cloud Gaming catalogs.</div>
+              <div class="settings-row-desc">Choose which game library Flux displays. All Game Providers combines Flux Cloud, Local Library, and the ZapGames external catalog.</div>
             </div>
           </div>
           <span id="active-server-settings-label" style="font-size:12px;font-weight:800;color:var(--accent);white-space:nowrap;padding-top:8px;">Flux Cloud</span>
         </div>
-        <div style="padding:12px 18px;background:rgba(168,85,247,0.06);font-size:11px;color:var(--muted);line-height:1.55;border-bottom:1px solid var(--glass-border);">External Cloud Gaming is opt-in and presents one combined catalog from available external providers. All Game Providers also includes Flux Cloud and Local Library games.</div>
+        <div style="padding:12px 18px;background:rgba(168,85,247,0.06);font-size:11px;color:var(--muted);line-height:1.55;border-bottom:1px solid var(--glass-border);">External Cloud Gaming is opt-in and presents the ZapGames catalog. All Game Providers also includes Flux Cloud and Local Library games.</div>
         <div id="provider-blacklist-settings" style="padding:14px 18px;border-bottom:1px solid var(--glass-border);"></div>
         <div id="server-profiles-settings" style="display:flex;flex-direction:column;gap:8px;padding:14px 18px;border-bottom:1px solid var(--glass-border);"></div>
         <div class="settings-row" style="align-items:flex-start;">
@@ -402,6 +407,20 @@
     <div class="settings-section">
       <div class="settings-section-label">Navigation</div>
       <div class="settings-card">
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:rgba(58,125,255,0.08);">⬇️</div>
+            <div class="settings-row-text">
+              <div class="settings-row-label">Persistent Bottom Navigation</div>
+              <div class="settings-row-desc">Keep the navigation bar fixed at the bottom. The game player reserves space so the bar never covers it.</div>
+            </div>
+          </div>
+          <label class="toggle-wrap">
+            <input type="checkbox" id="bottom-nav-toggle-settings">
+            <span class="toggle-track"></span>
+            <span class="toggle-thumb"></span>
+          </label>
+        </div>
         <div class="settings-row">
           <div class="settings-row-left">
             <div class="settings-row-icon" style="background:rgba(58,125,255,0.08);">🧭</div>
@@ -721,6 +740,7 @@
 
     /* ── Navigation Preferences ── */
     const NAV_KEY = 'flux_nav_prefs';
+    const BOTTOM_NAV_KEY = 'flux_bottom_nav';
     const NAV_DEFAULTS = {
       home: true,
       games: true,
@@ -746,6 +766,17 @@
     const navExpand = document.getElementById('nav-expand');
     const navPrefsList = document.getElementById('nav-prefs-list');
     const navMsg = document.getElementById('nav-msg');
+    const bottomNavToggle = document.getElementById('bottom-nav-toggle-settings');
+
+    function applyBottomNavPreference(enabled) {
+      document.documentElement.classList.toggle('flux-bottom-nav', enabled);
+      localStorage.setItem(BOTTOM_NAV_KEY, enabled ? '1' : '0');
+    }
+
+    bottomNavToggle.checked = localStorage.getItem(BOTTOM_NAV_KEY) === '1';
+    bottomNavToggle.addEventListener('change', () => {
+      applyBottomNavPreference(bottomNavToggle.checked);
+    });
 
     function loadNavPrefs() {
       try {

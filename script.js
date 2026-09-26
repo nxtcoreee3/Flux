@@ -86,7 +86,6 @@ if (isNewOfficial) {
 
 import { initAuthUI, initBetaShell, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, fetchAllGameStats, setCurrentlyPlaying, clearCurrentlyPlaying, rateGame, getUserRating, reportGame, checkFirestoreHealth, fetchGameDetail, getAiGameDescription, getGameReviews, submitReview, addReviewComment, likeReview, deleteReview, fetchGamePricing, getUnlockedGames, unlockGame, SPIN_SEGMENTS, getLastSpin, spinWheel, giftPointsToUser, redeemCode, createRewardCode, getRewardCodes, deactivateRewardCode, initIncidentBanner, setServiceStatus, autoCheckServiceHealth, setIncidentBanner, subscribeToServiceHealth, checkNoAds, purchaseNoAds, NO_ADS_COST, setGameLockdown, initUpdateNotification } from './firebase-auth.js';
 import { ZAPGAMES } from './external-games.js';
-import { POKI_GAMES } from './poki-games.js';
 import { SERVER_PROFILES, getSelectableServerProfiles, getActiveServer, getActiveServerId, setActiveServer, getLocalLibraryState, getGameAvailability, getRepositoryGameFolder, isGameAvailable, getGameLaunchUrl, initializeServerRuntime, isProviderBlacklisted, getAvailableExternalProviders } from './server-config.js';
 
 const GAMES = [
@@ -374,7 +373,7 @@ const GAMES = [
 ];
 
 function getCatalogGames() {
-  const providerCatalogs = { zapgames: ZAPGAMES, poki: POKI_GAMES };
+  const providerCatalogs = { zapgames: ZAPGAMES };
   const activeId = getActiveServerId();
   const externalGames = getAvailableExternalProviders().flatMap(provider =>
     (providerCatalogs[provider.id] || []).map(game => ({ ...game, sourceServer: 'external', catalogProvider: provider.id }))
@@ -2075,9 +2074,8 @@ function openFullscreen(url, title, game) {
     </div>
   `;
   document.body.appendChild(fs);
-  // External Cloud Gaming opens in Flux's player shell immediately instead of the
-  // regular game modal. Try native browser fullscreen when the browser permits it.
-  try { fs.requestFullscreen?.().catch(() => {}); } catch {}
+  // External Cloud Gaming opens in Flux's player shell immediately. The shell
+  // fills the viewport without forcing the browser's native fullscreen mode.
   const bar = fs.querySelector('#fs-bar');
   const hoverZone = fs.querySelector('#fs-hover-zone');
   const fsIframe = fs.querySelector('#fs-iframe');

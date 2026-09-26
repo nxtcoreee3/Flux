@@ -11,7 +11,6 @@ export const REPOSITORY_GAMES_ROOT = './games/';
 export const EXTERNAL_PROVIDER_KEY = 'flux_external_provider';
 export const EXTERNAL_PROVIDERS = Object.freeze({
   zapgames: Object.freeze({ id: 'zapgames', name: 'ZapGames', icon: '🎮', attribution: 'ZapGames B.V. · zapgames.io', description: '220 public games from ZapGames.io.' }),
-  poki: Object.freeze({ id: 'poki', name: 'Poki', icon: '🟣', attribution: 'Poki · poki.com', description: 'Curated games from Poki.com.' }),
 });
 export const SERVER_PROFILES = Object.freeze({
   cloud: Object.freeze({
@@ -20,12 +19,12 @@ export const SERVER_PROFILES = Object.freeze({
   }),
   all: Object.freeze({
     id: 'all', name: 'All Game Providers', shortName: 'All', icon: '🌐',
-    eyebrow: 'Combined game catalog', description: 'Browse games from Flux Cloud, Local Library, and available external providers.', kind: 'remote',
+    eyebrow: 'Combined game catalog', description: 'Browse games from Flux Cloud, Local Library, and the ZapGames external catalog.', kind: 'remote',
     allProviders: true,
   }),
   external: Object.freeze({
     id: 'external', name: 'External Cloud Gaming', shortName: 'External', icon: '🎮',
-    eyebrow: 'External provider category', description: 'Choose a catalog from supported external game providers.', kind: 'remote',
+    eyebrow: 'ZapGames game catalog', description: 'Browse games from the ZapGames external catalog.', kind: 'remote',
     external: true,
   }),
   local: Object.freeze({
@@ -124,7 +123,7 @@ export function getSelectableServerProfiles() {
 }
 export function getActiveServerId() {
   const saved = safeStorageGet(SERVER_STORAGE_KEY);
-  if (saved === 'zapgames' || saved === 'poki') {
+  if (saved === 'zapgames') {
     safeStorageSet(EXTERNAL_PROVIDER_KEY, saved);
     safeStorageSet(SERVER_STORAGE_KEY, 'external');
     return 'external';
