@@ -261,6 +261,10 @@ async function initChat() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   });
 
+  document.getElementById('chat-input')?.addEventListener('input', (e) => {
+    updateChatModerationWarning(e.currentTarget.value);
+  });
+
   document.getElementById('global-gif-btn')?.addEventListener('click', (e) => {
     e.stopPropagation();
     showGlobalGifPicker();
@@ -268,6 +272,49 @@ async function initChat() {
 }
 
 const _profileCache = {};
+
+// Client-side early warning; server rules and admin moderation remain the
+// final safety layer for messages that reach Firestore.
+const GLOBAL_CHAT_BLOCKED_KEYWORDS = [
+  'fuck', 'shit', 'bitch', 'bastard', 'asshole', 'dickhead', 'motherfucker',
+  'cunt', 'whore', 'slut', 'nigger', 'nigga', 'faggot', 'fag', 'retard',
+  'kike', 'spic', 'chink', 'gook', 'wetback', 'tranny'
+];
+
+function normalizeChatModerationText(value) {
+  return String(value || '').toLocaleLowerCase().normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[013457@$]/g, character => ({ '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '7': 't', '@': 'a', '$': 's' }[character] || character))
+    .replace(/[^a-z0-9]/g, '');
+}
+
+function getChatModerationIssue(value) {
+  const normalized = normalizeChatModerationText(value);
+  if (!normalized) return null;
+  return GLOBAL_CHAT_BLOCKED_KEYWORDS.some(keyword => normalized.includes(keyword))
+    ? 'Please remove profanity or hateful language before sending.' : null;
+}
+
+function updateChatModerationWarning(value) {
+  const input = document.getElementById('chat-input');
+  const send = document.getElementById('chat-send');
+  const issue = getChatModerationIssue(value);
+  let warning = document.getElementById('chat-moderation-warning');
+  if (!warning && input?.parentElement) {
+    warning = document.createElement('div');
+    warning.id = 'chat-moderation-warning';
+    warning.setAttribute('role', 'alert');
+    warning.style.cssText = 'display:none;position:absolute;left:0;right:0;bottom:-30px;padding:6px 10px;color:#b91c1c;background:rgba(254,226,226,.96);border:1px solid rgba(248,113,113,.35);border-radius:8px;font-size:11px;font-weight:700;z-index:4;';
+    input.parentElement.style.position = 'relative';
+    input.parentElement.appendChild(warning);
+  }
+  if (warning) {
+    warning.textContent = issue ? `⚠️ ${issue}` : '';
+    warning.style.display = issue ? 'block' : 'none';
+  }
+  if (send && !send.disabled) send.setAttribute('aria-disabled', issue ? 'true' : 'false');
+  return issue;
+}
 
 async function getCachedProfile(uid) {
   if (_profileCache[uid]) return _profileCache[uid];
@@ -405,6 +452,11 @@ async function sendMessage() {
   const input = document.getElementById('chat-input');
   const text = input.value.trim();
   if (!text || !_currentProfile) return;
+  if (getChatModerationIssue(text)) {
+    updateChatModerationWarning(text);
+    input.focus();
+    return;
+  }
 
   try {
     const lockSnap = await getDoc(doc(db, 'stats', 'chatlock'));
@@ -444,6 +496,7 @@ async function sendMessage() {
 
   input.disabled = false;
   input.focus();
+  updateChatModerationWarning('');
 }
 
 async function deleteMessage(msgId) {
