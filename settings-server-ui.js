@@ -5,12 +5,15 @@ import {
   getLocalLibraryState,
   setProviderBlacklisted,
   isProviderBlacklisted,
+  getExternalProviderId,
+  setExternalProvider,
   EXTERNAL_PROVIDERS,
 } from './server-config.js';
 
 const serverProfilesEl = document.getElementById('server-profiles-settings');
 const activeServerLabel = document.getElementById('active-server-settings-label');
 const blacklistEl = document.getElementById('provider-blacklist-settings');
+const externalProviderEl = document.getElementById('external-provider-settings');
 const localLibraryStatus = document.getElementById('local-library-status');
 
 if (serverProfilesEl && activeServerLabel && localLibraryStatus) {
@@ -41,8 +44,8 @@ if (serverProfilesEl && activeServerLabel && localLibraryStatus) {
     if (!blacklistEl) return;
     const providers = Object.values(EXTERNAL_PROVIDERS);
     blacklistEl.innerHTML = `
-      <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:4px;">ZapGames access</div>
-      <div style="font-size:11px;color:var(--muted);line-height:1.45;margin-bottom:10px;">Block ZapGames if its domain is unavailable on your Wi‑Fi. When blocked, External Cloud Gaming is hidden and cannot become active.</div>
+      <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:4px;">Provider access</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.45;margin-bottom:10px;">Block a provider if its domain is unavailable on your Wi‑Fi. Blocked providers disappear from the external catalog options.</div>
       <div style="display:flex;flex-direction:column;gap:7px;">${providers.map(profile => `
         <label style="display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--glass-border);border-radius:10px;background:var(--bg,#f9fafb);cursor:pointer;">
           <input type="checkbox" data-provider-blacklist="${profile.id}" ${isProviderBlacklisted(profile.id) ? 'checked' : ''} style="accent-color:#ef4444;width:16px;height:16px;">
@@ -58,6 +61,23 @@ if (serverProfilesEl && activeServerLabel && localLibraryStatus) {
         serverToast(input.checked ? 'Provider blocked on this device' : 'Provider allowed again', input.checked ? 'warning' : 'success');
       });
     });
+  }
+  function renderExternalProvider() {
+    if (!externalProviderEl) return;
+    const activeId = getExternalProviderId();
+    const providers = Object.values(EXTERNAL_PROVIDERS).filter(provider => !isProviderBlacklisted(provider.id));
+    externalProviderEl.innerHTML = `
+      <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:4px;">External catalog</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.45;margin-bottom:10px;">Choose which provider appears when External Cloud Gaming is selected.</div>
+      <div style="display:flex;flex-direction:column;gap:7px;">${providers.map(provider => `
+        <button type="button" data-external-provider="${provider.id}" style="display:flex;align-items:center;gap:10px;width:100%;padding:9px 10px;border:1px solid ${provider.id === activeId ? 'rgba(58,125,255,0.55)' : 'var(--glass-border)'};border-radius:10px;background:${provider.id === activeId ? 'rgba(58,125,255,0.08)' : 'var(--bg,#f9fafb)'};color:var(--text);cursor:pointer;text-align:left;font-family:inherit;">
+          <span style="font-size:17px;">${provider.icon}</span><span style="flex:1;min-width:0;"><strong style="display:block;font-size:12px;">${provider.name}</strong><small style="color:var(--muted);">${provider.description}</small></span><span style="font-size:10px;font-weight:800;color:${provider.id === activeId ? 'var(--accent)' : 'var(--muted)'};">${provider.id === activeId ? 'ACTIVE' : 'USE'}</span>
+        </button>`).join('')}</div>`;
+    externalProviderEl.querySelectorAll('[data-external-provider]').forEach(button => button.addEventListener('click', () => {
+      const provider = setExternalProvider(button.dataset.externalProvider);
+      renderExternalProvider();
+      serverToast(`${provider?.icon || ''} ${provider?.name || 'Provider'} selected`, 'success');
+    }));
   }
   function renderServerSettings() {
     const active = getActiveServer();
@@ -80,8 +100,10 @@ if (serverProfilesEl && activeServerLabel && localLibraryStatus) {
 
   renderServerSettings();
   renderProviderBlacklist();
+  renderExternalProvider();
   refreshRepositoryStatus();
-  window.addEventListener('flux-server-changed', () => { renderServerSettings(); renderProviderBlacklist(); });
-  window.addEventListener('flux-provider-blacklist-changed', () => { renderServerSettings(); renderProviderBlacklist(); });
+  window.addEventListener('flux-server-changed', () => { renderServerSettings(); renderProviderBlacklist(); renderExternalProvider(); });
+  window.addEventListener('flux-provider-blacklist-changed', () => { renderServerSettings(); renderProviderBlacklist(); renderExternalProvider(); });
+  window.addEventListener('flux-external-provider-changed', renderExternalProvider);
   window.addEventListener('flux-local-library-changed', refreshRepositoryStatus);
 }

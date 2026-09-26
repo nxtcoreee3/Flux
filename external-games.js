@@ -1,3 +1,5 @@
+import { FAMOBI_SNAPSHOT } from './famobi-games.js';
+
 // Public ZapGames catalog snapshot. Source: https://zapgames.io/
 // External Cloud Gaming uses the provider's direct .embed endpoints inside Flux's fullscreen player.
 export const ZAPGAMES = Object.freeze([
@@ -222,3 +224,19 @@ export const ZAPGAMES = Object.freeze([
   { id: 'zap-hop-rush-3d', title: 'Hop Rush 3D', thumb: 'https://zapgames.io/cache/data/image/game/hop-rush-3d-f546x307.webp', url: 'https://zapgames.io/hop-rush-3d.embed', desc: 'Play instantly in Flux.', provider: 'zapgames' },
   { id: 'zap-bat-smash-2', title: 'Bat Smash 2', thumb: 'https://zapgames.io/cache/data/image/game/bat-smash-2-f546x307.webp', url: 'https://zapgames.io/bat-smash-2.embed', desc: 'Play instantly in Flux.', provider: 'zapgames' },
 ]);
+
+
+// Famobi's official feed snapshot. Flux uses official metadata and outbound
+// play links; iframe mode requires Famobi to approve and unlock the Flux domain.
+export const FAMOBI_FEED_URL = 'https://api.famobi.com/feed';
+export let FAMOBI = FAMOBI_SNAPSHOT;
+let famobiLoadPromise = null;
+
+export async function loadFamobiCatalog() {
+  if (famobiLoadPromise) return famobiLoadPromise;
+  // The feed is not CORS-enabled for browser-side requests. Keep the
+  // provider live without breaking the catalog by using the checked-in
+  // official snapshot; refresh famobi-games.js when the feed changes.
+  famobiLoadPromise = Promise.resolve(FAMOBI);
+  return famobiLoadPromise;
+}

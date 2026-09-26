@@ -85,8 +85,8 @@ if (isNewOfficial) {
 }
 
 import { initAuthUI, initBetaShell, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, fetchAllGameStats, setCurrentlyPlaying, clearCurrentlyPlaying, rateGame, getUserRating, reportGame, checkFirestoreHealth, fetchGameDetail, getAiGameDescription, getGameReviews, submitReview, addReviewComment, likeReview, deleteReview, fetchGamePricing, getUnlockedGames, unlockGame, SPIN_SEGMENTS, getLastSpin, spinWheel, giftPointsToUser, redeemCode, createRewardCode, getRewardCodes, deactivateRewardCode, initIncidentBanner, setServiceStatus, autoCheckServiceHealth, setIncidentBanner, subscribeToServiceHealth, checkNoAds, purchaseNoAds, NO_ADS_COST, setGameLockdown, initUpdateNotification } from './firebase-auth.js';
-import { ZAPGAMES } from './external-games.js';
-import { SERVER_PROFILES, getSelectableServerProfiles, getActiveServer, getActiveServerId, setActiveServer, getLocalLibraryState, getGameAvailability, getRepositoryGameFolder, isGameAvailable, getGameLaunchUrl, initializeServerRuntime, isProviderBlacklisted, getAvailableExternalProviders } from './server-config.js';
+import { ZAPGAMES, FAMOBI, loadFamobiCatalog } from './external-games.js';
+import { SERVER_PROFILES, getSelectableServerProfiles, getActiveServer, getActiveServerId, getExternalProviderId, setActiveServer, getLocalLibraryState, getGameAvailability, getRepositoryGameFolder, isGameAvailable, getGameLaunchUrl, initializeServerRuntime, isProviderBlacklisted } from './server-config.js';
 
 const GAMES = [
   {
@@ -372,27 +372,43 @@ const GAMES = [
   }
 ];
 
+function normalizeGameTitle(title) {
+  return String(title || '').toLocaleLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '');
+}
+
+function getGameFavoriteKey(game) {
+  return game?.favoriteKey || normalizeGameTitle(game?.title) || game?.id;
+}
+
+function mergeDuplicateGames(games) {
+  const merged = new Map();
+  for (const game of games) {
+    const key = normalizeGameTitle(game.title) || game.id;
+    const existing = merged.get(key);
+    if (!existing) {
+      merged.set(key, { ...game, favoriteKey: key, duplicateIds: [game.id] });
+      continue;
+    }
+    existing.duplicateIds = [...new Set([...(existing.duplicateIds || []), game.id])];
+    // Keep the first card/source, but retain a usable description or thumbnail
+    // if the preferred source is missing one.
+    if (!existing.thumb && game.thumb) existing.thumb = game.thumb;
+    if (!existing.desc && game.desc) existing.desc = game.desc;
+  }
+  return [...merged.values()];
+}
+
 function getCatalogGames() {
-  const providerCatalogs = { zapgames: ZAPGAMES };
+  const providerCatalogs = { zapgames: ZAPGAMES, famobi: FAMOBI };
   const activeId = getActiveServerId();
-  const externalGames = getAvailableExternalProviders().flatMap(provider =>
-    (providerCatalogs[provider.id] || []).map(game => ({ ...game, sourceServer: 'external', catalogProvider: provider.id }))
-  );
-  const dedupeByTitle = games => {
-    const seen = new Set();
-    return games.filter(game => {
-      const key = game.title.toLowerCase().replace(/[^a-z0-9]+/g, '');
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  };
-  if (activeId === 'external') return dedupeByTitle(externalGames);
+  const activeExternalProvider = getExternalProviderId();
+  const externalGames = (providerCatalogs[activeExternalProvider] || []).map(game => ({ ...game, sourceServer: 'external', catalogProvider: activeExternalProvider }));
+  if (activeId === 'external') return mergeDuplicateGames(externalGames);
   if (activeId === 'all') {
     const cloudGames = GAMES.map(game => ({ ...game, sourceServer: 'cloud', catalogProvider: 'cloud' }));
-    return dedupeByTitle([...cloudGames, ...externalGames]);
+    return mergeDuplicateGames([...cloudGames, ...externalGames]);
   }
-  return GAMES.map(game => ({ ...game, sourceServer: activeId, catalogProvider: activeId }));
+  return mergeDuplicateGames(GAMES.map(game => ({ ...game, sourceServer: activeId, catalogProvider: activeId })));
 }
 function getGameServerState(game) {
   const server = getActiveServer();
@@ -429,6 +445,10 @@ window.addEventListener('flux-provider-blacklist-changed', () => {
 window.addEventListener('flux-external-provider-changed', () => {
   if (document.getElementById('game-grid') || document.getElementById('games-grid')) applyFilters();
 });
+window.addEventListener('flux-external-catalog-loaded', event => {
+  if (event.detail?.provider === 'famobi' && (document.getElementById('game-grid') || document.getElementById('games-grid'))) applyFilters();
+});
+loadFamobiCatalog();
 window.addEventListener('flux-server-changed', () => {
   if (quickSearch) quickSearch.value = '';
   if (sortSelect) sortSelect.value = 'featured';
@@ -574,33 +594,42 @@ function renderRecentSection() {
 
 /* ===================== FAVORITES ===================== */
 const FAVORITES_KEY = 'flux_favs';
-function loadLocalFavs() { try { return JSON.parse(localStorage.getItem(FAVORITES_KEY)) || []; } catch { return []; } }
-function saveLocalFavs(arr) { localStorage.setItem(FAVORITES_KEY, JSON.stringify(arr)); }
+function loadLocalFavs() { try { const value = JSON.parse(localStorage.getItem(FAVORITES_KEY)); return Array.isArray(value) ? [...new Set(value.filter(Boolean))] : []; } catch { return []; } }
+function saveLocalFavs(arr) { localStorage.setItem(FAVORITES_KEY, JSON.stringify([...new Set(arr.filter(Boolean))])); }
 
 let _favsCache = loadLocalFavs();
 
+function favoriteMatchesGame(id, game) {
+  const ids = new Set([id, game?.id, ...(game?.duplicateIds || [])].filter(Boolean));
+  return _favsCache.some(saved => ids.has(saved) || saved === getGameFavoriteKey(game));
+}
+
 async function refreshFavsCache() {
   const cloud = await loadCloudFavs();
-  if (cloud !== null) { _favsCache = cloud; saveLocalFavs(cloud); }
-  else { _favsCache = loadLocalFavs(); }
+  // Cloud favorites from older versions may contain only Flux IDs. Merge them
+  // with this device's catalog so external-provider favorites are not lost.
+  _favsCache = [...new Set([...(loadLocalFavs() || []), ...(cloud || [])].filter(Boolean))];
+  saveLocalFavs(_favsCache);
   const countEl = document.getElementById('profile-fav-count');
   if (countEl) countEl.textContent = `${_favsCache.length} favourited game${_favsCache.length !== 1 ? 's' : ''}`;
   applyFilters();
 }
 
-function isFav(id) { return _favsCache.includes(id); }
+function isFav(id, game = null) { return favoriteMatchesGame(id, game || getCatalogGames().find(item => item.id === id)); }
 
-async function toggleFav(id) {
-  const adding = !isFav(id);
-  if (adding) _favsCache.push(id);
-  else _favsCache.splice(_favsCache.indexOf(id), 1);
+async function toggleFav(id, game = null) {
+  const target = game || getCatalogGames().find(item => item.id === id) || { id };
+  const favoriteKey = getGameFavoriteKey(target);
+  const equivalentIds = new Set([id, target.id, ...(target.duplicateIds || []), favoriteKey].filter(Boolean));
+  const adding = !favoriteMatchesGame(id, target);
+  _favsCache = _favsCache.filter(saved => !equivalentIds.has(saved));
+  if (adding) _favsCache.push(favoriteKey);
   saveLocalFavs(_favsCache);
   await saveCloudFavs(_favsCache);
   await syncProfileFavs(_favsCache);
   const countEl = document.getElementById('profile-fav-count');
   if (countEl) countEl.textContent = `${_favsCache.length} favourited game${_favsCache.length !== 1 ? 's' : ''}`;
-  const game = GAMES.find(g => g.id === id);
-  showToast(adding ? `Added ${game?.title} to favourites ★` : `Removed ${game?.title} from favourites`, adding ? 'success' : 'info');
+  showToast(adding ? `Added ${target?.title || 'game'} to favourites ★` : `Removed ${target?.title || 'game'} from favourites`, adding ? 'success' : 'info');
 }
 
 /* ===================== CARD ===================== */
@@ -692,7 +721,7 @@ function createCard(game) {
   const favBtn = div.querySelector('.favorite');
   favBtn.addEventListener('click', async (e) => {
     e.stopPropagation();
-    await toggleFav(game.id);
+    await toggleFav(game.id, game);
     favBtn.textContent = isFav(game.id) ? '★' : '☆';
     favBtn.classList.toggle('active', isFav(game.id));
     favBtn.setAttribute('aria-pressed', String(isFav(game.id)));
@@ -882,7 +911,7 @@ function renderFavouritesSection() {
   const favsGrid = document.getElementById('favourites-grid');
   const favsSection = document.getElementById('favourites-section');
   if (!favsGrid || !favsSection) return;
-  const favGames = getCatalogGames().filter(g => isFav(g.id));
+  const favGames = getCatalogGames().filter(g => isFav(g.id, g));
   favsGrid.innerHTML = '';
   if (favGames.length > 0) {
     favGames.forEach(g => favsGrid.appendChild(createCard(g)));
@@ -1172,7 +1201,7 @@ function bootFlux() {
         _unlockedGames = unlocked || [];
       } catch { /* Firebase down — grid already showing */ }
       if (document.getElementById('game-grid') || document.getElementById('games-grid')) {
-        renderGames(GAMES);
+        renderGames(getCatalogGames());
       }
     }).catch(() => { });
   }, base + 600);
@@ -2143,6 +2172,10 @@ function openPlayModal(url, title, game) {
     showToast('This game is unavailable on the selected server.', 'warning');
     return;
   }
+  if (game?.launchMode === 'link') {
+    window.open(url, '_blank', 'noopener,noreferrer');
+    return;
+  }
   if (getActiveServer()?.external || game?.sourceServer === 'external') {
     openFullscreen(url, title, game);
     return;
@@ -2443,7 +2476,7 @@ async function openGameDetail(game) {
 
   const favBtn = document.getElementById('gd-fav-btn');
   favBtn.addEventListener('click', async () => {
-    await toggleFav(game.id);
+    await toggleFav(game.id, game);
     favBtn.textContent = isFav(game.id) ? '★ Favourited' : '☆ Favourite';
     renderFavouritesSection();
   });
@@ -2627,7 +2660,7 @@ async function showUnlockModal(game, finalPrice, discount, originalPrice) {
       setTimeout(async () => {
         close();
         await playPurchaseCelebration(game);
-        renderGames(GAMES);
+        renderGames(getCatalogGames());
       }, 650);
     } else { msg.style.color = '#ef4444'; msg.textContent = res.error; btn.textContent = `🔓 Unlock for ${finalPrice} pts`; btn.disabled = false; }
   });
@@ -2850,7 +2883,7 @@ window.openRedeemCode = function () {
       // If game unlocked, refresh the card grid
       if (res.type === 'game') {
         _unlockedGames.push(res.value);
-        if (document.getElementById('game-grid') || document.getElementById('games-grid')) renderGames(GAMES);
+        if (document.getElementById('game-grid') || document.getElementById('games-grid')) renderGames(getCatalogGames());
       }
     } else {
       result.style.display = 'block';
