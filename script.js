@@ -590,7 +590,7 @@ function showLibraryUpgradeAnnouncement() {
       <div style="font-size:42px;line-height:1;margin-bottom:12px;">🚀</div>
       <div style="display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 11px;background:rgba(58,125,255,0.12);color:#2563eb;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;">Library upgrade</div>
       <h2 id="flux-library-upgrade-title" style="margin:12px 0 8px;font-family:'Bebas Neue',sans-serif;font-size:34px;letter-spacing:.5px;color:#0f172a;">More games. More ways to play.</h2>
-      <p style="margin:0 auto 18px;max-width:410px;color:#475569;font-size:14px;line-height:1.55;">Flux has upgraded its game library from <strong>40 to roughly 890 games</strong> — approximately a <strong>2,125% increase</strong>.</p>
+      <p style="margin:0 auto 18px;max-width:410px;color:#475569;font-size:14px;line-height:1.55;">Flux has upgraded its game library from <strong>40 to roughly 890 games</strong> — approximately a <strong>2125% increase</strong>.</p>
       <div style="display:flex;justify-content:center;align-items:center;gap:12px;margin:0 auto 20px;max-width:360px;">
         <div style="flex:1;padding:12px 8px;border-radius:14px;background:rgba(148,163,184,0.14);"><strong style="display:block;font-size:25px;color:#64748b;">40</strong><span style="font-size:11px;color:#64748b;">before</span></div>
         <span style="font-size:22px;color:#3a7dff;font-weight:900;">→</span>
