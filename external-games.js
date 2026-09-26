@@ -226,8 +226,8 @@ export const ZAPGAMES = Object.freeze([
 ]);
 
 
-// Famobi's official feed snapshot. Flux uses official metadata and outbound
-// play links; iframe mode requires Famobi to approve and unlock the Flux domain.
+// Famobi's official feed snapshot. Flux uses official metadata and loads the
+// provider's official play URL in the in-game iframe player.
 export const FAMOBI_FEED_URL = 'https://api.famobi.com/feed';
 export let FAMOBI = FAMOBI_SNAPSHOT;
 let famobiLoadPromise = null;

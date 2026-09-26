@@ -11,7 +11,7 @@ export const REPOSITORY_GAMES_ROOT = './games/';
 export const EXTERNAL_PROVIDER_KEY = 'flux_external_provider';
 export const EXTERNAL_PROVIDERS = Object.freeze({
   zapgames: Object.freeze({ id: 'zapgames', name: 'ZapGames', icon: '🎮', attribution: 'ZapGames B.V. · zapgames.io', description: '220 public games from ZapGames.io.' }),
-  famobi: Object.freeze({ id: 'famobi', name: 'Famobi', icon: '🕹️', attribution: 'Famobi · famobi.com', description: 'Official Famobi catalog with outbound play links.' }),
+  famobi: Object.freeze({ id: 'famobi', name: 'Famobi', icon: '🕹️', attribution: 'Famobi · famobi.com', description: 'Official Famobi catalog in the Flux iframe player.' }),
 });
 export const SERVER_PROFILES = Object.freeze({
   cloud: Object.freeze({
@@ -25,7 +25,7 @@ export const SERVER_PROFILES = Object.freeze({
   }),
   external: Object.freeze({
     id: 'external', name: 'External Cloud Gaming', shortName: 'External', icon: '🎮',
-    eyebrow: 'External game catalogs', description: 'Browse the enabled external provider catalog.', kind: 'remote',
+    eyebrow: 'External game catalogs', description: 'Browse all allowed external provider catalogs.', kind: 'remote',
     external: true,
   }),
   local: Object.freeze({

@@ -86,7 +86,7 @@ if (isNewOfficial) {
 
 import { initAuthUI, initBetaShell, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, fetchAllGameStats, setCurrentlyPlaying, clearCurrentlyPlaying, rateGame, getUserRating, reportGame, checkFirestoreHealth, fetchGameDetail, getAiGameDescription, getGameReviews, submitReview, addReviewComment, likeReview, deleteReview, fetchGamePricing, getUnlockedGames, unlockGame, SPIN_SEGMENTS, getLastSpin, spinWheel, giftPointsToUser, redeemCode, createRewardCode, getRewardCodes, deactivateRewardCode, initIncidentBanner, setServiceStatus, autoCheckServiceHealth, setIncidentBanner, subscribeToServiceHealth, checkNoAds, purchaseNoAds, NO_ADS_COST, setGameLockdown, initUpdateNotification } from './firebase-auth.js';
 import { ZAPGAMES, FAMOBI, loadFamobiCatalog } from './external-games.js';
-import { SERVER_PROFILES, getSelectableServerProfiles, getActiveServer, getActiveServerId, getExternalProviderId, setActiveServer, getLocalLibraryState, getGameAvailability, getRepositoryGameFolder, isGameAvailable, getGameLaunchUrl, initializeServerRuntime, isProviderBlacklisted } from './server-config.js';
+import { SERVER_PROFILES, getSelectableServerProfiles, getActiveServer, getActiveServerId, setActiveServer, getLocalLibraryState, getGameAvailability, getRepositoryGameFolder, isGameAvailable, getGameLaunchUrl, initializeServerRuntime, isProviderBlacklisted, getAvailableExternalProviders } from './server-config.js';
 
 const GAMES = [
   {
@@ -401,8 +401,9 @@ function mergeDuplicateGames(games) {
 function getCatalogGames() {
   const providerCatalogs = { zapgames: ZAPGAMES, famobi: FAMOBI };
   const activeId = getActiveServerId();
-  const activeExternalProvider = getExternalProviderId();
-  const externalGames = (providerCatalogs[activeExternalProvider] || []).map(game => ({ ...game, sourceServer: 'external', catalogProvider: activeExternalProvider }));
+  const externalGames = getAvailableExternalProviders().flatMap(provider =>
+    (providerCatalogs[provider.id] || []).map(game => ({ ...game, sourceServer: 'external', catalogProvider: provider.id }))
+  );
   if (activeId === 'external') return mergeDuplicateGames(externalGames);
   if (activeId === 'all') {
     const cloudGames = GAMES.map(game => ({ ...game, sourceServer: 'cloud', catalogProvider: 'cloud' }));
@@ -453,6 +454,7 @@ window.addEventListener('flux-server-changed', () => {
   if (quickSearch) quickSearch.value = '';
   if (sortSelect) sortSelect.value = 'featured';
   if (document.getElementById('game-grid') || document.getElementById('games-grid')) applyFilters();
+  showCatalogLoadedToast();
 });
 window.addEventListener('flux-local-library-changed', () => {
   if (document.getElementById('game-grid') || document.getElementById('games-grid')) applyFilters();
@@ -563,6 +565,12 @@ function showToast(message, type = 'info') {
     toast.style.opacity = '0'; toast.style.transform = 'translateY(8px)';
     setTimeout(() => toast.remove(), 200);
   }, 3000);
+}
+
+function showCatalogLoadedToast() {
+  const page = (window.location.pathname.split('/').pop() || 'index.html').toLowerCase();
+  if (!['index.html', 'games.html', ''].includes(page)) return;
+  showToast(`Successfully loaded ${getCatalogGames().length} games`, 'success');
 }
 
 /* ===================== RECENTLY PLAYED ===================== */
@@ -1131,6 +1139,7 @@ function bootFlux() {
     renderGames(getCatalogGames());
     initializeServerRuntime(getCatalogGames()).then(() => applyFilters());
   }
+  setTimeout(showCatalogLoadedToast, 250);
 
   if (document.getElementById('quick-search')) {
     document.getElementById('quick-search').addEventListener('input', debounce(applyFilters, 120));
