@@ -1694,69 +1694,31 @@ html.beta .copyright { color: var(--beta-muted); }
   .flux-activity-avatar:focus-visible .flux-activity-avatar__tooltip { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
 }
 
-/* ── Persistent bottom navigation ──
-   Enabled from Settings. The reserved document and modal space keeps game
-   players fully visible while the navigation remains available. */
-:root { --flux-bottom-nav-height: 68px; }
-html.flux-bottom-nav body {
-  padding-bottom: calc(var(--flux-bottom-nav-height) + env(safe-area-inset-bottom, 0px));
-}
-html.flux-bottom-nav .topbar {
-  position: fixed;
-  inset: auto 0 0;
-  z-index: 200;
-  min-height: var(--flux-bottom-nav-height);
-  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
-  box-shadow: 0 -8px 28px rgba(0,0,0,0.12);
-}
-html.flux-bottom-nav .nav {
-  flex: 1 1 auto;
-  min-width: 0;
-  justify-content: center;
-}
-html.flux-bottom-nav .nav-toggle { display: none !important; }
-html.flux-bottom-nav .nav-list {
-  max-width: 100%;
-  flex-wrap: nowrap !important;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
-}
-html.flux-bottom-nav .nav-list::-webkit-scrollbar { display: none; }
-html.flux-bottom-nav .modal {
-  z-index: 120;
+/* ── In-game control bar ──
+   The player keeps its controls visible at the bottom and reserves room for
+   the iframe so Exit/Kill/server controls never cover the game. */
+#flux-fullscreen {
+  --flux-player-bar-height: 70px;
   box-sizing: border-box;
-  padding: 16px 16px calc(var(--flux-bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 16px);
+  padding-bottom: calc(var(--flux-player-bar-height) + env(safe-area-inset-bottom, 0px));
 }
-html.flux-bottom-nav .modal-panel {
-  height: min(80vh, calc(100vh - var(--flux-bottom-nav-height) - env(safe-area-inset-bottom, 0px) - 32px));
-  height: min(80dvh, calc(100dvh - var(--flux-bottom-nav-height) - env(safe-area-inset-bottom, 0px) - 32px));
+#flux-fullscreen #fs-bar {
+  top: auto !important;
+  bottom: 0;
+  min-height: var(--flux-player-bar-height);
+  box-sizing: border-box;
+  padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+  background: linear-gradient(to top, rgba(0,0,0,0.94), rgba(0,0,0,0.72) 70%, transparent) !important;
+  opacity: 1 !important;
 }
-html.flux-bottom-nav #toast-container {
-  bottom: calc(var(--flux-bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 16px) !important;
+#flux-fullscreen #fs-hover-zone {
+  top: auto !important;
+  bottom: 0;
+  height: var(--flux-player-bar-height);
 }
-html.flux-bottom-nav #social-beta-banner {
-  bottom: calc(var(--flux-bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 16px) !important;
-}
-@media (max-width: 900px) {
-  :root { --flux-bottom-nav-height: 64px; }
-  html.flux-bottom-nav .topbar {
-    justify-content: center;
-    gap: 0;
-    padding: 8px 0 calc(8px + env(safe-area-inset-bottom, 0px));
-  }
-  html.flux-bottom-nav .topbar .brand,
-  html.flux-bottom-nav .topbar .right-actions { display: none; }
-  html.flux-bottom-nav .nav { width: 100%; }
-  html.flux-bottom-nav .nav-list {
-    display: flex;
-    width: 100%;
-    justify-content: flex-start;
-    padding: 0 8px;
-  }
-  html.flux-bottom-nav .nav-list a {
-    display: block;
-    white-space: nowrap;
-    padding: 7px 12px;
-  }
+#flux-fullscreen #fs-iframe { min-height: 0; }
+@media (max-width: 600px) {
+  #flux-fullscreen { --flux-player-bar-height: 78px; }
+  #flux-fullscreen #fs-bar { flex-wrap: wrap; gap: 6px; }
+  #flux-fullscreen #fs-bar > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }

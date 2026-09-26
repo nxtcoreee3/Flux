@@ -2055,8 +2055,8 @@ function openFullscreen(url, title, game) {
   fs.id = 'flux-fullscreen';
   fs.style.cssText = 'position:fixed;inset:0;z-index:9998;background:#000;display:flex;flex-direction:column;';
   fs.innerHTML = `
-    <div id="fs-hover-zone" style="position:absolute;top:0;left:0;right:0;height:60px;z-index:5;pointer-events:auto;"></div>
-    <div id="fs-bar" style="position:absolute;top:0;left:0;right:0;z-index:6;display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(to bottom,rgba(0,0,0,0.85),transparent);transition:opacity 0.3s;pointer-events:auto;">
+    <div id="fs-hover-zone" style="position:absolute;bottom:0;left:0;right:0;height:70px;z-index:5;pointer-events:auto;"></div>
+    <div id="fs-bar" style="position:absolute;bottom:0;left:0;right:0;z-index:6;display:flex;align-items:center;gap:10px;min-height:70px;padding:12px 14px;background:linear-gradient(to top,rgba(0,0,0,0.94),rgba(0,0,0,0.72),transparent);pointer-events:auto;">
       <button id="fs-exit" style="background:rgba(0,0,0,0.7);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:8px;padding:8px 16px;font-size:14px;font-weight:700;cursor:pointer;backdrop-filter:blur(4px);pointer-events:auto;">✕ Exit</button>
       <span style="font-size:13px;font-weight:600;color:rgba(255,255,255,0.85);flex:1;">${title}</span>
       ${isKillSwitchEnabled() ? `<div style="display:flex;align-items:center;">
@@ -2093,16 +2093,9 @@ function openFullscreen(url, title, game) {
     setTimeout(() => { fsIframe.style.opacity = '1'; }, 120);
   });
   if (fsServerSwitcher) bar.appendChild(fsServerSwitcher);
-  let barTimer;
+  const showBar = () => { bar.style.opacity = '1'; };
 
-  const showBar = () => {
-    bar.style.opacity = '1';
-    clearTimeout(barTimer);
-    barTimer = setTimeout(() => { bar.style.opacity = '0'; }, 3000);
-  };
-  const hideBar = () => { bar.style.opacity = '0'; };
-
-  // Show bar on hover zone (transparent area at top of screen above iframe)
+  // Keep the in-game controls available at the bottom of the player.
   hoverZone.addEventListener('mouseenter', showBar);
   hoverZone.addEventListener('mousemove', showBar);
   bar.addEventListener('mouseenter', showBar);
