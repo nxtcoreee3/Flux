@@ -28,6 +28,6 @@ export const POKI_GAMES = Object.freeze(entries.map(([slug, title]) => ({
   title,
   thumb: POKI_THUMB,
   url: `https://poki.com/en/g/${slug.trim()}`,
-  desc: 'Play instantly on Poki.',
+  desc: 'Play instantly in Flux.',
   provider: 'poki',
 })));

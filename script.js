@@ -87,7 +87,7 @@ if (isNewOfficial) {
 import { initAuthUI, initBetaShell, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, fetchAllGameStats, setCurrentlyPlaying, clearCurrentlyPlaying, rateGame, getUserRating, reportGame, checkFirestoreHealth, fetchGameDetail, getAiGameDescription, getGameReviews, submitReview, addReviewComment, likeReview, deleteReview, fetchGamePricing, getUnlockedGames, unlockGame, SPIN_SEGMENTS, getLastSpin, spinWheel, giftPointsToUser, redeemCode, createRewardCode, getRewardCodes, deactivateRewardCode, initIncidentBanner, setServiceStatus, autoCheckServiceHealth, setIncidentBanner, subscribeToServiceHealth, checkNoAds, purchaseNoAds, NO_ADS_COST, setGameLockdown, initUpdateNotification } from './firebase-auth.js';
 import { ZAPGAMES } from './external-games.js';
 import { POKI_GAMES } from './poki-games.js';
-import { SERVER_PROFILES, getSelectableServerProfiles, getActiveServer, getActiveServerId, setActiveServer, getLocalLibraryState, getGameAvailability, getRepositoryGameFolder, isGameAvailable, getGameLaunchUrl, initializeServerRuntime, isProviderBlacklisted, getExternalProviderId, setExternalProvider, getAvailableExternalProviders } from './server-config.js';
+import { SERVER_PROFILES, getSelectableServerProfiles, getActiveServer, getActiveServerId, setActiveServer, getLocalLibraryState, getGameAvailability, getRepositoryGameFolder, isGameAvailable, getGameLaunchUrl, initializeServerRuntime, isProviderBlacklisted, getAvailableExternalProviders } from './server-config.js';
 
 const GAMES = [
   {
@@ -376,19 +376,22 @@ const GAMES = [
 function getCatalogGames() {
   const providerCatalogs = { zapgames: ZAPGAMES, poki: POKI_GAMES };
   const activeId = getActiveServerId();
-  if (activeId === 'external') return (providerCatalogs[getExternalProviderId()] || []).map(game => ({ ...game, sourceServer: 'external', catalogProvider: game.provider }));
-  if (activeId === 'all') {
-    const cloudGames = GAMES.map(game => ({ ...game, sourceServer: 'cloud', catalogProvider: 'cloud' }));
-    const externalGames = getAvailableExternalProviders().flatMap(provider =>
-      (providerCatalogs[provider.id] || []).map(game => ({ ...game, sourceServer: 'external', catalogProvider: provider.id }))
-    );
+  const externalGames = getAvailableExternalProviders().flatMap(provider =>
+    (providerCatalogs[provider.id] || []).map(game => ({ ...game, sourceServer: 'external', catalogProvider: provider.id }))
+  );
+  const dedupeByTitle = games => {
     const seen = new Set();
-    return [...cloudGames, ...externalGames].filter(game => {
+    return games.filter(game => {
       const key = game.title.toLowerCase().replace(/[^a-z0-9]+/g, '');
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
     });
+  };
+  if (activeId === 'external') return dedupeByTitle(externalGames);
+  if (activeId === 'all') {
+    const cloudGames = GAMES.map(game => ({ ...game, sourceServer: 'cloud', catalogProvider: 'cloud' }));
+    return dedupeByTitle([...cloudGames, ...externalGames]);
   }
   return GAMES.map(game => ({ ...game, sourceServer: activeId, catalogProvider: activeId }));
 }
@@ -625,10 +628,6 @@ function createCard(game) {
   const finalPrice = activeDiscount > 0 ? Math.round(pricing.price * (1 - activeDiscount / 100)) : (pricing.price || 0);
   const isLocked = !unavailable && !checking && finalPrice > 0 && !_unlockedGames.includes(game.id);
 
-  const providerNames = { cloud: 'Flux Cloud', local: 'Local Library', zapgames: 'ZapGames', poki: 'Poki' };
-  const providerBadge = getActiveServerId() === 'all' && game.catalogProvider
-    ? `<span class="compat-badge" style="color:#7c3aed;background:rgba(124,58,237,0.1);border-color:rgba(124,58,237,0.25);">${providerNames[game.catalogProvider] || game.catalogProvider}</span>`
-    : '';
   const compatBadge = compat === 'ipad'
     ? '<span class="compat-badge" data-tip="📱 Touchscreen compatible — works great on iPad and touch devices">📱 iPad</span>'
     : compat === 'pc'
@@ -663,7 +662,6 @@ function createCard(game) {
       <h3 class="title">${game.title}</h3>
       <div class="meta">${game.desc || ''}</div>
       <div style="display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap;">
-        ${providerBadge}
         ${compatBadge}
         ${renderServerAvailabilityBadge(game)}
         ${ratingHTML}
@@ -2005,26 +2003,14 @@ function createPlayServerSwitcher(game, onChange) {
     <div class="flux-play-server-switcher__options">
       ${getSelectableServerProfiles().map(profile => `<button type="button" data-server-id="${profile.id}" title="${profile.name}: ${profile.description}">${profile.icon} ${profile.shortName}</button>`).join('')}
     </div>
-    <div class="flux-play-server-switcher__providers" style="display:flex;align-items:center;gap:4px;margin-top:5px;">
-      <span style="font-size:10px;color:var(--muted);">External provider:</span>
-      ${getAvailableExternalProviders().map(provider => `<button type="button" data-external-provider="${provider.id}" title="Use ${provider.name}">${provider.icon} ${provider.name}</button>`).join('')}
-    </div>
   `;
   const buttons = [...switcher.querySelectorAll('[data-server-id]')];
-  const providerButtons = [...switcher.querySelectorAll('[data-external-provider]')];
   const refresh = () => {
     const activeId = getActiveServerId();
-    const activeProvider = getExternalProviderId();
     buttons.forEach(button => {
       const active = button.dataset.serverId === activeId;
       button.classList.toggle('is-active', active);
       button.setAttribute('aria-pressed', active ? 'true' : 'false');
-    });
-    providerButtons.forEach(button => {
-      const active = button.dataset.externalProvider === activeProvider;
-      button.classList.toggle('is-active', active);
-      button.setAttribute('aria-pressed', active ? 'true' : 'false');
-      button.hidden = !getAvailableExternalProviders().some(provider => provider.id === button.dataset.externalProvider);
     });
   };
   const handleChange = async (event) => {
@@ -2042,13 +2028,6 @@ function createPlayServerSwitcher(game, onChange) {
       refresh();
     }
   };
-  providerButtons.forEach(button => button.addEventListener('click', async () => {
-    const provider = setExternalProvider(button.dataset.externalProvider);
-    if (!provider) return;
-    setActiveServer('external');
-    refresh();
-    await onChange?.('external');
-  }));
   buttons.forEach(button => button.addEventListener('click', handleChange));
   const onServerChanged = () => refresh();
   const onBlacklistChanged = () => {
