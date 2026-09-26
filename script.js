@@ -573,6 +573,48 @@ function showCatalogLoadedToast() {
   showToast(`Successfully loaded ${getCatalogGames().length} games`, 'success');
 }
 
+const LIBRARY_UPGRADE_NOTICE_KEY = 'flux_library_upgrade_notice_v1';
+
+function showLibraryUpgradeAnnouncement() {
+  const page = (window.location.pathname.split('/').pop() || 'index.html').toLowerCase();
+  if (!['index.html', ''].includes(page)) return;
+  try { if (localStorage.getItem(LIBRARY_UPGRADE_NOTICE_KEY) === '1') return; } catch {}
+  if (document.getElementById('flux-library-upgrade-announcement')) return;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'flux-library-upgrade-announcement';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:99990;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,0.55);backdrop-filter:blur(7px);padding:20px;box-sizing:border-box;';
+  overlay.innerHTML = `
+    <section role="dialog" aria-modal="true" aria-labelledby="flux-library-upgrade-title" style="position:relative;width:min(520px,100%);overflow:hidden;border:1px solid rgba(255,255,255,0.45);border-radius:24px;background:linear-gradient(145deg,#ffffff 0%,#eef5ff 100%);box-shadow:0 30px 90px rgba(15,23,42,0.3);color:#111827;padding:30px 28px 26px;text-align:center;">
+      <button id="flux-library-upgrade-close" aria-label="Dismiss announcement" style="position:absolute;top:12px;right:14px;border:0;background:transparent;color:#64748b;font-size:22px;line-height:1;cursor:pointer;padding:4px 8px;">×</button>
+      <div style="font-size:42px;line-height:1;margin-bottom:12px;">🚀</div>
+      <div style="display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 11px;background:rgba(58,125,255,0.12);color:#2563eb;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;">Library upgrade</div>
+      <h2 id="flux-library-upgrade-title" style="margin:12px 0 8px;font-family:'Bebas Neue',sans-serif;font-size:34px;letter-spacing:.5px;color:#0f172a;">More games. More ways to play.</h2>
+      <p style="margin:0 auto 18px;max-width:410px;color:#475569;font-size:14px;line-height:1.55;">Flux has upgraded its game library from <strong>40 to roughly 890 games</strong> — approximately a <strong>2,125% increase</strong>.</p>
+      <div style="display:flex;justify-content:center;align-items:center;gap:12px;margin:0 auto 20px;max-width:360px;">
+        <div style="flex:1;padding:12px 8px;border-radius:14px;background:rgba(148,163,184,0.14);"><strong style="display:block;font-size:25px;color:#64748b;">40</strong><span style="font-size:11px;color:#64748b;">before</span></div>
+        <span style="font-size:22px;color:#3a7dff;font-weight:900;">→</span>
+        <div style="flex:1;padding:12px 8px;border-radius:14px;background:rgba(58,125,255,0.13);"><strong style="display:block;font-size:25px;color:#2563eb;">890</strong><span style="font-size:11px;color:#2563eb;">available</span></div>
+      </div>
+      <p style="margin:0 0 20px;color:#475569;font-size:13px;line-height:1.5;"><strong>Turn on the external cloud game providers</strong> in Settings to access the expanded library.</p>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+        <a id="flux-library-upgrade-settings" href="settings.html" style="display:inline-flex;align-items:center;justify-content:center;padding:11px 18px;border-radius:12px;background:#3a7dff;color:white;text-decoration:none;font-size:13px;font-weight:800;box-shadow:0 8px 18px rgba(58,125,255,0.25);">Open Settings</a>
+        <button id="flux-library-upgrade-dismiss" style="padding:11px 18px;border-radius:12px;border:1px solid rgba(100,116,139,0.28);background:rgba(255,255,255,0.7);color:#475569;font-size:13px;font-weight:700;cursor:pointer;">Maybe later</button>
+      </div>
+    </section>`;
+  document.body.appendChild(overlay);
+
+  const dismiss = () => {
+    try { localStorage.setItem(LIBRARY_UPGRADE_NOTICE_KEY, '1'); } catch {}
+    overlay.remove();
+  };
+  overlay.querySelector('#flux-library-upgrade-close').addEventListener('click', dismiss);
+  overlay.querySelector('#flux-library-upgrade-dismiss').addEventListener('click', dismiss);
+  overlay.querySelector('#flux-library-upgrade-settings').addEventListener('click', () => {
+    try { localStorage.setItem(LIBRARY_UPGRADE_NOTICE_KEY, '1'); } catch {}
+  });
+}
+
 /* ===================== RECENTLY PLAYED ===================== */
 const RECENT_KEY = 'flux_recent';
 const MAX_RECENT = 6;
@@ -1140,6 +1182,7 @@ function bootFlux() {
     initializeServerRuntime(getCatalogGames()).then(() => applyFilters());
   }
   setTimeout(showCatalogLoadedToast, 250);
+  setTimeout(showLibraryUpgradeAnnouncement, 650);
 
   if (document.getElementById('quick-search')) {
     document.getElementById('quick-search').addEventListener('input', debounce(applyFilters, 120));
