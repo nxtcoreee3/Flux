@@ -636,7 +636,7 @@ function showLibraryUpgradeAnnouncement() {
 
 /* ===================== RECENTLY PLAYED ===================== */
 const RECENT_KEY = 'flux_recent';
-const MAX_RECENT = 5;
+const MAX_RECENT = 4;
 
 function loadRecent() {
   try {
