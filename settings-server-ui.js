@@ -5,11 +5,16 @@ import {
   getLocalLibraryState,
   setProviderBlacklisted,
   isProviderBlacklisted,
+  EXTERNAL_PROVIDERS,
+  getAvailableExternalProviders,
+  getExternalProviderId,
+  setExternalProvider,
 } from './server-config.js';
 
 const serverProfilesEl = document.getElementById('server-profiles-settings');
 const activeServerLabel = document.getElementById('active-server-settings-label');
 const blacklistEl = document.getElementById('provider-blacklist-settings');
+const externalProvidersEl = document.getElementById('external-provider-settings');
 const localLibraryStatus = document.getElementById('local-library-status');
 
 if (serverProfilesEl && activeServerLabel && localLibraryStatus) {
@@ -25,7 +30,7 @@ if (serverProfilesEl && activeServerLabel && localLibraryStatus) {
 
   function refreshRepositoryStatus() {
     const active = getActiveServer();
-    if (active.provider) {
+    if (active.external) {
       localLibraryStatus.textContent = `${active.name} is enabled. Games are loaded from the provider catalog.`;
       return;
     }
@@ -38,7 +43,7 @@ if (serverProfilesEl && activeServerLabel && localLibraryStatus) {
 
   function renderProviderBlacklist() {
     if (!blacklistEl) return;
-    const providers = Object.values(SERVER_PROFILES).filter(profile => profile.provider);
+    const providers = Object.values(EXTERNAL_PROVIDERS);
     blacklistEl.innerHTML = `
       <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:4px;">Provider access</div>
       <div style="font-size:11px;color:var(--muted);line-height:1.45;margin-bottom:10px;">Blacklist a provider if its domain is blocked on your Wi‑Fi. Blacklisted providers disappear from the game switcher and cannot become active.</div>
@@ -58,6 +63,25 @@ if (serverProfilesEl && activeServerLabel && localLibraryStatus) {
       });
     });
   }
+  function renderExternalProviders() {
+    if (!externalProvidersEl) return;
+    const active = getActiveServer();
+    const selected = getExternalProviderId();
+    const providers = getAvailableExternalProviders();
+    externalProvidersEl.style.display = active.id === 'external' ? 'block' : 'none';
+    externalProvidersEl.innerHTML = active.id !== 'external' ? '' : `
+      <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:4px;">External provider</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:9px;">Choose which catalog appears inside External Cloud Gaming.</div>
+      <div style="display:flex;flex-direction:column;gap:7px;">${providers.map(provider => `
+        <button type="button" data-external-provider-settings="${provider.id}" style="display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:9px 10px;border:1px solid ${selected === provider.id ? 'rgba(58,125,255,0.55)' : 'var(--glass-border)'};border-radius:10px;background:${selected === provider.id ? 'rgba(58,125,255,0.08)' : 'var(--bg,#f9fafb)'};color:var(--text);cursor:pointer;font-family:inherit;">
+          <span style="font-size:17px;">${provider.icon}</span><span style="flex:1;"><strong style="display:block;font-size:12px;">${provider.name}</strong><small style="color:var(--muted);">${provider.description}</small></span><span style="font-size:10px;font-weight:800;color:${selected === provider.id ? 'var(--accent)' : 'var(--muted)'};">${selected === provider.id ? 'ACTIVE' : 'USE'}</span>
+        </button>`).join('')}</div>`;
+    externalProvidersEl.querySelectorAll('[data-external-provider-settings]').forEach(button => button.addEventListener('click', () => {
+      const provider = setExternalProvider(button.dataset.externalProviderSettings);
+      renderExternalProviders();
+      serverToast(`${provider?.icon || ''} ${provider?.name || 'Provider'} selected`, 'success');
+    }));
+  }
   function renderServerSettings() {
     const active = getActiveServer();
     activeServerLabel.textContent = `${active.icon} ${active.name}`;
@@ -71,6 +95,7 @@ if (serverProfilesEl && activeServerLabel && localLibraryStatus) {
     serverProfilesEl.querySelectorAll('[data-server-id]').forEach(button => button.addEventListener('click', () => {
       const profile = setActiveServer(button.dataset.serverId);
       renderServerSettings();
+      renderExternalProviders();
       refreshRepositoryStatus();
       serverToast(`${profile.icon} ${profile.name} selected`, 'success');
       if (profile.id === 'local') serverToast('Local Library uses the repository /games folder.', 'info');
@@ -78,9 +103,10 @@ if (serverProfilesEl && activeServerLabel && localLibraryStatus) {
   }
 
   renderServerSettings();
+  renderExternalProviders();
   renderProviderBlacklist();
   refreshRepositoryStatus();
-  window.addEventListener('flux-server-changed', () => { renderServerSettings(); renderProviderBlacklist(); });
-  window.addEventListener('flux-provider-blacklist-changed', () => { renderServerSettings(); renderProviderBlacklist(); });
+  window.addEventListener('flux-server-changed', () => { renderServerSettings(); renderExternalProviders(); renderProviderBlacklist(); });
+  window.addEventListener('flux-provider-blacklist-changed', () => { renderServerSettings(); renderExternalProviders(); renderProviderBlacklist(); });
   window.addEventListener('flux-local-library-changed', refreshRepositoryStatus);
 }

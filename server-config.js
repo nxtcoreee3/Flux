@@ -8,49 +8,31 @@ export const LOCAL_MANIFEST_KEY = 'flux_local_repository_manifest';
 export const PROVIDER_BLACKLIST_KEY = 'flux_provider_blacklist';
 export const REPOSITORY_GAMES_ROOT = './games/';
 
+export const EXTERNAL_PROVIDER_KEY = 'flux_external_provider';
+export const EXTERNAL_PROVIDERS = Object.freeze({
+  zapgames: Object.freeze({ id: 'zapgames', name: 'ZapGames', icon: '🎮', attribution: 'ZapGames B.V. · zapgames.io', description: '220 public games from ZapGames.io.' }),
+  poki: Object.freeze({ id: 'poki', name: 'Poki', icon: '🟣', attribution: 'Poki · poki.com', description: 'Curated games from Poki.com.' }),
+});
 export const SERVER_PROFILES = Object.freeze({
   cloud: Object.freeze({
-    id: 'cloud',
-    name: 'Flux Cloud',
-    shortName: 'Cloud',
-    icon: '☁️',
-    eyebrow: 'Official hosted service',
-    description: 'Use the official Flux-hosted game library.',
-    kind: 'remote',
+    id: 'cloud', name: 'Flux Cloud', shortName: 'Cloud', icon: '☁️',
+    eyebrow: 'Official hosted service', description: 'Use the official Flux-hosted game library.', kind: 'remote',
   }),
-  zapgames: Object.freeze({
-    id: 'zapgames',
-    name: 'External Cloud Gaming',
-    shortName: 'External',
-    icon: '🎮',
-    eyebrow: 'External cloud provider',
-    description: 'Use the public game catalog hosted by ZapGames.io.',
-    kind: 'remote',
-    provider: true,
-    attribution: 'ZapGames B.V. · zapgames.io',
+  all: Object.freeze({
+    id: 'all', name: 'All Game Providers', shortName: 'All', icon: '🌐',
+    eyebrow: 'Combined game catalog', description: 'Browse games from Flux Cloud, Local Library, and available external providers.', kind: 'remote',
+    allProviders: true,
   }),
-  poki: Object.freeze({
-    id: 'poki',
-    name: 'Poki',
-    shortName: 'Poki',
-    icon: '🟣',
-    eyebrow: 'External game provider',
-    description: 'Use the public game catalog hosted by Poki.com.',
-    kind: 'remote',
-    provider: true,
-    attribution: 'Poki · poki.com',
+  external: Object.freeze({
+    id: 'external', name: 'External Cloud Gaming', shortName: 'External', icon: '🎮',
+    eyebrow: 'External provider category', description: 'Choose a catalog from supported external game providers.', kind: 'remote',
+    external: true,
   }),
   local: Object.freeze({
-    id: 'local',
-    name: 'Local Library',
-    shortName: 'Local',
-    icon: '💾',
-    eyebrow: 'Repository game service',
-    description: 'Use game folders shipped inside this Flux repository.',
-    kind: 'repository',
+    id: 'local', name: 'Local Library', shortName: 'Local', icon: '💾',
+    eyebrow: 'Repository game service', description: 'Use game folders shipped inside this Flux repository.', kind: 'repository',
   }),
 });
-
 const availability = new Map();
 const paths = new Map();
 let scanInFlight = null;
@@ -107,42 +89,56 @@ function saveManifest(entries) {
 function readProviderBlacklist() {
   try {
     const value = JSON.parse(safeStorageGet(PROVIDER_BLACKLIST_KEY) || '[]');
-    return Array.isArray(value) ? value.filter(id => Object.prototype.hasOwnProperty.call(SERVER_PROFILES, id)) : [];
+    return Array.isArray(value) ? value.filter(id => Object.prototype.hasOwnProperty.call(EXTERNAL_PROVIDERS, id)) : [];
   } catch { return []; }
 }
 export function getBlacklistedProviders() { return readProviderBlacklist(); }
 export function isProviderBlacklisted(id) { return readProviderBlacklist().includes(id); }
+export function getAvailableExternalProviders() {
+  return Object.values(EXTERNAL_PROVIDERS).filter(provider => !isProviderBlacklisted(provider.id));
+}
+export function getExternalProviderId() {
+  const saved = safeStorageGet(EXTERNAL_PROVIDER_KEY);
+  if (saved && EXTERNAL_PROVIDERS[saved] && !isProviderBlacklisted(saved)) return saved;
+  return getAvailableExternalProviders()[0]?.id || null;
+}
+export function setExternalProvider(providerId) {
+  const id = EXTERNAL_PROVIDERS[providerId] && !isProviderBlacklisted(providerId)
+    ? providerId : getAvailableExternalProviders()[0]?.id || null;
+  if (id) safeStorageSet(EXTERNAL_PROVIDER_KEY, id);
+  try { window.dispatchEvent(new CustomEvent('flux-external-provider-changed', { detail: EXTERNAL_PROVIDERS[id] || null })); } catch {}
+  return id ? EXTERNAL_PROVIDERS[id] : null;
+}
 export function setProviderBlacklisted(id, blocked) {
-  const profile = SERVER_PROFILES[id];
-  if (!profile?.provider) return getBlacklistedProviders();
+  if (!EXTERNAL_PROVIDERS[id]) return getBlacklistedProviders();
   const next = new Set(readProviderBlacklist());
   if (blocked) next.add(id); else next.delete(id);
   const value = [...next];
   safeStorageSet(PROVIDER_BLACKLIST_KEY, JSON.stringify(value));
-  if (blocked && getActiveServerId() === id) setActiveServer('cloud');
+  if (blocked && getExternalProviderId() === id) setExternalProvider(id);
   try { window.dispatchEvent(new CustomEvent('flux-provider-blacklist-changed', { detail: value })); } catch {}
   return value;
 }
 export function getSelectableServerProfiles() {
-  return Object.values(SERVER_PROFILES).filter(profile => !isProviderBlacklisted(profile.id));
+  return Object.values(SERVER_PROFILES).filter(profile => profile.id !== 'external' || getAvailableExternalProviders().length > 0);
 }
 export function getActiveServerId() {
   const saved = safeStorageGet(SERVER_STORAGE_KEY);
-  return Object.prototype.hasOwnProperty.call(SERVER_PROFILES, saved) && !isProviderBlacklisted(saved) ? saved : 'cloud';
+  if (saved === 'zapgames' || saved === 'poki') {
+    safeStorageSet(EXTERNAL_PROVIDER_KEY, saved);
+    safeStorageSet(SERVER_STORAGE_KEY, 'external');
+    return 'external';
+  }
+  return Object.prototype.hasOwnProperty.call(SERVER_PROFILES, saved) && (saved !== 'external' || getAvailableExternalProviders().length > 0) ? saved : 'cloud';
 }
-
-export function getActiveServer() {
-  return SERVER_PROFILES[getActiveServerId()];
-}
-
+export function getActiveServer() { return SERVER_PROFILES[getActiveServerId()]; }
 export function setActiveServer(serverId) {
-  const id = Object.prototype.hasOwnProperty.call(SERVER_PROFILES, serverId) && !isProviderBlacklisted(serverId) ? serverId : 'cloud';
+  const id = Object.prototype.hasOwnProperty.call(SERVER_PROFILES, serverId) && (serverId !== 'external' || getAvailableExternalProviders().length > 0) ? serverId : 'cloud';
   safeStorageSet(SERVER_STORAGE_KEY, id);
   const profile = SERVER_PROFILES[id];
   try { window.dispatchEvent(new CustomEvent('flux-server-changed', { detail: profile })); } catch {}
   return profile;
 }
-
 export function getLocalManifest() {
   return readManifest();
 }
@@ -232,11 +228,11 @@ export async function scanLocalGames(games = []) {
 
 export async function getGameLaunchUrl(game) {
   const server = getActiveServer();
-  if (server.kind !== 'repository') return game?.url || null;
+  if (server.id === 'all' && game?.sourceServer === 'external') return game?.url || null;
+  if (server.kind !== 'repository' || (server.id === 'all' && game?.sourceServer !== 'local')) return game?.url || null;
   if (availability.get(game?.id) !== 'available') await checkRepositoryGame(game);
-  return paths.get(game?.id) ? toAbsolutePath(paths.get(game.id)) : null;
+  return paths.get(game?.id) ? toAbsolutePath(paths.get(game?.id)) : null;
 }
-
 export async function initializeServerRuntime(games = []) {
   if (getActiveServerId() === 'local' && games.length) await scanLocalGames(games);
   return getLocalLibraryState();
