@@ -85,8 +85,25 @@ if (isNewOfficial) {
 }
 
 import { initAuthUI, initBetaShell, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, fetchAllGameStats, setCurrentlyPlaying, clearCurrentlyPlaying, rateGame, getUserRating, reportGame, checkFirestoreHealth, fetchGameDetail, getAiGameDescription, getGameReviews, submitReview, addReviewComment, likeReview, deleteReview, fetchGamePricing, getUnlockedGames, unlockGame, SPIN_SEGMENTS, getLastSpin, spinWheel, giftPointsToUser, redeemCode, createRewardCode, getRewardCodes, deactivateRewardCode, initIncidentBanner, setServiceStatus, autoCheckServiceHealth, setIncidentBanner, subscribeToServiceHealth, checkNoAds, purchaseNoAds, NO_ADS_COST, setGameLockdown, initUpdateNotification } from './firebase-auth.js';
-import { ZAPGAMES, FAMOBI, loadFamobiCatalog } from './external-games.js';
 import { SERVER_PROFILES, getSelectableServerProfiles, getActiveServer, getActiveServerId, setActiveServer, getLocalLibraryState, getGameAvailability, getRepositoryGameFolder, isGameAvailable, getGameLaunchUrl, initializeServerRuntime, isProviderBlacklisted, getAvailableExternalProviders } from './server-config.js';
+
+// Keep the large third-party catalog bundles off the critical path. They are
+// loaded only on pages that actually render the Games catalog.
+let ZAPGAMES = [];
+let FAMOBI = [];
+let externalCatalogPromise = null;
+
+async function loadExternalCatalogs() {
+  if (externalCatalogPromise) return externalCatalogPromise;
+  externalCatalogPromise = import('./external-games.js').then(async module => {
+    ZAPGAMES = module.ZAPGAMES || [];
+    FAMOBI = module.FAMOBI || [];
+    await module.loadFamobiCatalog?.();
+    window.dispatchEvent(new CustomEvent('flux-external-catalog-loaded', { detail: { provider: 'all', count: ZAPGAMES.length + FAMOBI.length } }));
+    return { ZAPGAMES, FAMOBI };
+  }).catch(() => ({ ZAPGAMES, FAMOBI }));
+  return externalCatalogPromise;
+}
 
 const GAMES = [
   {
@@ -447,9 +464,11 @@ window.addEventListener('flux-external-provider-changed', () => {
   if (document.getElementById('game-grid') || document.getElementById('games-grid')) applyFilters();
 });
 window.addEventListener('flux-external-catalog-loaded', event => {
-  if (event.detail?.provider === 'famobi' && (document.getElementById('game-grid') || document.getElementById('games-grid'))) applyFilters();
+  if (document.getElementById('game-grid') || document.getElementById('games-grid')) {
+    applyFilters();
+    showCatalogLoadedToast();
+  }
 });
-loadFamobiCatalog();
 window.addEventListener('flux-server-changed', () => {
   if (quickSearch) quickSearch.value = '';
   if (sortSelect) sortSelect.value = 'featured';
@@ -705,6 +724,7 @@ function createCard(game) {
   const activeDiscount = (!isExpired && pricing.discount > 0) ? pricing.discount : 0;
   const finalPrice = activeDiscount > 0 ? Math.round(pricing.price * (1 - activeDiscount / 100)) : (pricing.price || 0);
   const isLocked = !unavailable && !checking && finalPrice > 0 && !_unlockedGames.includes(game.id);
+  const favorite = isFav(game.id, game);
 
   const compatBadge = compat === 'ipad'
     ? '<span class="compat-badge" data-tip="📱 Touchscreen compatible — works great on iPad and touch devices">📱 iPad</span>'
@@ -751,7 +771,7 @@ function createCard(game) {
     </div>
     <div class="card-foot">
       <div style="display:flex;gap:8px;align-items:center">
-        <button class="favorite" title="Toggle favourite" aria-pressed="${isFav(game.id)}">${isFav(game.id) ? '★' : '☆'}</button>
+        <button class="favorite" title="Toggle favourite" aria-pressed="${favorite}">${favorite ? '★' : '☆'}</button>
         ${!isModLocked || isOwnerView ? `<button class="rate-btn" title="Rate game" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--muted);">☆ Rate</button>` : ''}
         <button class="report-btn" title="Report game" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--muted);">⚑</button>
       </div>
@@ -974,10 +994,24 @@ function renderFavouritesSection() {
 function renderGames(list) {
   const grid = document.getElementById('game-grid') || document.getElementById('games-grid');
   if (!grid) return;
+  const renderToken = String(Date.now()) + Math.random();
+  grid.dataset.renderToken = renderToken;
   grid.innerHTML = '';
-  list.forEach(g => grid.appendChild(createCard(g)));
-  renderFavouritesSection();
-  renderRecentSection();
+  let cursor = 0;
+  const appendChunk = () => {
+    if (grid.dataset.renderToken !== renderToken) return;
+    const fragment = document.createDocumentFragment();
+    const end = Math.min(cursor + 24, list.length);
+    for (; cursor < end; cursor += 1) fragment.appendChild(createCard(list[cursor]));
+    grid.appendChild(fragment);
+    if (cursor < list.length) {
+      requestAnimationFrame(appendChunk);
+    } else {
+      renderFavouritesSection();
+      renderRecentSection();
+    }
+  };
+  appendChunk();
 }
 
 /* ===================== SEARCH + SORT ===================== */
@@ -1180,6 +1214,8 @@ function bootFlux() {
   if (document.getElementById('game-grid') || document.getElementById('games-grid')) {
     renderGames(getCatalogGames());
     initializeServerRuntime(getCatalogGames()).then(() => applyFilters());
+    // Fetch the large external catalogs only after the initial UI has painted.
+    defer(() => loadExternalCatalogs(), 1200);
   }
   setTimeout(showCatalogLoadedToast, 250);
   setTimeout(showLibraryUpgradeAnnouncement, 650);
@@ -1233,9 +1269,10 @@ function bootFlux() {
     }
   });
 
-  // Fast Boot: defer Firebase/auth work so first paint is instant
-  if (fastBoot) defer(() => initAuth(), base + 400);
-  else initAuth();
+  // Keep Firebase/auth work off the first interaction frame. The login UI is
+  // still initialized automatically, but the browser gets time to paint and
+  // respond before network listeners and presence work begin.
+  defer(() => initAuth(), fastBoot ? base + 400 : 250);
 
   // Load cloud data in background then re-render with full info
   defer(() => {
