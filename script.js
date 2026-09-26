@@ -84,7 +84,7 @@ if (isNewOfficial) {
   }
 }
 
-import { initAuthUI, initBetaShell, loadCloudFavs, saveCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, fetchAllGameStats, setCurrentlyPlaying, clearCurrentlyPlaying, rateGame, getUserRating, reportGame, checkFirestoreHealth, fetchGameDetail, getAiGameDescription, getGameReviews, submitReview, addReviewComment, likeReview, deleteReview, fetchGamePricing, getUnlockedGames, unlockGame, SPIN_SEGMENTS, getLastSpin, spinWheel, giftPointsToUser, redeemCode, createRewardCode, getRewardCodes, deactivateRewardCode, initIncidentBanner, setServiceStatus, autoCheckServiceHealth, setIncidentBanner, subscribeToServiceHealth, checkNoAds, purchaseNoAds, NO_ADS_COST, setGameLockdown, initUpdateNotification } from './firebase-auth.js';
+import { initAuthUI, initBetaShell, loadCloudFavs, saveCloudFavs, flushPendingCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, fetchAllGameStats, setCurrentlyPlaying, clearCurrentlyPlaying, rateGame, getUserRating, reportGame, checkFirestoreHealth, fetchGameDetail, getAiGameDescription, getGameReviews, submitReview, addReviewComment, likeReview, deleteReview, fetchGamePricing, getUnlockedGames, unlockGame, SPIN_SEGMENTS, getLastSpin, spinWheel, giftPointsToUser, redeemCode, createRewardCode, getRewardCodes, deactivateRewardCode, initIncidentBanner, setServiceStatus, autoCheckServiceHealth, setIncidentBanner, subscribeToServiceHealth, checkNoAds, purchaseNoAds, NO_ADS_COST, setGameLockdown, initUpdateNotification } from './firebase-auth.js';
 import { SERVER_PROFILES, getSelectableServerProfiles, getActiveServer, getActiveServerId, setActiveServer, getLocalLibraryState, getGameAvailability, getRepositoryGameFolder, isGameAvailable, getGameLaunchUrl, initializeServerRuntime, isProviderBlacklisted, getAvailableExternalProviders } from './server-config.js';
 
 // Keep the large third-party catalog bundles off the critical path. They are
@@ -1246,6 +1246,7 @@ function bootFlux() {
     window._currentUserUid = user?.uid || null;
     window._fluxIsOwner = user?.uid === 'zEy6TO5ligf2um4rssIZs9C9X7f2';
     await refreshFavsCache();
+    await flushPendingCloudFavs();
     if (user && !user.isAnonymous) {
       defer(() => trackLoginStreak(), base);
       defer(() => trackTimeOnSite(), base);

@@ -986,6 +986,8 @@ export function onAuthChange(callback) { onAuthStateChanged(auth, callback); }
 export function getCurrentUser() { return auth.currentUser; }
 
 /* ===================== FIRESTORE FAVORITES ===================== */
+let _pendingFavoriteWrite = null;
+
 export async function loadCloudFavs() {
   // Wait up to 5s for auth to resolve
   const user = await new Promise((resolve) => {
@@ -1027,35 +1029,35 @@ export async function syncProfileRecents(recents) {
 
 export async function saveCloudFavs(favs) {
   const user = auth.currentUser;
-  if (!user || user.isAnonymous) return;
+  if (!user) {
+    _pendingFavoriteWrite = [...new Set((favs || []).filter(Boolean))];
+    return { queued: true };
+  }
+  if (user.isAnonymous) return { skipped: true };
   try {
-    const { runTransaction } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
     const userRef = doc(db, 'users', user.uid);
     const profileRef = doc(db, 'profiles', user.uid);
-    const statsRef = doc(db, 'stats', 'favourites');
+    const normalized = [...new Set((favs || []).filter(Boolean))];
+    await setDoc(userRef, { favorites: normalized }, { merge: true });
+    try {
+      await setDoc(profileRef, { favorites: normalized }, { merge: true });
+    } catch (profileError) {
+      console.warn('Favorites saved to user record, but profile sync failed:', profileError);
+    }
+    _pendingFavoriteWrite = null;
+    return { ok: true };
+  } catch (e) {
+    _pendingFavoriteWrite = [...new Set((favs || []).filter(Boolean))];
+    console.warn('Could not save favorites:', e);
+    return { ok: false, error: e };
+  }
+}
 
-    await runTransaction(db, async (tx) => {
-      // ALL reads first
-      const prevSnap = await tx.get(userRef);
-      const profileSnap = await tx.get(profileRef);
-      const statsSnap = await tx.get(statsRef);
-
-      // Then all writes
-      const prevCount = prevSnap.exists() ? (prevSnap.data().favorites || []).length : 0;
-      const diff = favs.length - prevCount;
-
-      tx.set(userRef, { favorites: favs }, { merge: true });
-
-      if (profileSnap.exists()) {
-        tx.set(profileRef, { favorites: favs }, { merge: true });
-      }
-
-      if (diff !== 0) {
-        const currentTotal = statsSnap.exists() ? (statsSnap.data().total || 0) : 0;
-        tx.set(statsRef, { total: Math.max(0, currentTotal + diff) });
-      }
-    });
-  } catch (e) { console.warn('Could not save favorites:', e); }
+export async function flushPendingCloudFavs() {
+  if (!_pendingFavoriteWrite || !auth.currentUser || auth.currentUser.isAnonymous) return;
+  const pending = _pendingFavoriteWrite;
+  _pendingFavoriteWrite = null;
+  return saveCloudFavs(pending);
 }
 
 /* ===================== PROFILE SYSTEM ===================== */
