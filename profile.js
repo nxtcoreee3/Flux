@@ -270,7 +270,7 @@ function renderProfile(profile, { isOwn, isAdmin, isFollowing, canSeeContent, cu
       : `<p style="color:var(--muted);font-size:13px;margin:0;">No favourited games yet.</p>`;
 
     // Recently played
-    const recent = (profile.recentlyPlayed || []).map(id => GAMES_MAP[id]).filter(Boolean).slice(0, 6);
+    const recent = [...new Set(profile.recentlyPlayed || [])].map(id => GAMES_MAP[id]).filter(Boolean).slice(0, 5);
     const recentHTML = recent.length
       ? `<div class="mini-game-grid">${recent.map(g => `
           <div class="mini-game-card" data-url="${g.url}">

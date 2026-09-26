@@ -636,9 +636,14 @@ function showLibraryUpgradeAnnouncement() {
 
 /* ===================== RECENTLY PLAYED ===================== */
 const RECENT_KEY = 'flux_recent';
-const MAX_RECENT = 6;
+const MAX_RECENT = 5;
 
-function loadRecent() { try { return JSON.parse(localStorage.getItem(RECENT_KEY)) || []; } catch { return []; } }
+function loadRecent() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(RECENT_KEY));
+    return Array.isArray(saved) ? [...new Set(saved.filter(Boolean))].slice(0, MAX_RECENT) : [];
+  } catch { return []; }
+}
 
 function addRecent(id) {
   let recent = loadRecent();
