@@ -1065,6 +1065,11 @@ async function initAds() {
   const slot = document.getElementById('flux-ad-banner');
   if (!slot) return;
 
+  const adSlides = [
+    { image: 'Ads/tweakbreak-ad.png', href: 'https://discord.gg/tweakbreak-1443331342799601666', alt: 'Tweakbreak advertisement' },
+    { image: 'Ads/sprite-ad.png', href: 'https://nxtcoreee3.online/Sprite', alt: 'Sprite advertisement' }
+  ];
+
   slot.innerHTML = `
     <div id="flux-ad-inner" style="
       position:relative;
@@ -1074,12 +1079,14 @@ async function initAds() {
       overflow:hidden;
       box-shadow:0 4px 20px rgba(0,0,0,0.08);
     ">
-      <img
-        src="Ads/tweakbreak-ad.png"
-        alt="Advertisement"
-        style="width:100%;height:auto;display:block;border-radius:16px;cursor:pointer;"
-        onclick="window.open('https://discord.gg/tweakbreak-1443331342799601666','_blank','noopener')"
-      >
+      <a id="flux-ad-link" href="${adSlides[0].href}" target="_blank" rel="noopener noreferrer" aria-label="${adSlides[0].alt}">
+        <img
+          id="flux-ad-image"
+          src="${adSlides[0].image}"
+          alt="${adSlides[0].alt}"
+          style="width:100%;height:auto;display:block;border-radius:16px;cursor:pointer;"
+        >
+      </a>
       <button id="ad-close-btn" title="Remove ads" style="
         position:absolute;top:8px;right:8px;
         width:28px;height:28px;border-radius:50%;
@@ -1090,6 +1097,18 @@ async function initAds() {
       ">✕</button>
     </div>
   `;
+
+  let activeAdIndex = 0;
+  const adLink = document.getElementById('flux-ad-link');
+  const adImage = document.getElementById('flux-ad-image');
+  setInterval(() => {
+    activeAdIndex = (activeAdIndex + 1) % adSlides.length;
+    const ad = adSlides[activeAdIndex];
+    adLink.href = ad.href;
+    adLink.setAttribute('aria-label', ad.alt);
+    adImage.src = ad.image;
+    adImage.alt = ad.alt;
+  }, 5000);
 
   document.getElementById('ad-close-btn').addEventListener('click', () => showNoAdsModal());
 }
