@@ -3171,7 +3171,7 @@ export async function initAuthUI(onUserChange) {
           btn.addEventListener('click', async () => {
             const uid = btn.dataset.uid;
             const name = btn.dataset.name;
-            const url = window.prompt(`Redirect @${name} to:`, 'https://nxtcoreee3.github.io/WebRespring/');
+            const url = window.prompt(`Redirect @${name} to:`, 'https://nxtcoreee3.online/Respring');
             if (!url) return; // cancelled
             btn.textContent = '…'; btn.disabled = true;
             const result = await redirectUser(uid, url);

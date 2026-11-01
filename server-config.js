@@ -11,7 +11,10 @@ export const REPOSITORY_GAMES_ROOT = './games/';
 export const EXTERNAL_PROVIDER_KEY = 'flux_external_provider';
 export const EXTERNAL_PROVIDERS = Object.freeze({
   zapgames: Object.freeze({ id: 'zapgames', name: 'ZapGames', icon: '🎮', attribution: 'ZapGames B.V. · zapgames.io', description: '220 public games from ZapGames.io.' }),
-  famobi: Object.freeze({ id: 'famobi', name: 'Famobi', icon: '🕹️', attribution: 'Famobi · famobi.com', description: 'Official Famobi catalog in the Flux iframe player.' }),
+  spelo: Object.freeze({ id: 'spelo', name: 'Spelo.se', icon: '🎯', attribution: 'Spelo · spelo.se', description: 'Browse games on Spelo.se.' }),
+  coolmath: Object.freeze({ id: 'coolmath', name: 'Coolmath Games', icon: '🧠', attribution: 'Coolmath Games · coolmathgames.com', description: 'Browse games on Coolmath Games.' }),
+  addicting: Object.freeze({ id: 'addicting', name: 'Addicting Games', icon: '🕹️', attribution: 'Addicting Games · addictinggames.com', description: 'Browse games on Addicting Games.' }),
+  playhop: Object.freeze({ id: 'playhop', name: 'Playhop', icon: '🎮', attribution: 'Playhop · playhop.com', description: 'Browse games on Playhop.' }),
 });
 export const SERVER_PROFILES = Object.freeze({
   cloud: Object.freeze({

@@ -1,4 +1,4 @@
-import { FAMOBI_SNAPSHOT } from './famobi-games.js';
+
 
 // Public ZapGames catalog snapshot. Source: https://zapgames.io/
 // External Cloud Gaming uses the provider's direct .embed endpoints inside Flux's fullscreen player.
@@ -226,17 +226,11 @@ export const ZAPGAMES = Object.freeze([
 ]);
 
 
-// Famobi's official feed snapshot. Flux uses official metadata and loads the
-// provider's official play URL in the in-game iframe player.
-export const FAMOBI_FEED_URL = 'https://api.famobi.com/feed';
-export let FAMOBI = FAMOBI_SNAPSHOT;
-let famobiLoadPromise = null;
-
-export async function loadFamobiCatalog() {
-  if (famobiLoadPromise) return famobiLoadPromise;
-  // The feed is not CORS-enabled for browser-side requests. Keep the
-  // provider live without breaking the catalog by using the checked-in
-  // official snapshot; refresh famobi-games.js when the feed changes.
-  famobiLoadPromise = Promise.resolve(FAMOBI);
-  return famobiLoadPromise;
-}
+// Provider portals are listed as launch cards. Each site controls its own
+// game catalog and launch experience; Flux does not mirror their game metadata.
+export const PROVIDER_PORTALS = Object.freeze([
+  { id: 'portal-spelo', title: 'Spelo.se', thumb: 'assets/thumbnail.png', url: 'https://www.spelo.se', desc: 'Browse the game collection on Spelo.se.', provider: 'spelo', launchMode: 'link' },
+  { id: 'portal-coolmath', title: 'Coolmath Games', thumb: 'assets/thumbnail.png', url: 'https://www.coolmathgames.com', desc: 'Browse the game collection on Coolmath Games.', provider: 'coolmath', launchMode: 'link' },
+  { id: 'portal-addicting', title: 'Addicting Games', thumb: 'assets/thumbnail.png', url: 'https://www.addictinggames.com', desc: 'Browse the game collection on Addicting Games.', provider: 'addicting', launchMode: 'link' },
+  { id: 'portal-playhop', title: 'Playhop', thumb: 'assets/thumbnail.png', url: 'https://playhop.com', desc: 'Browse the game collection on Playhop.', provider: 'playhop', launchMode: 'link' },
+]);
