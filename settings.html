@@ -35,6 +35,9 @@
         if (localStorage.getItem('flux_beta') === '1') {
           document.documentElement.classList.add('beta');
         }
+        if (localStorage.getItem('flux_low_performance') === '1') {
+          document.documentElement.classList.add('flux-low-performance');
+        }
       } catch(e) {}
     })();
   </script>
@@ -248,6 +251,20 @@
           </div>
           <label class="toggle-wrap">
             <input type="checkbox" id="beta-toggle-settings">
+            <span class="toggle-track"></span>
+            <span class="toggle-thumb"></span>
+          </label>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:rgba(34,197,94,0.12);">🌿</div>
+            <div class="settings-row-text">
+              <div class="settings-row-label">Low Performance mode</div>
+              <div class="settings-row-desc">Skip game thumbnails, show games in batches, and pause optional background checks.</div>
+            </div>
+          </div>
+          <label class="toggle-wrap">
+            <input type="checkbox" id="low-performance-toggle-settings">
             <span class="toggle-track"></span>
             <span class="toggle-thumb"></span>
           </label>
@@ -469,12 +486,16 @@
 
     initDarkMode();
     initCookieConsent();
+    const lowPerformanceEnabled = localStorage.getItem('flux_low_performance') === '1';
+    window.FLUX_LOW_PERFORMANCE = lowPerformanceEnabled;
     initPresence();
-    trackDailyVisitor();
+    if (!lowPerformanceEnabled) trackDailyVisitor();
     initServerStatus();
     initBroadcast();
-    initChaos();
-    initJumpscare();
+    if (!lowPerformanceEnabled) {
+      initChaos();
+      initJumpscare();
+    }
 
     // Dark mode toggle
     const darkToggle = document.getElementById('dark-toggle-settings');
@@ -493,6 +514,17 @@
       document.documentElement.classList.toggle('dark', on);
       localStorage.setItem('flux_dark', on ? '1' : '0');
       darkIconWrap.textContent = on ? '☀️' : '🌙';
+    });
+
+    // Low Performance mode preference
+    const lowPerformanceToggle = document.getElementById('low-performance-toggle-settings');
+    lowPerformanceToggle.checked = localStorage.getItem('flux_low_performance') === '1';
+    lowPerformanceToggle.addEventListener('change', () => {
+      const enabled = lowPerformanceToggle.checked;
+      localStorage.setItem('flux_low_performance', enabled ? '1' : '0');
+      document.documentElement.classList.toggle('flux-low-performance', enabled);
+      window.FLUX_LOW_PERFORMANCE = enabled;
+      window.dispatchEvent(new CustomEvent('flux-performance-mode-changed', { detail: { lowPerformance: enabled } }));
     });
 
     // Beta toggle

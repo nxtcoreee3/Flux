@@ -114,6 +114,15 @@ export function initPresence() {
   const presenceRef = ref(rtdb, `presence/${sessionId}`);
   const activityRef = ref(rtdb, `activityStatus/${sessionId}`);
   let activityPingTimer = null;
+  let currentActivityPing = null;
+  const startActivityPings = () => {
+    if (activityPingTimer) clearInterval(activityPingTimer);
+    if (!currentActivityPing) return;
+    let lowPerformance = false;
+    try { lowPerformance = localStorage.getItem('flux_low_performance') === '1'; } catch {}
+    activityPingTimer = setInterval(currentActivityPing, lowPerformance ? 120000 : 30000);
+  };
+  window.addEventListener('flux-performance-mode-changed', startActivityPings);
   const connectedRef = ref(rtdb, '.info/connected');
 
   // Build the presence payload — enriched with uid/username once auth resolves
@@ -154,11 +163,11 @@ export function initPresence() {
       });
       onDisconnect(activityRef).update({ online: false, lastActiveAt: serverTimestamp() }).then(() => {
         set(activityRef, { online: true, lastActiveAt: serverTimestamp(), uid: payload.uid, username: payload.username, sessionId });
-        if (activityPingTimer) clearInterval(activityPingTimer);
-        activityPingTimer = setInterval(() => {
+        currentActivityPing = () => {
           update(activityRef, { online: true, lastActiveAt: serverTimestamp() }).catch(() => {});
           if (payload.uid) updateDoc(doc(db, 'profiles', payload.uid), { online: true, lastActiveAt: firestoreServerTimestamp() }).catch(() => {});
-        }, 30000);
+        };
+        startActivityPings();
       });
       if (user && !user.isAnonymous) {
         logActivity('Entered the site');
@@ -375,17 +384,20 @@ export async function trackTimeOnSite() {
   if (!user || user.isAnonymous) return;
   const startTime = Date.now();
   const POINTS_PER_MINUTE = 1; // 1 point per minute, awarded every 5 minutes
-  const INTERVAL = 60 * 1000; // keep the public duration live to the minute
+  let lowPerformance = false;
+  try { lowPerformance = localStorage.getItem('flux_low_performance') === '1'; } catch {}
+  const MINUTE_STEP = lowPerformance ? 5 : 1;
+  const INTERVAL = MINUTE_STEP * 60 * 1000; // fewer profile reads in Low Performance mode
   let minutesSinceReward = 0;
 
   const interval = setInterval(async () => {
     try {
-      minutesSinceReward += 1;
+      minutesSinceReward += MINUTE_STEP;
       const rewardDue = minutesSinceReward >= 5;
       const profileRef = doc(db, 'profiles', user.uid);
       const snap = await getDoc(profileRef);
       if (!snap.exists()) { clearInterval(interval); return; }
-      const updates = { timeOnSiteMinutes: (snap.data().timeOnSiteMinutes || 0) + 1 };
+      const updates = { timeOnSiteMinutes: (snap.data().timeOnSiteMinutes || 0) + MINUTE_STEP };
       if (rewardDue) {
         const pointsEarned = minutesSinceReward * POINTS_PER_MINUTE;
         updates.points = (snap.data().points || 0) + pointsEarned;

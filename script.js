@@ -87,6 +87,13 @@ if (isNewOfficial) {
 import { initAuthUI, initBetaShell, loadCloudFavs, saveCloudFavs, flushPendingCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, fetchAllGameStats, setCurrentlyPlaying, clearCurrentlyPlaying, rateGame, getUserRating, reportGame, checkFirestoreHealth, fetchGameDetail, getAiGameDescription, getGameReviews, submitReview, addReviewComment, likeReview, deleteReview, fetchGamePricing, getUnlockedGames, unlockGame, SPIN_SEGMENTS, getLastSpin, spinWheel, giftPointsToUser, redeemCode, createRewardCode, getRewardCodes, deactivateRewardCode, initIncidentBanner, setServiceStatus, autoCheckServiceHealth, setIncidentBanner, subscribeToServiceHealth, checkNoAds, purchaseNoAds, NO_ADS_COST, setGameLockdown, initUpdateNotification } from './firebase-auth.js';
 import { SERVER_PROFILES, getSelectableServerProfiles, getActiveServer, getActiveServerId, setActiveServer, getLocalLibraryState, getGameAvailability, getRepositoryGameFolder, isGameAvailable, getGameLaunchUrl, initializeServerRuntime, isProviderBlacklisted, getAvailableExternalProviders } from './server-config.js';
 
+const LOW_PERFORMANCE_KEY = 'flux_low_performance';
+function isLowPerformanceMode() {
+  try { return localStorage.getItem(LOW_PERFORMANCE_KEY) === '1'; } catch { return false; }
+}
+window.FLUX_LOW_PERFORMANCE = isLowPerformanceMode();
+document.documentElement.classList.toggle('flux-low-performance', window.FLUX_LOW_PERFORMANCE);
+
 // Keep live third-party catalogs off the initial render path; load them after
 // the page paints so the existing Flux library appears immediately.
 let ZAPGAMES = [];
@@ -730,7 +737,9 @@ function createCard(game) {
   // Mod lockdown — owner can still play
   const isModLocked = stats.locked === true;
   const isOwnerView = window._fluxIsOwner === true;
-  const { unavailable, checking } = getGameServerState(game);
+  const gameServerState = getGameServerState(game);
+  const unavailable = gameServerState.unavailable;
+  const checking = gameServerState.checking && !isLowPerformanceMode();
 
   const pricing = _gamePricing[game.id] || { price: 0, discount: 0 };
   const isExpired = pricing.discountExpiry && new Date(pricing.discountExpiry) < new Date();
@@ -738,6 +747,7 @@ function createCard(game) {
   const finalPrice = activeDiscount > 0 ? Math.round(pricing.price * (1 - activeDiscount / 100)) : (pricing.price || 0);
   const isLocked = !unavailable && !checking && finalPrice > 0 && !_unlockedGames.includes(game.id);
   const favorite = isFav(game.id, game);
+  const lowPerformanceMode = isLowPerformanceMode();
   const rawCardDescription = String(game.desc || '').trim();
   const descriptionHasMore = Boolean(game.descriptionMayContinue) || rawCardDescription.length > 350;
   let cardDescription = rawCardDescription;
@@ -772,13 +782,17 @@ function createCard(game) {
         <span style="color:rgba(255,255,255,0.7);font-size:11px;margin-top:2px;">Tap to unlock</span>
       </div>` : '';
 
+  const thumbnailMarkup = lowPerformanceMode
+    ? '<div class="thumb" aria-hidden="true" style="display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,rgba(58,125,255,0.08),rgba(58,125,255,0.16));color:var(--accent);font-size:34px;">🎮</div>'
+    : `<img class="thumb" src="${game.thumb}" alt="${game.title} thumbnail" loading="lazy" decoding="async" fetchpriority="low" style="${isModLocked && !isOwnerView ? 'opacity:0.45;filter:grayscale(0.3);' : ''}">`;
+
   div.innerHTML = `
     ${isHot ? '<span class="hot-badge">🔥 HOT</span>' : ''}
     ${isNew && !isHot ? '<span class="new-badge">✨ NEW</span>' : ''}
     ${saleBadge}
     ${lockOverlay}
     ${isModLocked && !isOwnerView ? `<div class="card-modlock-overlay" style="position:absolute;inset:0;z-index:5;background:rgba(239,68,68,0.15);border-radius:inherit;border:2px solid rgba(239,68,68,0.4);pointer-events:none;"></div>` : ''}
-    <img class="thumb" src="${game.thumb}" alt="${game.title} thumbnail" loading="lazy" style="${isModLocked && !isOwnerView ? 'opacity:0.45;filter:grayscale(0.3);' : ''}">
+    ${thumbnailMarkup}
     <div class="card-body" style="cursor:pointer;${isModLocked && !isOwnerView ? 'opacity:0.5;' : ''}" title="Open game details and full description">
       <h3 class="title">${game.title}</h3>
       <div class="meta">${safeCardDescription}${descriptionHasMore ? ' <span style="color:var(--accent);font-weight:600;">Open card for full description</span>' : ''}</div>
@@ -843,15 +857,17 @@ function createCard(game) {
   div.querySelector('.play-btn')?.addEventListener('click', async (e) => {
     e.stopPropagation();
     if (window._fluxBanned) return;
-    if (getGameServerState(game).checking) { showToast(`Checking /games/${getRepositoryGameFolder(game)}/…`, 'info'); return; }
-    if (!isGameAvailable(game)) { showGameUnavailable(game); return; }
+    const currentServerState = getGameServerState(game);
+    const lowPerformanceCheckOnDemand = isLowPerformanceMode() && currentServerState.checking;
+    if (currentServerState.checking && !isLowPerformanceMode()) { showToast(`Checking /games/${getRepositoryGameFolder(game)}/…`, 'info'); return; }
+    if (!isGameAvailable(game) && !lowPerformanceCheckOnDemand) { showGameUnavailable(game); return; }
     if (isLocked) { showUnlockModal(game, finalPrice, activeDiscount, pricing.price); return; }
     const launchUrl = await getGameLaunchUrl(game);
     if (!launchUrl) { showGameUnavailable(game); return; }
     addRecent(game.id);
     renderRecentSection();
     trackGamePlay(game.id, game.title).then(() => {
-      fetchHotGame().then(hot => { if (hot && hot.id !== _hotGameId) { _hotGameId = hot.id; applyFilters(); } });
+      if (!isLowPerformanceMode()) fetchHotGame().then(hot => { if (hot && hot.id !== _hotGameId) { _hotGameId = hot.id; applyFilters(); } });
     });
     setCurrentlyPlaying(game.id, game.title);
     openPlayModal(launchUrl, game.title, game);
@@ -1020,18 +1036,35 @@ function renderGames(list) {
   const renderToken = String(Date.now()) + Math.random();
   grid.dataset.renderToken = renderToken;
   grid.innerHTML = '';
+  const lowPerformanceMode = isLowPerformanceMode();
+  const pageSize = 120;
+  let visibleLimit = lowPerformanceMode ? Math.min(pageSize, list.length) : list.length;
   let cursor = 0;
   const appendChunk = () => {
     if (grid.dataset.renderToken !== renderToken) return;
     const fragment = document.createDocumentFragment();
-    const end = Math.min(cursor + 24, list.length);
+    const end = Math.min(cursor + 24, visibleLimit);
     for (; cursor < end; cursor += 1) fragment.appendChild(createCard(list[cursor]));
     grid.appendChild(fragment);
-    if (cursor < list.length) {
+    if (cursor < visibleLimit) {
       requestAnimationFrame(appendChunk);
     } else {
       renderFavouritesSection();
       renderRecentSection();
+      if (visibleLimit < list.length) {
+        const remaining = list.length - visibleLimit;
+        const moreButton = document.createElement('button');
+        moreButton.type = 'button';
+        moreButton.textContent = `Load ${Math.min(pageSize, remaining)} more games (${remaining} remaining)`;
+        moreButton.style.cssText = 'grid-column:1/-1;justify-self:center;margin:18px auto;padding:11px 20px;border:1px solid var(--glass-border);border-radius:999px;background:var(--panel);color:var(--text);font:600 13px/1.2 "DM Sans",sans-serif;cursor:pointer;';
+        moreButton.addEventListener('click', () => {
+          if (grid.dataset.renderToken !== renderToken) return;
+          visibleLimit = Math.min(visibleLimit + pageSize, list.length);
+          moreButton.remove();
+          appendChunk();
+        });
+        grid.appendChild(moreButton);
+      }
     }
   };
   appendChunk();
@@ -1119,14 +1152,16 @@ async function initAds() {
   let activeAdIndex = 0;
   const adLink = document.getElementById('flux-ad-link');
   const adImage = document.getElementById('flux-ad-image');
-  setInterval(() => {
-    activeAdIndex = (activeAdIndex + 1) % adSlides.length;
-    const ad = adSlides[activeAdIndex];
-    adLink.href = ad.href;
-    adLink.setAttribute('aria-label', ad.alt);
-    adImage.src = ad.image;
-    adImage.alt = ad.alt;
-  }, 5000);
+  if (!isLowPerformanceMode()) {
+    setInterval(() => {
+      activeAdIndex = (activeAdIndex + 1) % adSlides.length;
+      const ad = adSlides[activeAdIndex];
+      adLink.href = ad.href;
+      adLink.setAttribute('aria-label', ad.alt);
+      adImage.src = ad.image;
+      adImage.alt = ad.alt;
+    }, 5000);
+  }
 
   document.getElementById('ad-close-btn').addEventListener('click', () => showNoAdsModal());
 }
@@ -1244,6 +1279,7 @@ function bootFlux() {
   initUpdateNotification();
   if (window.hideGlobalLoader) window.hideGlobalLoader();
 
+  const lowPerformanceMode = isLowPerformanceMode();
   const fastBoot = (() => { try { return localStorage.getItem('flux_fast_boot') === '1'; } catch { return false; } })();
   const defer = (fn, timeout = 800) => {
     try {
@@ -1257,10 +1293,10 @@ function bootFlux() {
   const currentPage = (window.location.pathname.split('/').pop() || 'index.html').toLowerCase();
   if (hasGamesGrid) {
     renderGames(getCatalogGames());
-    initializeServerRuntime(getCatalogGames()).then(() => applyFilters());
+    if (!lowPerformanceMode) initializeServerRuntime(getCatalogGames()).then(() => applyFilters());
   }
   // Load live catalogs on the Games page and homepage after the first paint.
-  if (hasGamesGrid || ['index.html', ''].includes(currentPage)) defer(() => loadExternalCatalogs(), 1200);
+  if (hasGamesGrid || ['index.html', ''].includes(currentPage)) defer(() => loadExternalCatalogs(), lowPerformanceMode ? 2200 : 1200);
   setTimeout(showCatalogLoadedToast, 250);
   setTimeout(showLibraryUpgradeAnnouncement, 650);
 
@@ -1268,21 +1304,24 @@ function bootFlux() {
     document.getElementById('quick-search').addEventListener('input', debounce(applyFilters, 120));
   }
 
+  // Keep live safety/communication listeners, but skip optional polling and visual extras in Low Performance mode.
   // Non-critical boot work (delay more aggressively in Fast Boot)
-  const base = fastBoot ? 2200 : 1200;
-  defer(() => initFirestoreHealthCheck(), base);
+  const base = lowPerformanceMode ? 2400 : (fastBoot ? 2200 : 1200);
+  if (!lowPerformanceMode) defer(() => initFirestoreHealthCheck(), base);
   defer(() => initIncidentBanner(), base);
-  defer(() => initStatsButton(), base);
+  if (!lowPerformanceMode) defer(() => initStatsButton(), base);
   defer(() => initPresence(), base);
   defer(() => initServerStatus(), base + 200);
   defer(() => initBroadcast(), base + 200);
-  defer(() => initChaos(), base + 400);
-  defer(() => initJumpscare(), base + 400);
-  defer(() => trackDailyVisitor(), base + 600);
-  defer(() => injectBuildNumber(), base + 800);
-  defer(() => initHomeUpdatePanel(), base + 700);
-  defer(() => showSocialBanner(), base + 900);
-  defer(() => initAIPicker(), base + 1000);
+  if (!lowPerformanceMode) {
+    defer(() => initChaos(), base + 400);
+    defer(() => initJumpscare(), base + 400);
+    defer(() => trackDailyVisitor(), base + 600);
+    defer(() => injectBuildNumber(), base + 800);
+    defer(() => initHomeUpdatePanel(), base + 700);
+    defer(() => showSocialBanner(), base + 900);
+    defer(() => initAIPicker(), base + 1000);
+  }
   defer(() => initMobileWarning(), base + 1100);
   defer(() => initAds(), base + 1400);
 
@@ -1324,12 +1363,20 @@ function bootFlux() {
     loadCloudFavs().then(async cloud => {
       if (cloud !== null) { _favsCache = cloud; saveLocalFavs(cloud); }
       try {
-        const [stats, hotGame, pricing, unlocked] = await Promise.all([
-          fetchAllGameStats(), fetchHotGame(), fetchGamePricing(), getUnlockedGames()
-        ]);
+        let stats = {};
+        let hotGame = null;
+        let pricing;
+        let unlocked;
+        if (lowPerformanceMode) {
+          [pricing, unlocked] = await Promise.all([fetchGamePricing(), getUnlockedGames()]);
+        } else {
+          [stats, hotGame, pricing, unlocked] = await Promise.all([
+            fetchAllGameStats(), fetchHotGame(), fetchGamePricing(), getUnlockedGames()
+          ]);
+        }
         _allGameStats = stats || {};
         if (hotGame) _hotGameId = hotGame.id;
-        getCatalogGames().forEach(g => { _newGameCache[g.id] = g.addedAt || _allGameStats[g.id]?.firstSeen || null; });
+        if (!lowPerformanceMode) getCatalogGames().forEach(g => { _newGameCache[g.id] = g.addedAt || _allGameStats[g.id]?.firstSeen || null; });
         Object.assign(_gamePricing, pricing || {});
         window._fluxGamePricing = _gamePricing;
         _unlockedGames = unlocked || [];
@@ -1341,8 +1388,49 @@ function bootFlux() {
   }, base + 600);
 }
 
+function initBackToTopButton() {
+  if (document.getElementById('flux-back-to-top')) return;
+  const button = document.createElement('button');
+  button.id = 'flux-back-to-top';
+  button.type = 'button';
+  button.textContent = '↑ Back to top';
+  button.setAttribute('aria-label', 'Back to top');
+  button.hidden = true;
+  button.style.cssText = 'position:fixed;left:18px;bottom:calc(18px + env(safe-area-inset-bottom, 0px));z-index:9000;border:1px solid rgba(58,125,255,0.35);border-radius:999px;padding:10px 15px;background:var(--panel,#fff);color:var(--text,#111827);font:700 13px/1.2 "DM Sans",sans-serif;box-shadow:0 4px 16px rgba(0,0,0,0.16);cursor:pointer;';
+  let scrollingToTop = false;
+  button.addEventListener('click', () => {
+    scrollingToTop = true;
+    window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    button.hidden = true;
+  });
+  document.body.appendChild(button);
+
+  let previousY = window.scrollY;
+  let hasScrolledDown = false;
+  let framePending = false;
+  window.addEventListener('scroll', () => {
+    if (framePending) return;
+    framePending = true;
+    requestAnimationFrame(() => {
+      framePending = false;
+      const currentY = window.scrollY;
+      if (currentY > previousY + 2) {
+        scrollingToTop = false;
+        hasScrolledDown = true;
+        button.hidden = true;
+      } else if (!scrollingToTop && hasScrolledDown && currentY < previousY - 2 && currentY > 240) {
+        button.hidden = false;
+      }
+      if (currentY <= 240) { button.hidden = true; scrollingToTop = false; }
+      previousY = currentY;
+    });
+  }, { passive: true });
+}
+
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bootFlux);
 else bootFlux();
+if (document.body) initBackToTopButton();
+else document.addEventListener('DOMContentLoaded', initBackToTopButton, { once: true });
 
 /* ===================== MOBILE WARNING ===================== */
 function initMobileWarning() {
