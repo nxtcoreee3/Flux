@@ -242,6 +242,15 @@ function trustedHttpsUrl(value, allowedHosts) {
   } catch { return ''; }
 }
 
+function compactDescription(value, limit = 350) {
+  const text = String(value || '').trim();
+  if (text.length <= limit) return { text, hasMore: false };
+  let cut = text.slice(0, limit - 1);
+  const lastSpace = cut.lastIndexOf(' ');
+  if (lastSpace > limit * 0.82) cut = cut.slice(0, lastSpace);
+  return { text: `${cut.trimEnd()}…`, hasMore: true };
+}
+
 export async function loadGameArterCatalog() {
   const pageSize = 200;
   const first = await fetchCatalogJson(`${GAMEARTER_API}?limit=${pageSize}&offset=0`);
@@ -256,7 +265,9 @@ export async function loadGameArterCatalog() {
     title: game.name,
     thumb: trustedHttpsUrl(game.thumbnail, ['www.gamearter.com']),
     url: `https://www.gamearter.com/game/${encodeURIComponent(game.slug)}/`,
-    desc: game.description || `Play ${game.name} on GameArter.`,
+    desc: `Play ${game.name} on GameArter.`,
+    descriptionMayContinue: true,
+    providerGameSlug: game.slug,
     provider: 'gamearter',
     categories: game.genres || game.categories || [],
     launchMode: 'iframe',
@@ -275,18 +286,43 @@ export async function loadGamePixCatalog() {
     if (result.status !== 'success' || !Array.isArray(result.data)) throw new Error('GamePix returned an invalid catalog response');
     const fresh = result.data.filter(game => game.id && !seenIds.has(String(game.id)));
     fresh.forEach(game => seenIds.add(String(game.id)));
-    games.push(...fresh);
+    games.push(...fresh.filter(game => game.title && game.url).map(game => {
+      const description = compactDescription(game.description || game.desc_en || '');
+      return {
+        id: `gamepix-${game.id}`,
+        title: String(game.title).trim(),
+        thumb: trustedHttpsUrl(game.thumbnailUrl || game.thumbnailUrl100, ['games.assets.gamepix.com']),
+        url: trustedHttpsUrl(game.url, ['play.gamepix.com']),
+        desc: description.text,
+        descriptionMayContinue: description.hasMore,
+        providerGameId: String(game.id),
+        provider: 'gamepix',
+        categories: [...new Set([game.category, ...(Array.isArray(game.categories) ? game.categories : [])].filter(Boolean).map(category => String(category).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')))],
+        launchMode: 'iframe',
+      };
+    }).filter(game => game.url));
     if (result.data.length && fresh.length === 0) break;
     if (result.data.length < pageSize) break;
   }
-  return games.filter(game => game.id && game.title && game.url).map(game => ({
-    id: `gamepix-${game.id}`,
-    title: String(game.title).trim(),
-    thumb: trustedHttpsUrl(game.thumbnailUrl || game.thumbnailUrl100, ['games.assets.gamepix.com']),
-    url: trustedHttpsUrl(game.url, ['play.gamepix.com']),
-    desc: game.description || game.desc_en || '',
-    provider: 'gamepix',
-    categories: [...new Set([game.category, ...(Array.isArray(game.categories) ? game.categories : [])].filter(Boolean).map(category => String(category).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')))],
-    launchMode: 'iframe',
-  })).filter(game => game.url);
+  return games;
+}
+
+export async function loadFullProviderDescription(game) {
+  if (!game) return '';
+  if (game.fullDescription) return game.fullDescription;
+  let full = '';
+  if (game.provider === 'gamearter' && game.providerGameSlug) {
+    const detail = await fetchCatalogJson(`${GAMEARTER_API}/${encodeURIComponent(game.providerGameSlug)}`);
+    full = detail.description || '';
+  } else if (game.provider === 'gamepix' && game.providerGameId) {
+    const params = new URLSearchParams({ sid: String(window.FLUX_GAMEPIX_SID || ''), gid: game.providerGameId });
+    const result = await fetchCatalogJson(`https://games.gamepix.com/game?${params.toString()}`);
+    full = result?.data?.description || result?.data?.desc_en || '';
+  }
+  if (full) {
+    game.fullDescription = String(full).trim();
+    game.desc = game.fullDescription;
+    return game.fullDescription;
+  }
+  return game.desc || '';
 }

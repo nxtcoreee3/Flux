@@ -738,6 +738,16 @@ function createCard(game) {
   const finalPrice = activeDiscount > 0 ? Math.round(pricing.price * (1 - activeDiscount / 100)) : (pricing.price || 0);
   const isLocked = !unavailable && !checking && finalPrice > 0 && !_unlockedGames.includes(game.id);
   const favorite = isFav(game.id, game);
+  const rawCardDescription = String(game.desc || '').trim();
+  const descriptionHasMore = Boolean(game.descriptionMayContinue) || rawCardDescription.length > 350;
+  let cardDescription = rawCardDescription;
+  if (cardDescription.length > 350) {
+    cardDescription = cardDescription.slice(0, 349);
+    const lastSpace = cardDescription.lastIndexOf(' ');
+    if (lastSpace > 287) cardDescription = cardDescription.slice(0, lastSpace);
+    cardDescription = `${cardDescription.trimEnd()}…`;
+  }
+  const safeCardDescription = cardDescription.replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 
   const compatBadge = compat === 'ipad'
     ? '<span class="compat-badge" data-tip="📱 Touchscreen compatible — works great on iPad and touch devices">📱 iPad</span>'
@@ -769,9 +779,9 @@ function createCard(game) {
     ${lockOverlay}
     ${isModLocked && !isOwnerView ? `<div class="card-modlock-overlay" style="position:absolute;inset:0;z-index:5;background:rgba(239,68,68,0.15);border-radius:inherit;border:2px solid rgba(239,68,68,0.4);pointer-events:none;"></div>` : ''}
     <img class="thumb" src="${game.thumb}" alt="${game.title} thumbnail" loading="lazy" style="${isModLocked && !isOwnerView ? 'opacity:0.45;filter:grayscale(0.3);' : ''}">
-    <div class="card-body" style="cursor:pointer;${isModLocked && !isOwnerView ? 'opacity:0.5;' : ''}" title="View details">
+    <div class="card-body" style="cursor:pointer;${isModLocked && !isOwnerView ? 'opacity:0.5;' : ''}" title="Open game details and full description">
       <h3 class="title">${game.title}</h3>
-      <div class="meta">${game.desc || ''}</div>
+      <div class="meta">${safeCardDescription}${descriptionHasMore ? ' <span style="color:var(--accent);font-weight:600;">Open card for full description</span>' : ''}</div>
       <div style="display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap;">
         ${compatBadge}
         ${renderServerAvailabilityBadge(game)}
@@ -2548,7 +2558,7 @@ async function openGameDetail(game) {
         </div>
         <div>
           <div style="font-size:11px;font-weight:700;color:var(--muted,#6b7280);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">About this game</div>
-          <div id="gd-ai-desc" style="font-size:14px;color:var(--text,#111);line-height:1.7;background:var(--bg,#f9fafb);border-radius:12px;padding:14px 16px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));">${game.desc} <span style="color:var(--muted,#9ca3af);font-size:12px;">✨ Enhancing...</span></div>
+          <div id="gd-ai-desc" style="font-size:14px;color:var(--text,#111);line-height:1.7;background:var(--bg,#f9fafb);border-radius:12px;padding:14px 16px;border:1px solid var(--glass-border,rgba(0,0,0,0.07));">${['gamearter', 'gamepix'].includes(game.provider) ? 'Loading full description…' : game.desc}</div>
         </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
           ${isModLocked && !isOwnerView
@@ -2622,7 +2632,19 @@ async function openGameDetail(game) {
     else { msg.style.color = '#ef4444'; msg.textContent = r.error; }
   });
 
-  getAiGameDescription(game).then(desc => { const el = document.getElementById('gd-ai-desc'); if (el) el.textContent = desc; });
+  const descriptionElement = document.getElementById('gd-ai-desc');
+  if (['gamearter', 'gamepix'].includes(game.provider)) {
+    if (game.descriptionMayContinue) {
+      import('./external-games.js')
+        .then(module => module.loadFullProviderDescription(game))
+        .then(description => { if (descriptionElement && overlay.isConnected) descriptionElement.textContent = description || game.desc || 'No description available.'; })
+        .catch(() => { if (descriptionElement && overlay.isConnected) descriptionElement.textContent = game.desc || 'Full description is unavailable right now.'; });
+    } else if (descriptionElement) {
+      descriptionElement.textContent = game.desc || 'No description available.';
+    }
+  } else {
+    getAiGameDescription(game).then(desc => { const el = document.getElementById('gd-ai-desc'); if (el) el.textContent = desc; });
+  }
   loadDetailReviews(game.id);
 }
 
