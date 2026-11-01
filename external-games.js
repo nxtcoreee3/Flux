@@ -226,11 +226,67 @@ export const ZAPGAMES = Object.freeze([
 ]);
 
 
-// Provider portals are listed as launch cards. Each site controls its own
-// game catalog and launch experience; Flux does not mirror their game metadata.
-export const PROVIDER_PORTALS = Object.freeze([
-  { id: 'portal-spelo', title: 'Spelo.se', thumb: 'assets/thumbnail.png', url: 'https://www.spelo.se', desc: 'Browse the game collection on Spelo.se.', provider: 'spelo', launchMode: 'link' },
-  { id: 'portal-coolmath', title: 'Coolmath Games', thumb: 'assets/thumbnail.png', url: 'https://www.coolmathgames.com', desc: 'Browse the game collection on Coolmath Games.', provider: 'coolmath', launchMode: 'link' },
-  { id: 'portal-addicting', title: 'Addicting Games', thumb: 'assets/thumbnail.png', url: 'https://www.addictinggames.com', desc: 'Browse the game collection on Addicting Games.', provider: 'addicting', launchMode: 'link' },
-  { id: 'portal-playhop', title: 'Playhop', thumb: 'assets/thumbnail.png', url: 'https://playhop.com', desc: 'Browse the game collection on Playhop.', provider: 'playhop', launchMode: 'link' },
-]);
+const GAMEARTER_API = 'https://www.gamearter.com/api/v1/catalog/games';
+const GAMEPIX_API = 'https://games.gamepix.com/games';
+
+async function fetchCatalogJson(url) {
+  const response = await fetch(url, { mode: 'cors', credentials: 'omit' });
+  if (!response.ok) throw new Error(`Catalog request failed (${response.status})`);
+  return response.json();
+}
+
+function trustedHttpsUrl(value, allowedHosts) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && allowedHosts.includes(url.hostname) ? url.href : '';
+  } catch { return ''; }
+}
+
+export async function loadGameArterCatalog() {
+  const pageSize = 200;
+  const first = await fetchCatalogJson(`${GAMEARTER_API}?limit=${pageSize}&offset=0`);
+  const pages = [first];
+  const pageCount = Math.ceil(Number(first.total || 0) / pageSize);
+  for (let start = 1; start < pageCount; start += 4) {
+    const batch = Array.from({ length: Math.min(4, pageCount - start) }, (_, index) => start + index);
+    pages.push(...await Promise.all(batch.map(page => fetchCatalogJson(`${GAMEARTER_API}?limit=${pageSize}&offset=${page * pageSize}`))));
+  }
+  return pages.flatMap(page => Array.isArray(page.games) ? page.games : []).filter(game => game.slug && game.name).map(game => ({
+    id: `gamearter-${game.slug}`,
+    title: game.name,
+    thumb: trustedHttpsUrl(game.thumbnail, ['www.gamearter.com']),
+    url: `https://www.gamearter.com/game/${encodeURIComponent(game.slug)}/`,
+    desc: game.description || `Play ${game.name} on GameArter.`,
+    provider: 'gamearter',
+    categories: game.genres || game.categories || [],
+    launchMode: 'iframe',
+  }));
+}
+
+export async function loadGamePixCatalog() {
+  const pageSize = 1000;
+  // Set window.FLUX_GAMEPIX_SID to the publisher SID supplied by GamePix when available.
+  const sid = String(window.FLUX_GAMEPIX_SID || '');
+  const games = [];
+  const seenIds = new Set();
+  for (let offset = 0; offset < 100000; offset += pageSize) {
+    const params = new URLSearchParams({ sid, limit: String(pageSize), offset: String(offset) });
+    const result = await fetchCatalogJson(`${GAMEPIX_API}?${params.toString()}`);
+    if (result.status !== 'success' || !Array.isArray(result.data)) throw new Error('GamePix returned an invalid catalog response');
+    const fresh = result.data.filter(game => game.id && !seenIds.has(String(game.id)));
+    fresh.forEach(game => seenIds.add(String(game.id)));
+    games.push(...fresh);
+    if (result.data.length && fresh.length === 0) break;
+    if (result.data.length < pageSize) break;
+  }
+  return games.filter(game => game.id && game.title && game.url).map(game => ({
+    id: `gamepix-${game.id}`,
+    title: String(game.title).trim(),
+    thumb: trustedHttpsUrl(game.thumbnailUrl || game.thumbnailUrl100, ['games.assets.gamepix.com']),
+    url: trustedHttpsUrl(game.url, ['play.gamepix.com']),
+    desc: game.description || game.desc_en || '',
+    provider: 'gamepix',
+    categories: [...new Set([game.category, ...(Array.isArray(game.categories) ? game.categories : [])].filter(Boolean).map(category => String(category).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')))],
+    launchMode: 'iframe',
+  })).filter(game => game.url);
+}

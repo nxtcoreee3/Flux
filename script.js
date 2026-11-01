@@ -87,20 +87,24 @@ if (isNewOfficial) {
 import { initAuthUI, initBetaShell, loadCloudFavs, saveCloudFavs, flushPendingCloudFavs, syncProfileFavs, syncProfileRecents, initPresence, initStatsButton, trackDailyVisitor, initServerStatus, initBroadcast, initChaos, initJumpscare, initCookieConsent, trackLoginStreak, trackTimeOnSite, trackGamePlay, fetchHotGame, fetchGameFirstSeen, fetchAllGameStats, setCurrentlyPlaying, clearCurrentlyPlaying, rateGame, getUserRating, reportGame, checkFirestoreHealth, fetchGameDetail, getAiGameDescription, getGameReviews, submitReview, addReviewComment, likeReview, deleteReview, fetchGamePricing, getUnlockedGames, unlockGame, SPIN_SEGMENTS, getLastSpin, spinWheel, giftPointsToUser, redeemCode, createRewardCode, getRewardCodes, deactivateRewardCode, initIncidentBanner, setServiceStatus, autoCheckServiceHealth, setIncidentBanner, subscribeToServiceHealth, checkNoAds, purchaseNoAds, NO_ADS_COST, setGameLockdown, initUpdateNotification } from './firebase-auth.js';
 import { SERVER_PROFILES, getSelectableServerProfiles, getActiveServer, getActiveServerId, setActiveServer, getLocalLibraryState, getGameAvailability, getRepositoryGameFolder, isGameAvailable, getGameLaunchUrl, initializeServerRuntime, isProviderBlacklisted, getAvailableExternalProviders } from './server-config.js';
 
-// Keep the large third-party catalog bundles off the critical path. They are
-// loaded only on pages that actually render the Games catalog.
+// Keep live third-party catalogs off the initial render path; load them after
+// the page paints so the existing Flux library appears immediately.
 let ZAPGAMES = [];
-let PROVIDER_PORTALS = [];
+let GAMEARTER = [];
+let GAMEPIX = [];
 let externalCatalogPromise = null;
 
 async function loadExternalCatalogs() {
   if (externalCatalogPromise) return externalCatalogPromise;
   externalCatalogPromise = import('./external-games.js').then(async module => {
     ZAPGAMES = module.ZAPGAMES || [];
-    PROVIDER_PORTALS = module.PROVIDER_PORTALS || [];
-    window.dispatchEvent(new CustomEvent('flux-external-catalog-loaded', { detail: { provider: 'all', count: ZAPGAMES.length + PROVIDER_PORTALS.length } }));
-    return { ZAPGAMES, PROVIDER_PORTALS };
-  }).catch(() => ({ ZAPGAMES, PROVIDER_PORTALS }));
+    const [arter, pix] = await Promise.allSettled([module.loadGameArterCatalog(), module.loadGamePixCatalog()]);
+    GAMEARTER = arter.status === 'fulfilled' ? arter.value : [];
+    GAMEPIX = pix.status === 'fulfilled' ? pix.value : [];
+    const count = ZAPGAMES.length + GAMEARTER.length + GAMEPIX.length;
+    window.dispatchEvent(new CustomEvent('flux-external-catalog-loaded', { detail: { provider: 'all', count, providers: { zapgames: ZAPGAMES.length, gamearter: GAMEARTER.length, gamepix: GAMEPIX.length } } }));
+    return { ZAPGAMES, GAMEARTER, GAMEPIX };
+  }).catch(() => ({ ZAPGAMES, GAMEARTER, GAMEPIX }));
   return externalCatalogPromise;
 }
 
@@ -415,8 +419,7 @@ function mergeDuplicateGames(games) {
 }
 
 function getCatalogGames() {
-  const providerCatalogs = { zapgames: ZAPGAMES, spelo: [], coolmath: [], addicting: [], playhop: [] };
-  for (const portal of PROVIDER_PORTALS) (providerCatalogs[portal.provider] ||= []).push(portal);
+  const providerCatalogs = { zapgames: ZAPGAMES, gamearter: GAMEARTER, gamepix: GAMEPIX };
   const activeId = getActiveServerId();
   const externalGames = getAvailableExternalProviders().flatMap(provider =>
     (providerCatalogs[provider.id] || []).map(game => ({ ...game, sourceServer: 'external', catalogProvider: provider.id }))
@@ -464,6 +467,11 @@ window.addEventListener('flux-external-provider-changed', () => {
   if (document.getElementById('game-grid') || document.getElementById('games-grid')) applyFilters();
 });
 window.addEventListener('flux-external-catalog-loaded', event => {
+  const liveCount = document.getElementById('flux-live-game-count');
+  const availableCount = document.getElementById('flux-available-game-count');
+  const uniqueTotal = mergeDuplicateGames([...GAMES, ...ZAPGAMES, ...GAMEARTER, ...GAMEPIX]).length;
+  if (liveCount) liveCount.textContent = uniqueTotal.toLocaleString();
+  if (availableCount) availableCount.textContent = uniqueTotal.toLocaleString();
   if (document.getElementById('game-grid') || document.getElementById('games-grid')) {
     applyFilters();
     showCatalogLoadedToast();
@@ -592,7 +600,7 @@ function showCatalogLoadedToast() {
   showToast(`Successfully loaded ${getCatalogGames().length} games`, 'success');
 }
 
-const LIBRARY_UPGRADE_NOTICE_KEY = 'flux_provider_portals_notice_v2';
+const LIBRARY_UPGRADE_NOTICE_KEY = 'flux_live_catalog_notice_v3';
 
 function showLibraryUpgradeAnnouncement() {
   const page = (window.location.pathname.split('/').pop() || 'index.html').toLowerCase();
@@ -607,13 +615,13 @@ function showLibraryUpgradeAnnouncement() {
     <section role="dialog" aria-modal="true" aria-labelledby="flux-library-upgrade-title" style="position:relative;width:min(520px,100%);overflow:hidden;border:1px solid rgba(255,255,255,0.45);border-radius:24px;background:linear-gradient(145deg,#ffffff 0%,#eef5ff 100%);box-shadow:0 30px 90px rgba(15,23,42,0.3);color:#111827;padding:30px 28px 26px;text-align:center;">
       <button id="flux-library-upgrade-close" aria-label="Dismiss announcement" style="position:absolute;top:12px;right:14px;border:0;background:transparent;color:#64748b;font-size:22px;line-height:1;cursor:pointer;padding:4px 8px;">×</button>
       <div style="font-size:42px;line-height:1;margin-bottom:12px;">🚀</div>
-      <div style="display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 11px;background:rgba(58,125,255,0.12);color:#2563eb;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;">New game providers</div>
-      <h2 id="flux-library-upgrade-title" style="margin:12px 0 8px;font-family:'Bebas Neue',sans-serif;font-size:34px;letter-spacing:.5px;color:#0f172a;">Discover four new game sites.</h2>
-      <p style="margin:0 auto 18px;max-width:410px;color:#475569;font-size:14px;line-height:1.55;">Famobi has been removed. Explore games from <strong>Spelo.se, Coolmath Games, Addicting Games, and Playhop</strong> alongside the existing ZapGames catalog.</p>
+      <div style="display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 11px;background:rgba(58,125,255,0.12);color:#2563eb;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;">Expanded game library</div>
+      <h2 id="flux-library-upgrade-title" style="margin:12px 0 8px;font-family:'Bebas Neue',sans-serif;font-size:34px;letter-spacing:.5px;color:#0f172a;">Thousands of games. One place to play.</h2>
+      <p style="margin:0 auto 18px;max-width:410px;color:#475569;font-size:14px;line-height:1.55;">Explore playable titles from <strong>GameArter, GamePix, and ZapGames</strong>. Their game catalogs load directly into Flux and open in the in-game player.</p>
       <div style="display:flex;justify-content:center;align-items:center;gap:12px;margin:0 auto 20px;max-width:360px;">
-        <div style="flex:1;padding:12px 8px;border-radius:14px;background:rgba(148,163,184,0.14);"><strong style="display:block;font-size:25px;color:#64748b;">1</strong><span style="font-size:11px;color:#64748b;">previous provider</span></div>
+        <div style="flex:1;padding:12px 8px;border-radius:14px;background:rgba(148,163,184,0.14);"><strong style="display:block;font-size:25px;color:#64748b;">${GAMES.length}</strong><span style="font-size:11px;color:#64748b;">built-in games</span></div>
         <span style="font-size:22px;color:#3a7dff;font-weight:900;">→</span>
-        <div style="flex:1;padding:12px 8px;border-radius:14px;background:rgba(58,125,255,0.13);"><strong style="display:block;font-size:25px;color:#2563eb;">4</strong><span style="font-size:11px;color:#2563eb;">new sites</span></div>
+        <div style="flex:1;padding:12px 8px;border-radius:14px;background:rgba(58,125,255,0.13);"><strong id="flux-available-game-count" style="display:block;font-size:25px;color:#2563eb;">Loading…</strong><span style="font-size:11px;color:#2563eb;">games with providers</span></div>
       </div>
       <p style="margin:0 0 20px;color:#475569;font-size:13px;line-height:1.5;"><strong>Open Settings</strong> to choose which external catalogs to include, then select External Cloud Gaming to browse them.</p>
       <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
@@ -1235,12 +1243,14 @@ function bootFlux() {
   };
 
   // Render immediately so the page never feels empty
-  if (document.getElementById('game-grid') || document.getElementById('games-grid')) {
+  const hasGamesGrid = !!(document.getElementById('game-grid') || document.getElementById('games-grid'));
+  const currentPage = (window.location.pathname.split('/').pop() || 'index.html').toLowerCase();
+  if (hasGamesGrid) {
     renderGames(getCatalogGames());
     initializeServerRuntime(getCatalogGames()).then(() => applyFilters());
-    // Fetch the large external catalogs only after the initial UI has painted.
-    defer(() => loadExternalCatalogs(), 1200);
   }
+  // Load live catalogs on the Games page and homepage after the first paint.
+  if (hasGamesGrid || ['index.html', ''].includes(currentPage)) defer(() => loadExternalCatalogs(), 1200);
   setTimeout(showCatalogLoadedToast, 250);
   setTimeout(showLibraryUpgradeAnnouncement, 650);
 
