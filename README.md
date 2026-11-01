@@ -45,7 +45,7 @@ TikTok
 https://tiktok.com/@nxtcoreee3
 
 Instagram
-https://instagram.com/nxtcoreee3
+https://instagram.com/pwn.nxtcoreee3
 
 GitHub
 https://github.com/nxtcoreee3
