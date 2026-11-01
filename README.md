@@ -11,9 +11,9 @@ The project is designed to be minimal and easy to expand, allowing new games to 
 
 Flux itself does not host the games directly.
 
-Instead, the games are hosted on separate GitHub Pages sites. Flux works as a directory that links to those hosted pages.
+Instead, the games are hosted on separate endpoints. Flux works as a directory that links to those hosted pages.
 
-When a user presses Play, they are redirected to the page where the game is hosted and can immediately start playing in their browser.
+When a user presses Play, they are redirected to the endpoint where the game is hosted and can immediately start playing in their browser.
 
 ⸻
 
