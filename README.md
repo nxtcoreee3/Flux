@@ -9,7 +9,7 @@ The project is designed to be minimal and easy to expand, allowing new games to 
 
 # How Flux Works
 
-Flux itself does not host the games directly.
+Flux itself does not host the games directly. (Unless you use Local Library)
 
 Instead, the games are hosted on separate endpoints. Flux works as a directory that links to those hosted pages.
 
